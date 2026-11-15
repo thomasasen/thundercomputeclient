@@ -30,6 +30,10 @@ public sealed class MainViewModel : Bindable, IDisposable
     private readonly string _lockDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThunderClient");
     private bool _busy;
+    private bool _autoDeploymentRunning;
+    private bool _autoComfyReady;
+    private CancellationTokenSource? _autoDeploymentCancel;
+    private string _autoDeploymentStatus = "Noch nicht gestartet · ein Knopfdruck erstellt den Pod und startet den bestehenden parallelen Bootstrap.";
     private string _message = "Noch nicht verbunden";
     private string _readinessSummary = "Noch keine Systemprüfung durchgeführt. Der Test wird nur auf Klick gestartet.";
     private bool _readinessRunning;
@@ -64,11 +68,14 @@ public sealed class MainViewModel : Bindable, IDisposable
     public ObservableCollection<SetupCheck> SystemChecks { get; } = SystemReadinessService.CreateChecks();
 
     public event Action? PodCreated;
+    public event Action? DeploymentLogsRequested;
     public RelayCommand ApplyHardwareGuidanceCommand { get; }
     public AsyncCommand SyncCommand { get; }
     public AsyncCommand RunSystemChecksCommand { get; }
     public AsyncCommand RefreshInstancesCommand { get; }
     public AsyncCommand CreateCommand { get; }
+    public AsyncCommand AutoDeployCommand { get; }
+    public RelayCommand CancelAutoDeploymentCommand { get; }
     public AsyncCommand BootstrapCommand { get; }
     public AsyncCommand HardwareCommand { get; }
     public AsyncCommand SshTerminalCommand { get; }
@@ -109,6 +116,8 @@ public sealed class MainViewModel : Bindable, IDisposable
         RunSystemChecksCommand = New(RunSystemChecksAsync);
         RefreshInstancesCommand = New(() => RefreshInstancesAsync());
         CreateCommand = New(CreateAsync);
+        AutoDeployCommand = New(AutoDeployAsync);
+        CancelAutoDeploymentCommand = new RelayCommand(CancelAutoDeployment);
         BootstrapCommand = New(BootstrapAsync);
         HardwareCommand = New(HardwareAsync);
         SshTerminalCommand = New(OpenTerminalAsync);
@@ -136,8 +145,33 @@ public sealed class MainViewModel : Bindable, IDisposable
     public bool Busy
     {
         get => _busy;
-        private set { if (Set(ref _busy, value)) OnPropertyChanged(nameof(CanCreatePod)); }
+        private set
+        {
+            if (Set(ref _busy, value))
+            {
+                OnPropertyChanged(nameof(CanCreatePod));
+                OnPropertyChanged(nameof(CanAutoDeploy));
+            }
+        }
     }
+    public bool AutoDeploymentRunning
+    {
+        get => _autoDeploymentRunning;
+        private set
+        {
+            if (Set(ref _autoDeploymentRunning, value))
+            {
+                OnPropertyChanged(nameof(CanAutoDeploy));
+                OnPropertyChanged(nameof(CanCreatePod));
+            }
+        }
+    }
+    public string AutoDeploymentStatus
+    {
+        get => _autoDeploymentStatus;
+        private set => Set(ref _autoDeploymentStatus, value);
+    }
+    public bool CanAutoDeploy => CanContinueToHardware && !Busy && !AutoDeploymentRunning;
     public string Message { get => _message; private set => Set(ref _message, value); }
     public string ReadinessSummary { get => _readinessSummary; private set => Set(ref _readinessSummary, value); }
     public bool ReadinessRunning { get => _readinessRunning; private set => Set(ref _readinessRunning, value); }
@@ -196,7 +230,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public bool CanContinueToHardware => _snapshot is not null &&
         Workflows.Any(x => x.IsSelected) &&
         WorkflowCatalog.Estimate(Workflows.Where(x => x.IsSelected)).Collisions == 0;
-    public bool CanCreatePod => CanContinueToHardware && !Busy;
+    public bool CanCreatePod => CanContinueToHardware && !Busy && !AutoDeploymentRunning;
     public Task ReloadCatalogAsync() => SyncAsync();
     public async Task PrepareHardwareStepAsync()
     {
@@ -447,6 +481,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         StorageGuide = plan.StorageExplanation;
         OnPropertyChanged(nameof(CanContinueToHardware));
         OnPropertyChanged(nameof(CanCreatePod));
+        OnPropertyChanged(nameof(CanAutoDeploy));
         var size = WorkflowCatalog.Estimate(selected);
         var sizeLabel = size.TotalGb.HasValue ? $"{size.TotalGb:N2} GB" : "unvollständig";
         SelectionSummary = $"{selected.Length} Workflows · {size.TotalFiles} eindeutige Modelldateien · {sizeLabel}" +
@@ -546,8 +581,231 @@ public sealed class MainViewModel : Bindable, IDisposable
         SelectedSnapshot = Snapshots.FirstOrDefault();
     }
 
+    private void SetAutoDeploymentStage(string stage)
+    {
+        AutoDeploymentStatus = stage;
+        Log("[AUTO-DEPLOY] " + stage);
+    }
+
+    private void CancelAutoDeployment()
+    {
+        if (!AutoDeploymentRunning || _autoDeploymentCancel is null) return;
+        if (!_dialogs.Confirm("Automatische Bereitstellung unterbrechen",
+            "Die laufende SSH-/Downloadverbindung wird unterbrochen. " +
+            "Der Pod wird NICHT gelöscht und kann weiter Kosten verursachen. " +
+            "Remote-Prozess und Modelldateien müssen vor einem erneuten Start geprüft werden. Abbrechen?"))
+            return;
+        _autoDeploymentCancel.Cancel();
+    }
+
+    private void ObserveAutomaticBootstrapLine(string line)
+    {
+        // ProcessRunner invokes callbacks from a reader thread. WPF state must
+        // always be modified on the owning UI dispatcher.
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+        void Apply()
+        {
+            Log(line);
+            if (line.Contains("[DOWNLOAD-STATUS] START:", StringComparison.Ordinal) ||
+                line.Contains("[DOWNLOAD-STATUS] LAEUFT", StringComparison.Ordinal) ||
+                line.Contains("[DOWNLOAD-STATUS] FORTSCHRITT", StringComparison.Ordinal))
+                AutoDeploymentStatus = "Modelle und Nodes werden parallel eingerichtet (bis zu 4 Datei-Jobs, adaptive Providerlimits).";
+            if (line.Contains("ComfyUI startet auf Port 8188", StringComparison.Ordinal))
+                AutoDeploymentStatus = "Modelldownload-Phase durchlaufen · ComfyUI startet, HTTP-Bereitschaft wird geprüft.";
+            if (line.Contains("phase=comfyui_http_ready", StringComparison.Ordinal))
+            {
+                if (line.Contains("status=ok", StringComparison.Ordinal))
+                {
+                    _autoComfyReady = true;
+                    AutoDeploymentStatus = Downloads.Any(x => x.State == "FEHLER")
+                        ? "ComfyUI antwortet auf HTTP, aber mindestens ein Modelldownload ist fehlgeschlagen. Logs prüfen."
+                        : "ComfyUI antwortet auf HTTP · Pod bereit. Unter Instanzen über SSH-Tunnel öffnen.";
+                    Message = AutoDeploymentStatus;
+                }
+                else if (line.Contains("status=timeout", StringComparison.Ordinal))
+                    AutoDeploymentStatus = "ComfyUI ist noch nicht per HTTP bestätigt. Pod-Logs prüfen.";
+            }
+        }
+        if (dispatcher.CheckAccess()) Apply();
+        else dispatcher.BeginInvoke(Apply);
+    }
+
+    private async Task AutoDeployAsync()
+    {
+        if (AutoDeploymentRunning || Busy)
+            throw new InvalidOperationException("Eine andere Bereitstellung läuft bereits.");
+        if (_snapshot is null)
+            throw new InvalidOperationException("Privaten Workflow-Katalog unter Übersicht laden.");
+        var chosen = Workflows.Where(x => x.IsSelected).ToArray();
+        var plan = AutoProvisioning.Plan(chosen, _snapshot.Commit, GpuChoices.ToArray(),
+            GpuCount, DiskGb, Template, MaximumHourlyUsd);
+        var githubToken = _vault.Read("github");
+        if (string.IsNullOrWhiteSpace(githubToken))
+            throw new InvalidOperationException(
+                "GitHub-Lesetoken unter Zugangsdaten hinterlegen (privates Repository).");
+        var hfToken = _vault.Read("huggingface");
+        var civitaiToken = _vault.Read("civitai");
+        var adapter = _snapshot.BootstrapScript;
+        // A selected set and its adapter are frozen before the first awaited
+        // provider call; editing checkboxes during a running deploy cannot change it.
+        var workflowsCsv = string.Join(",", plan.WorkflowNames);
+
+        AutoDeploymentRunning = true;
+        _autoComfyReady = false;
+        _autoDeploymentCancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        var ct = _autoDeploymentCancel.Token;
+        string? podId = null;
+        try
+        {
+            SetAutoDeploymentStage("Prüfe vorhandene Thunder-Pods und die geplante Hardware.");
+            var existing = await _thunder.ListAsync(ct);
+            if (existing.Count > 1)
+                throw new InvalidOperationException(
+                    "Mehrere Pods vorhanden: automatische Zuordnung nicht eindeutig. " +
+                    "Pod in der Instanzverwaltung manuell auswählen. Es wird kein weiterer erstellt.");
+            var reuse = existing.Count == 1;
+            if (reuse)
+            {
+                var item = existing[0];
+                if (item.StorageGb > 0 && item.StorageGb < plan.DiskGb)
+                    throw new InvalidOperationException(
+                        "Bestehender Pod hat nur " + item.StorageGb +
+                        " GB Disk; für die gewählten Workflows sind " + plan.DiskGb +
+                        " GB geplant. Keine Installation auf zu kleiner Disk.");
+                if (item.Status is "STOPPED" or "TERMINATED" or "FAILED" or "ERROR")
+                    throw new InvalidOperationException(
+                        "Pod existiert, ist aber nicht nutzbar (" + item.Status +
+                        "). Kein automatischer neuer Create-Versuch.");
+                podId = item.Id;
+            }
+
+            var cost = plan.FirstHourlyEstimate;
+            var offer =
+                "Workflows: " + workflowsCsv + "\n" +
+                "Quelle: private GitHub-Revision " + plan.Revision[..12] + "\n" +
+                "Modelle (dedupliziert): " + plan.ModelGb.ToString("N2") + " GB\n" +
+                "Hardware: " + string.Join(" → ", plan.Candidates.Select(x =>
+                    x.Display + ", " + x.Vcpus + " vCPUs")) + "\n" +
+                "GPU-Anzahl: " + plan.GpuCount + "\n" +
+                "Gesamtdisk: " + plan.DiskGb + " GB · Template: " + plan.Template + "\n" +
+                "Erste GPU geschätzt: " + cost.ToString("N3") + " USD/h\n" +
+                "Rechnerisch für 1 / 4 / 12 Stunden: " +
+                    cost.ToString("N2") + " / " + (4 * cost).ToString("N2") +
+                    " / " + (12 * cost).ToString("N2") + " USD\n" +
+                "Maximale Schätzpreisgrenze: " + plan.MaxEstimatedHourlyUsd.ToString("N2") +
+                " USD/h (kein serverseitiges Kostenlimit)\n\n" +
+                plan.Warning + "\n\n" +
+                "Danach startet der Client automatisch den bestehenden Thunder-Bootstrap " +
+                "(bis zu 4 parallele Downloads), sobald SSH verifiziert ist. " +
+                "Die GUI muss für diese erste Version geöffnet bleiben. " +
+                "Ein unbekannter SSH-Fingerprint braucht deine separate Bestätigung.\n\n" +
+                (reuse
+                    ? "Ein Pod existiert bereits (ID " + podId + "). KEIN neuer Pod wird erstellt. " +
+                      "Auf diesem kostenpflichtigen Pod fortfahren?"
+                    : "Jetzt EINEN kostenpflichtigen Thunder-Pod erstellen und anschließend installieren?");
+            if (!_dialogs.Confirm(reuse ? "Bestehenden Pod automatisch einrichten"
+                    : "Pod automatisch erstellen und Modelle laden", offer))
+            {
+                AutoDeploymentStatus = "Abgebrochen · keine neue Aktion ausgeführt.";
+                return;
+            }
+
+            await SaveSettingsAsync();
+            Busy = true;
+            InstanceItem target;
+            if (reuse)
+            {
+                target = existing[0];
+                SetAutoDeploymentStage("Vorhandenen Pod " + target.Id +
+                    " verwenden. Keine zweite Instanz.");
+            }
+            else
+            {
+                SetAutoDeploymentStage("Erstelle genau einen Pod via Thunder-CLI · GPU-Fallback nur bei eindeutigem Kapazitätsfehler.");
+                target = await _thunder.CreateWithFallbackAsync(
+                    plan.Candidates, plan.GpuCount, plan.DiskGb, plan.Template,
+                    plan.MaxEstimatedHourlyUsd, _lockDirectory, Log, ct);
+                podId = target.Id;
+                SetAutoDeploymentStage("Pod " + podId + " wurde angelegt. Warte auf SSH-IP und Port.");
+            }
+
+            target = await AutoProvisioning.WaitForRunningSshAsync(target.Id,
+                c => _thunder.ListAsync(c),
+                (delay, c) => Task.Delay(delay, c),
+                line => Log("[AUTO-DEPLOY] " + line), ct: ct);
+
+            // Keep visible pod selection consistent with the status service.
+            await RefreshInstancesAsync(ct);
+            SelectedInstance = Instances.FirstOrDefault(x => x.Id == target.Id);
+            if (SelectedInstance is null)
+                throw new InvalidOperationException("Pod ist nicht mehr im Instanzstatus. Keine Neu-Erstellung.");
+            PodCreated?.Invoke();
+            DeploymentLogsRequested?.Invoke();
+            SetAutoDeploymentStage("SSH-Endpunkt bereit: authentifiziere Schlüssel und prüfe den Hostfingerprint.");
+            var ssh = await TrustedSshAsync(ct);
+            var probe = await _ssh.ProbeAuthenticationAsync(ssh, ct);
+            if (!probe.Success)
+                throw new InvalidOperationException(
+                    "SSH-Anmeldung fehlgeschlagen (Exitcode " + probe.ExitCode +
+                    "). Im Systemstatus SSH-Key, Netzwerk und bestätigten Hostfingerprint prüfen.");
+
+            if (await _ssh.IsComfyUiReadyAsync(ssh, ct))
+            {
+                AutoDeploymentStatus =
+                    "ComfyUI läuft auf diesem Pod bereits. Kein zweiter Bootstrap gestartet. " +
+                    "Ob alle aktuell gewählten Workflows installiert sind, muss separat geprüft werden.";
+                Message = AutoDeploymentStatus;
+                Log("[AUTO-DEPLOY] Bereits laufendes ComfyUI erkannt; keine Doppelinstallation.");
+                return;
+            }
+
+            Downloads.Clear();
+            DownloadSummary = "Warte auf die ersten Downloadereignisse des bestehenden Bootstrap.";
+            DownloadStatus = "Bootstrap startet · parallele HF-/Civitai-Downloads bis 4 Dateien.";
+            SetAutoDeploymentStage("Starte privaten Thunder-Bootstrap mit ausgewählten Workflows. " +
+                "Downloads laufen bereits während der Installation an.");
+            // Re-enable normal status refresh and management while the long-running
+            // ComfyUI process keeps this authenticated SSH stream open.
+            Busy = false;
+            var outcome = await _ssh.BootstrapAsync(ssh, adapter, workflowsCsv,
+                githubToken, hfToken, civitaiToken, ObserveAutomaticBootstrapLine, ct);
+            if (!outcome.Success)
+                throw new InvalidOperationException(
+                    "Bootstrap-/ComfyUI-Verbindung endete mit Exitcode " + outcome.ExitCode +
+                    ". Remote-Zustand und Downloadfehler prüfen; kein automatischer Neustart.");
+            AutoDeploymentStatus = _autoComfyReady
+                ? "ComfyUI war HTTP-bereit, der Remote-Prozess ist inzwischen beendet. Pod-Status prüfen."
+                : "SSH-Bootstrap ist beendet, aber HTTP-Bereitschaft nicht bestätigt. Logs prüfen.";
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            AutoDeploymentStatus = "Bereitstellung unterbrochen. " +
+                (podId is null ? "Es wurde noch kein Pod bestätigt."
+                    : "Pod " + podId + " kann weiter Kosten verursachen. Remote-Status vor Neustart prüfen.");
+            Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
+        }
+        catch (Exception ex)
+        {
+            AutoDeploymentStatus = "Bereitstellung gestoppt: " +
+                RedactKnownSecrets(ex.Message) +
+                (podId is null ? "" :
+                    " · Pod " + podId + " kann weiter Kosten verursachen; kein automatischer zweiter Create-Versuch.");
+            Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
+            throw;
+        }
+        finally
+        {
+            Busy = false;
+            AutoDeploymentRunning = false;
+            _autoDeploymentCancel?.Dispose();
+            _autoDeploymentCancel = null;
+        }
+    }
+
     private async Task CreateAsync()
     {
+        if (AutoDeploymentRunning)
+            throw new InvalidOperationException("Automatische Bereitstellung läuft. Keine zweite Instanz erstellen.");
         if (string.IsNullOrWhiteSpace(WorkflowNames))
             throw new InvalidOperationException("Mindestens einen Workflow auswählen.");
         var chosen = Workflows.Where(x => x.IsSelected).ToArray();
@@ -581,13 +839,14 @@ public sealed class MainViewModel : Bindable, IDisposable
         finally { Busy = false; }
     }
 
-    private async Task<SshConnection> TrustedSshAsync()
+    private async Task<SshConnection> TrustedSshAsync(CancellationToken ct = default)
     {
         var item = SelectedInstance ?? throw new InvalidOperationException("Zuerst eine Instanz auswählen.");
-        var endpoint = await _thunder.GetSshAsync(item, _shutdown.Token);
-        if (!await _ssh.HasKnownHostAsync(endpoint, _shutdown.Token))
+        var token = ct == default ? _shutdown.Token : ct;
+        var endpoint = await _thunder.GetSshAsync(item, token);
+        if (!await _ssh.HasKnownHostAsync(endpoint, token))
         {
-            var scan = await _ssh.ScanHostKeyAsync(endpoint, _shutdown.Token);
+            var scan = await _ssh.ScanHostKeyAsync(endpoint, token);
             if (!_dialogs.ApproveFingerprint(endpoint.Host, scan.Fingerprint))
                 throw new OperationCanceledException("SSH-Fingerprint nicht bestätigt.");
             _ssh.TrustHostKey(scan.KeyLine);
@@ -604,6 +863,8 @@ public sealed class MainViewModel : Bindable, IDisposable
 
     private async Task BootstrapAsync()
     {
+        if (AutoDeploymentRunning)
+            throw new InvalidOperationException("Automatische Bereitstellung läuft; Bootstrap nicht ein zweites Mal starten.");
         var selected = Workflows.Where(x => x.IsSelected).ToArray();
         if (selected.Length == 0) throw new InvalidOperationException("Workflows auswählen.");
         if (WorkflowCatalog.Estimate(selected).Collisions > 0)
@@ -678,6 +939,8 @@ public sealed class MainViewModel : Bindable, IDisposable
 
     private async Task DeleteInstanceAsync()
     {
+        if (AutoDeploymentRunning)
+            throw new InvalidOperationException("Bereitstellung läuft. Erst ausdrücklich abbrechen und den Remote-Zustand prüfen.");
         var instance = SelectedInstance ?? throw new InvalidOperationException("Instanz auswählen.");
         if (!_dialogs.Confirm("Instanz endgültig löschen",
             $"Instanz {instance.Id} löschen? Ohne fertigen Snapshot gehen Modelle und Outputs auf der Instanzdisk verloren. Zuerst Backup prüfen. Fortfahren?")) return;
@@ -782,6 +1045,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public void Dispose()
     {
         _shutdown.Cancel();
+        _autoDeploymentCancel?.Cancel();
         _ssh.StopTunnel();
         _readiness.Dispose();
         _github.Dispose();
