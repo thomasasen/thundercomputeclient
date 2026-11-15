@@ -128,6 +128,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string Hardware { get => _hardware; private set => Set(ref _hardware, value); }
     public string DownloadStatus { get => _downloadStatus; private set => Set(ref _downloadStatus, value); }
     public string DownloadSummary { get => _downloadSummary; private set => Set(ref _downloadSummary, value); }
+    public string LogText => string.Join(Environment.NewLine, LogLines);
     public string VersionStatus { get => _versionStatus; private set => Set(ref _versionStatus, value); }
     public string LastRefreshed { get => _lastRefreshed; private set => Set(ref _lastRefreshed, value); }
     public string GitTokenStatus { get => _gitTokenStatus; private set => Set(ref _gitTokenStatus, value); }
@@ -191,6 +192,10 @@ public sealed class MainViewModel : Bindable, IDisposable
             return $"Schätzung: {rate:N3} USD/h · Laufzeit {elapsed.Value.TotalHours:N1} h · ca. {rate * (decimal)Math.Max(0, elapsed.Value.TotalHours):N2} USD. Kein Abrechnungsstopp, keine Live-Preis-/Guthabenabfrage, ohne Snapshotkosten.";
         }
     }
+
+    public string RedactForCopy(string text) => RedactKnownSecrets(text);
+
+    public void ReportCopyStatus(string text) => Message = text;
 
     public void ReportStartupFailure(Exception exception)
     {
@@ -572,6 +577,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         {
             LogLines.Add(DateTime.Now.ToString("HH:mm:ss") + "  " + safe);
             while (LogLines.Count > 600) LogLines.RemoveAt(0);
+            OnPropertyChanged(nameof(LogText));
             if (safe.Contains("[DOWNLOAD-STATUS]", StringComparison.Ordinal)) DownloadStatus = safe;
             if (DownloadTracker.TryParse(safe, out var update) && update is not null)
             {

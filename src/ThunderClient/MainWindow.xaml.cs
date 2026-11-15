@@ -47,6 +47,9 @@ public partial class MainWindow : Window, IUserDialogs
     {
         if (Navigation.Items.Count != 7 || MainTabs.Items.Count != 7)
             throw new InvalidOperationException("Navigation und Inhalte sind nicht vollständig.");
+        if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
+            CopyStartupLogButton.Content is not "Startdiagnose kopieren")
+            throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
         for (var index = 0; index < MainTabs.Items.Count; index++)
         {
             MainTabs.SelectedIndex = index;
@@ -79,6 +82,49 @@ public partial class MainWindow : Window, IUserDialogs
             Filter = "Textdatei (*.txt)|*.txt"
         };
         if (picker.ShowDialog(this) == true) File.WriteAllText(picker.FileName, text);
+    }
+
+    private void CopyLog_Click(object sender, RoutedEventArgs e)
+    {
+        CopyTextToClipboard(_model.LogText, "Das Protokoll ist noch leer.", "Log in die Zwischenablage kopiert.");
+    }
+
+    private void CopyStartupLog_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!File.Exists(StartupDiagnostics.LogPath))
+            {
+                _model.ReportCopyStatus("Noch kein Startprotokoll vorhanden.");
+                return;
+            }
+            // Never put the original on disk log directly onto the clipboard.
+            var safeContent = _model.RedactForCopy(File.ReadAllText(StartupDiagnostics.LogPath));
+            CopyTextToClipboard(safeContent, "Das Startprotokoll ist leer.",
+                "Startdiagnose in die Zwischenablage kopiert.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _model.ReportCopyStatus("Startdiagnose konnte nicht gelesen werden.");
+        }
+    }
+
+    private void CopyTextToClipboard(string content, string emptyMessage, string successMessage)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            _model.ReportCopyStatus(emptyMessage);
+            return;
+        }
+        try
+        {
+            Clipboard.SetText(content);
+            _model.ReportCopyStatus(successMessage + " Vor dem Teilen auf persönliche Daten prüfen.");
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            _model.ReportCopyStatus("Zwischenablage ist gerade belegt. Bitte erneut versuchen.");
+        }
     }
 
     private void SaveGithub_Click(object sender, RoutedEventArgs e)

@@ -334,6 +334,8 @@
                                    Text="Logs aus dem zentralen Thunder-Bootstrap. Fortschritt nur, wenn die Quelle ihn liefert. Kein automatischer Neustart nach Verbindungsabbruch." />
                         <WrapPanel>
                             <Button Command="{Binding BootstrapCommand}" Content="Bootstrap über SSH starten …" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" />
+                            <Button x:Name="CopyLogButton" Click="CopyLog_Click" Content="Log kopieren" />
+                            <Button x:Name="CopyStartupLogButton" Click="CopyStartupLog_Click" Content="Startdiagnose kopieren" />
                             <Button Command="{Binding ExportLogsCommand}" Content="Bereinigte Logs exportieren" />
                         </WrapPanel>
                     </StackPanel>
@@ -347,11 +349,21 @@
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>
-                    <ListBox Grid.Row="2" ItemsSource="{Binding LogLines}"
-                             Background="{DynamicResource SurfaceBrush}"
-                             FontFamily="Consolas" FontSize="12"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}" FontSize="12"
+                                   Margin="1,0,0,7"
+                                   Text="Protokolltext markieren und mit Strg+C kopieren. Für das gesamte Protokoll „Log kopieren“ wählen. Vor dem Teilen persönliche Angaben prüfen." />
+                        <TextBox x:Name="LogTextBox" Grid.Row="1"
+                                 Text="{Binding LogText, Mode=OneWay}" IsReadOnly="True"
+                                 AcceptsReturn="True" AcceptsTab="False"
+                                 TextWrapping="NoWrap" FontFamily="Consolas" FontSize="12"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Kopierbares Thunder-Protokoll" />
+                    </Grid>
                 </Grid>
             </TabItem>
             <TabItem Header="Zugangsdaten">

@@ -41,3 +41,7 @@ Erst `tnr login` durchführen, falls die CLI selbst nicht angemeldet ist. Die An
 ## Fehlerbericht
 
 Benötigt werden: exakte App-Version, ob das Fenster sichtbar ist, letzte bereinigte Fehlermeldung, Ergebnis von `git ls-remote` ohne sensible Repo-Inhalte, sowie relevante Zeilen aus `startup.log`. Bitte keine Tokens oder SSH-Schlüssel senden.
+
+## Protokoll aus der Anwendung kopieren
+
+Im Bereich **Downloads & Logs** können Protokollzeilen direkt mit der Maus markiert und per `Strg+C` kopiert werden. **Log kopieren** übernimmt das gesamte sichtbare Sitzungsprotokoll. **Startdiagnose kopieren** liest die lokale `startup.log` und kopiert die bereinigte Ausgabe. Die App zeigt den Kopierstatus unten im Fenster an. Vor dem Teilen auf private Pfade, Namen und Zugangsdaten prüfen.
