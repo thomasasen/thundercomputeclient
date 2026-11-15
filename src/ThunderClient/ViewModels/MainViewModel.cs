@@ -33,6 +33,9 @@ public sealed class MainViewModel : Bindable, IDisposable
     private string _commit = "unbekannt";
     private string _gitSyncStatus = "Noch nicht synchronisiert";
     private string _selectionSummary = "Keine Workflows ausgewählt";
+    private string _hardwareGuide = "Zuerst Workflows auswählen und Empfehlungen ansehen.";
+    private string _storageGuide = "Die Speicherplanung wird aus den ausgewählten Manifesten ermittelt.";
+    private string _wizardNotice = "1 · Katalog laden  →  2 · Workflows wählen  →  3 · Hardware prüfen  →  4 · Pod verwalten";
     private string _preview = "Konfiguration wird nach Synchronisierung angezeigt.";
     private string _hardware = "Hardwarestatus nicht geladen";
     private string _downloadStatus = "Bootstrap noch nicht gestartet";
@@ -56,6 +59,8 @@ public sealed class MainViewModel : Bindable, IDisposable
     public ObservableCollection<string> LogLines { get; } = [];
     public ObservableCollection<DownloadItem> Downloads { get; } = [];
 
+    public event Action? PodCreated;
+    public RelayCommand ApplyHardwareGuidanceCommand { get; }
     public AsyncCommand SyncCommand { get; }
     public AsyncCommand RefreshInstancesCommand { get; }
     public AsyncCommand CreateCommand { get; }
@@ -109,6 +114,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         GpuUpCommand = new RelayCommand(() => MoveSelectedGpu(-1));
         GpuDownCommand = new RelayCommand(() => MoveSelectedGpu(+1));
         OpenReadmeCommand = new RelayCommand(OpenReadme);
+        ApplyHardwareGuidanceCommand = new RelayCommand(ApplyHardwareGuidance);
         ExportLogsCommand = new RelayCommand(() =>
             _dialogs.ExportText("thunderclient-diagnose.txt", string.Join(Environment.NewLine, LogLines)));
         ThunderLoginCommand = new RelayCommand(() =>
@@ -119,11 +125,35 @@ public sealed class MainViewModel : Bindable, IDisposable
 
     private AsyncCommand New(Func<Task> handler) => new(handler, Error);
 
-    public bool Busy { get => _busy; private set => Set(ref _busy, value); }
+    public bool Busy
+    {
+        get => _busy;
+        private set { if (Set(ref _busy, value)) OnPropertyChanged(nameof(CanCreatePod)); }
+    }
     public string Message { get => _message; private set => Set(ref _message, value); }
     public string Commit { get => _commit; private set => Set(ref _commit, value); }
     public string GitSyncStatus { get => _gitSyncStatus; private set => Set(ref _gitSyncStatus, value); }
     public string SelectionSummary { get => _selectionSummary; private set => Set(ref _selectionSummary, value); }
+    public string HardwareGuide { get => _hardwareGuide; private set => Set(ref _hardwareGuide, value); }
+    public string StorageGuide { get => _storageGuide; private set => Set(ref _storageGuide, value); }
+    public string WizardNotice { get => _wizardNotice; private set => Set(ref _wizardNotice, value); }
+    public bool CanContinueToHardware => _snapshot is not null &&
+        Workflows.Any(x => x.IsSelected) &&
+        WorkflowCatalog.Estimate(Workflows.Where(x => x.IsSelected)).Collisions == 0;
+    public bool CanCreatePod => CanContinueToHardware && !Busy;
+    public Task ReloadCatalogAsync() => SyncAsync();
+    public async Task PrepareHardwareStepAsync()
+    {
+        if (_snapshot is null)
+            throw new InvalidOperationException("Zuerst den privaten Workflow-Katalog laden.");
+        if (!Workflows.Any(x => x.IsSelected))
+            throw new InvalidOperationException("Mindestens einen Workflow über die Auswahlspalte aktivieren.");
+        if (WorkflowCatalog.Estimate(Workflows.Where(x => x.IsSelected)).Collisions > 0)
+            throw new InvalidOperationException("Ausgewählte Workflows haben widersprüchliche Modelldateien. Auswahl korrigieren.");
+        await SaveSettingsAsync();
+        Message = "Workflow-Auswahl gespeichert. Hardwareempfehlungen prüfen und nach Bedarf ändern.";
+    }
+
     public string Preview { get => _preview; private set => Set(ref _preview, value); }
     public string Hardware { get => _hardware; private set => Set(ref _hardware, value); }
     public string DownloadStatus { get => _downloadStatus; private set => Set(ref _downloadStatus, value); }
@@ -164,7 +194,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public InstanceItem? SelectedInstance
     {
         get => _selectedInstance;
-        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(CostSummary)); } }
+        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(CostSummary)); UpdateWizardNotice(); } }
     }
     public WorkflowItem? SelectedWorkflow { get => _selectedWorkflow; set => Set(ref _selectedWorkflow, value); }
     public GpuChoice? SelectedGpu { get => _selectedGpu; set => Set(ref _selectedGpu, value); }
@@ -280,6 +310,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             GitSyncStatus = "API-Lesezugriff · " + next.Commit[..12];
             LoadWorkflows();
             Message = next.Workflows.Count + " Workflows aus privater GitHub-Revision geladen.";
+            UpdateWizardNotice();
             Log("GitHub-Katalog aktualisiert: " + next.Commit);
         }
         catch (Exception ex)
@@ -311,11 +342,16 @@ public sealed class MainViewModel : Bindable, IDisposable
             Workflows.Add(workflow);
         }
         RefreshPreview();
+        UpdateWizardNotice();
     }
 
     private void WorkflowChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(WorkflowItem.IsSelected)) RefreshPreview();
+        if (e.PropertyName == nameof(WorkflowItem.IsSelected))
+        {
+            RefreshPreview();
+            UpdateWizardNotice();
+        }
     }
 
     public void MoveGpu(int from, int to)
@@ -336,6 +372,11 @@ public sealed class MainViewModel : Bindable, IDisposable
     private void RefreshPreview()
     {
         var selected = Workflows.Where(x => x.IsSelected).ToArray();
+        var plan = HardwareRecommendations.Plan(selected);
+        HardwareGuide = plan.GpuExplanation;
+        StorageGuide = plan.StorageExplanation;
+        OnPropertyChanged(nameof(CanContinueToHardware));
+        OnPropertyChanged(nameof(CanCreatePod));
         var size = WorkflowCatalog.Estimate(selected);
         var sizeLabel = size.TotalGb.HasValue ? $"{size.TotalGb:N2} GB" : "unvollständig";
         SelectionSummary = $"{selected.Length} Workflows · {size.TotalFiles} eindeutige Modelldateien · {sizeLabel}" +
@@ -343,7 +384,13 @@ public sealed class MainViewModel : Bindable, IDisposable
             (size.Collisions > 0 ? $" · WARNUNG: {size.Collisions} Modell-Zielkonflikte" : "");
         var sb = new StringBuilder();
         sb.AppendLine("WORKFLOWS=" + (WorkflowNames.Length > 0 ? WorkflowNames : "(keine Auswahl)"));
-        sb.AppendLine("REPO_REF=main");
+        sb.AppendLine("REPO_REF=main (Remote-Bootstrap nicht SHA-gepinnt)");
+        if (plan.ReferenceVramGb.HasValue)
+            sb.AppendLine("RunPod-README-VRAM-Orientierung: " + plan.ReferenceVramGb +
+                " GB. Keine getestete Thunder-Mindestanforderung.");
+        if (plan.SuggestedDiskGb.HasValue && DiskGb < plan.SuggestedDiskGb.Value)
+            sb.AppendLine("ACHTUNG: gewählte Disk unter konservativem Planungsansatz " +
+                plan.SuggestedDiskGb + " GB; Mindestwert nicht vom Anbieter bestätigt.");
         sb.AppendLine($"Template: {Template} · {GpuCount} GPU(s) · {DiskGb} GB gesamte Instanzdisk");
         sb.AppendLine(Estimates.CapacityWarning(size.TotalGb, DiskGb));
         sb.AppendLine("Reihenfolge (Listenpreis-Schätzung vom 15.11.2026, keine Live-Abfrage):");
@@ -359,6 +406,56 @@ public sealed class MainViewModel : Bindable, IDisposable
         OnPropertyChanged(nameof(CostSummary));
     }
 
+    private void UpdateWizardNotice()
+    {
+        var workflows = Workflows.Count;
+        var selected = Workflows.Count(x => x.IsSelected);
+        var pods = Instances.Count;
+        WizardNotice = "Katalog: " + (workflows == 0 ? "noch nicht geladen" : workflows + " Workflows") +
+            "  ·  Auswahl: " + selected + "  ·  Pods: " + pods;
+        OnPropertyChanged(nameof(CanContinueToHardware));
+        OnPropertyChanged(nameof(CanCreatePod));
+    }
+
+    private void ApplyHardwareGuidance()
+    {
+        var selected = Workflows.Where(x => x.IsSelected).ToArray();
+        if (selected.Length == 0)
+        {
+            Message = "Zuerst mindestens einen Workflow auswählen.";
+            return;
+        }
+        var plan = HardwareRecommendations.Plan(selected);
+        if (plan.SuggestedDiskGb.HasValue)
+        {
+            if (plan.SuggestedDiskGb.Value > 2000)
+            {
+                Message = "Speicherplanung über 2000 GB: Konfiguration manuell prüfen.";
+                return;
+            }
+            // Do not silently reduce disk that the user has already chosen.
+            DiskGb = Math.Max(DiskGb, plan.SuggestedDiskGb.Value);
+        }
+        var available = plan.ReferenceVramGb.HasValue && plan.CompleteVramReference
+            ? GpuChoices.Where(x => x.VramGb >= plan.ReferenceVramGb.Value).ToArray()
+            : [];
+        if (available.Length > 0)
+        {
+            foreach (var gpu in GpuChoices) gpu.Enabled = available.Contains(gpu);
+            // Prefer the smallest candidate meeting the reference, not a price-based
+            // inference. Actual Thunder pricing and compatibility are unverified.
+            var ordered = available.OrderBy(x => x.VramGb).ToArray();
+            for (var i = 0; i < ordered.Length; i++)
+                GpuChoices.Move(GpuChoices.IndexOf(ordered[i]), i);
+            Message = "Planungswerte übernommen. GPU-/Treiber-Kompatibilität, Preisgrenze " +
+                "und tatsächliche Thunder-Verfügbarkeit manuell kontrollieren.";
+        }
+        else
+            Message = "Speicherplanung soweit verfügbar übernommen. " +
+                "Keine vollständige passende Thunder-VRAM-Auswahl ableitbar; GPU manuell prüfen.";
+        RefreshPreview();
+    }
+
     public async Task RefreshInstancesAsync(CancellationToken ct = default)
     {
         var items = await _thunder.ListAsync(ct);
@@ -368,6 +465,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         SelectedInstance = Instances.FirstOrDefault(x => x.Id == selectedId) ?? Instances.FirstOrDefault();
         LastRefreshed = $"Letzte Statusprüfung: {DateTime.Now:HH:mm:ss}";
         Message = $"{Instances.Count} Thunder-Instanzen gefunden";
+        UpdateWizardNotice();
     }
 
     private async Task RefreshSnapshotsAsync()
@@ -407,6 +505,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             await RefreshInstancesAsync();
             SelectedInstance = Instances.FirstOrDefault(x => x.Id == instance.Id);
             Message = "Instanz erstellt: " + instance.Id;
+            PodCreated?.Invoke();
             Log(Message);
         }
         finally { Busy = false; }
