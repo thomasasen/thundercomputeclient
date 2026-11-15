@@ -183,6 +183,36 @@ unregistered = sum(
 if unregistered:
     blocked('node-classes-unverified', unregistered)
 
+# Package registration is not enough: selected workflow graphs can reference
+# a missing individual node class even when other classes from that package
+# loaded successfully. Compare every executable graph type to the live API.
+frontend_only = {'Reroute', 'PrimitiveNode', 'Note', 'MarkdownNote', 'SetNode', 'GetNode'}
+missing_classes = set()
+for name, doc in manifests:
+    files = [doc.get('workflow_file', 'workflow.json')] + [
+        item['file'] for item in doc.get('workflow_variants', [])
+    ]
+    for filename in files:
+        path = root / 'workflows' / name / filename
+        try:
+            graph = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            blocked('workflow-graph-invalid')
+        if isinstance(graph, dict) and isinstance(graph.get('nodes'), list):
+            used = {item.get('type') for item in graph['nodes'] if isinstance(item, dict)}
+        elif isinstance(graph, dict):
+            used = {item.get('class_type') for item in graph.values()
+                    if isinstance(item, dict)}
+        else:
+            blocked('workflow-graph-invalid')
+        for kind in used:
+            if isinstance(kind, str) and kind not in classes and (
+                kind not in frontend_only and 'reroute' not in kind.casefold()
+            ):
+                missing_classes.add(kind)
+if missing_classes:
+    blocked('missing-workflow-node-classes', len(missing_classes))
+
 print(f'[THUNDER-READINESS] status=ready models={len(models)} nodes={len(nodes)}', flush=True)
 """;
 }
