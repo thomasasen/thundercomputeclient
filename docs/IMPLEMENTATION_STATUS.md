@@ -9,7 +9,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Dynamische Workflow-Manifeste, Canvas, Mehrfachauswahl, Modell-Deduplikation | Implementiert; komplexe Manifest-Metadaten/Hardwareempfehlungen nicht vollständig |
 | GPU-Priorität, Editieren, Kostenbestätigung, sichere Fallback-Regel | Implementiert; Preise nur historische Schätzung, GPU/vCPU live von CLI validiert |
 | Thunder Status, Create, Delete, Snapshot Create/List, Snapshot-Template | Implementiert mit dokumentierten tnr-JSON-Befehlen; nicht live getestet |
-| Windows Credential Manager, Git GCM / Thunder CLI Auth | Implementiert, echte Kontoverbindungen nicht live getestet |
+| Windows Credential Manager, Git GCM / Thunder CLI Auth | Implementiert; tnr.exe-Erkennung aus GUI-PATH und Windows-Standardinstallationsort sowie native Win32-Fehlerdiagnose; echte Kontoverbindungen nicht live getestet |
 | Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert, Remote-Resumption nach Abbruch nicht automatisiert |
 | Privater Loopback-Tunnel, ComfyUI im Browser, SSH-Terminal | Implementiert, End-to-End nicht live getestet |
 | Download-/Installationslogs | Strukturierte pro-Modelldatei-Ereignisse aus vorhandenem download_monitor.py werden beobachtet; Fortschritt nur bei tatsächlicher Logangabe, keine erfundenen Werte. Persistente Reconnect-Historie fehlt |
@@ -17,7 +17,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit 20 Tests (einschließlich Sparse-Checkout-Regressionsfällen), sieben GUI-Ansichten, kopierbarem Log, Installer und SHA-256; Live-Checkout am Benutzergerät noch nicht bestätigt |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit 23 Tests (einschließlich Sparse-Checkout- und tnr-Pfad-Regressionsfällen), sieben GUI-Ansichten, kopierbarem Log, Installer und SHA-256; Live-Checkout am Benutzergerät noch nicht bestätigt |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
 ## Bewusste Sicherheitsgrenzen

@@ -43,7 +43,18 @@ Get-Command tnr -ErrorAction SilentlyContinue
 Get-Command git -ErrorAction SilentlyContinue
 ```
 
-Wenn bei `tnr` kein Programm gefunden wird, die **offizielle Thunder-CLI** installieren und danach die App neu starten. Die CLI in einer regulären PowerShell unabhängig prüfen:
+Wenn bei `tnr` kein Programm gefunden wird, die **offizielle Thunder-CLI** installieren und danach die App neu starten. `Get-Command tnr` allein beweist allerdings nicht, dass ein GUI-Prozess mit älterer Umgebung `tnr.exe` starten kann.
+
+Ab `v0.1.0-alpha.6` sucht der Client die CLI im eigenen `PATH` und, wenn nötig, unter `C:\\Program Files (x86)\\tnr\\tnr.exe` bzw. dem entsprechenden `Program Files`-Standardverzeichnis. Eine `Win32Exception` enthält danach im Log die **Windows-Fehlernummer** und den tatsächlich verwendeten EXE-Pfad. Das unterscheidet eine fehlende Datei (2/3), Zugriffsverweigerung (5), ungültige Ausführdatei (193) und geforderte Erhöhung (740). Eine automatische Administratorrechte-Erhöhung wird nicht vorgenommen.
+
+Die CLI unabhängig von der App ausführen:
+
+```powershell
+tnr status --json --no-wait
+tnr snapshot list --json --no-wait
+```
+
+Wenn diese Befehle funktionieren und die GUI dennoch scheitert, die neuen Diagnosezeilen aus `Downloads & Logs` kopieren. Keine Tokens teilen. Die CLI in einer regulären PowerShell unabhängig prüfen:
 
 ```powershell
 tnr status --json --no-wait

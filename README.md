@@ -2,12 +2,12 @@
 
 Nativer Windows-Desktop-Client (.NET 10, WPF) für die ComfyUI-Workflows im **privaten** Repository thomasasen/runpod-ai-workflows. Der Client ruft die offizielle Thunder-CLI (tnr) auf, synchronisiert Manifestdaten mit Git, erstellt Instanzen nach ausdrücklicher Bestätigung und startet den bestehenden Thunder-Bootstrap über eine abgesicherte SSH-Verbindung.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.5, nicht produktionsfreigegeben.** Build, 18 mockbasierte Regressionstests sowie ein automatisierter Windows-GUI-Test aller sieben Ansichten werden in GitHub Actions geprüft. Fehler beim Start werden unter `%LOCALAPPDATA%\ThunderClient\logs\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
+**Status: Alpha-Vorabversion v0.1.0-alpha.6, nicht produktionsfreigegeben.** Build, 18 mockbasierte Regressionstests sowie ein automatisierter Windows-GUI-Test aller sieben Ansichten werden in GitHub Actions geprüft. Fehler beim Start werden unter `%LOCALAPPDATA%\ThunderClient\logs\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
 
 ## Voraussetzungen
 
 - Windows 11 x64, .NET selbstenthaltenes Installationspaket; Windows 10 nicht getestet.
-- Offizielle Thunder Compute CLI (`tnr`), angemeldet über `tnr login`. `Get-Command tnr` muss sie im Windows-PATH finden; nach Installation/PATH-Änderung den Client neu starten.
+- Offizielle Thunder Compute CLI (`tnr`), angemeldet über `tnr login`. `Get-Command tnr` muss sie in PowerShell finden. Da die GUI einen veralteten PATH erben kann, wird die CLI zusätzlich am Windows-Standardinstallationsort `Program Files (x86)\\tnr\\tnr.exe` erkannt. CLI-Aufruffehler zeigen die native Windows-Fehlernummer und den gewählten Pfad.
 - Git for Windows inklusive Git Credential Manager, für das private Workflow-Repository mit Lesezugriff angemeldet.
 - OpenSSH-Client, ssh-keygen und ssh-keyscan unter Windows.
 - GitHub fine-grained PAT mit Contents: Read-only nur auf runpod-ai-workflows, separat für den **Remote-Bootstrap** im Windows Credential Manager gespeichert. Hugging Face und Civitai bei Bedarf ebenfalls.
