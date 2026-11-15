@@ -144,8 +144,8 @@ public sealed class SshHostKeyTests
             Assert.DoesNotContain("StrictHostKeyChecking=no", args);
             Assert.Null(standardInput);
             Assert.Equal("ubuntu@" + Host, args[^1]);
-            var arg = Assert.Single(args.Where(a =>
-                a.StartsWith("UserKnownHostsFile=", StringComparison.Ordinal)));
+            var arg = Assert.Single(args, a =>
+                a.StartsWith("UserKnownHostsFile=", StringComparison.Ordinal));
             TemporaryFile = arg["UserKnownHostsFile=".Length..];
             UnsafeOptionsObserved = args.Contains("StrictHostKeyChecking=no") ||
                 args.Contains("-i");
@@ -182,7 +182,7 @@ public sealed class SshHostKeyTests
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ScanHostKeyAsync(Endpoint()));
         Assert.Contains("bekannter Windows-Fehler", failure.Message);
-        Assert.Contains("nicht automatisch vertraut", failure.Message);
+        Assert.Contains("niemals automatisch vertraut", failure.Message);
         Assert.Equal(2, runner.Calls);
         Assert.False(File.Exists(runner.TemporaryFile));
     }
