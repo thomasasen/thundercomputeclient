@@ -16,6 +16,15 @@ Schutzgüter: GitHub-PAT, HF/Civitai-API-Tokens, SSH-Schlüssel, lokal eingelese
 8. Snapshot/Deletion mit ausdrücklichen Bestätigungen, Backup-Hinweisen; keine automatische Wiederholung eines abgebrochenen Bootstrap.
 9. Tests mocken alle externen Aufrufe, sodass keine Kosten und Downloads ausgelöst werden.
 
+## Systemstatus-Sicherheitsgrenzen
+
+- Die Systemprüfung wird **nur explizit auf Klick** ausgeführt; sie ruft keinerlei `tnr create`, `tnr delete`, Bootstrap oder Modelldownload auf.
+- Prüft gespeicherte Tokens ausschließlich über lesende HTTPS-Endpunkte mit Bearer-Authorization-Headern, ohne Weiterleitung/Cookies und ohne Kopieren von Antworttexten oder Secrets in Logs. Drittanbieter-Schlüssel werden beim Prüfen an ihren jeweiligen Anbieter übertragen.
+- Ein gespeicherter Token oder eine gefundene SSH-Key-Datei wird als **vorhanden** unterschieden von **erfolgreich authentifiziert**. Das ist kein Sicherheitsattest aller Token-Berechtigungen oder Modelle.
+- SSH-Hostfingerprint wird nicht allein aufgrund einer `ssh-keyscan`-Antwort als vertrauenswürdig eingestuft; Hostvertrauen muss im gesonderten Dialog ausdrücklich und unabhängig bestätigt worden sein. Status-Check testet SSH erst bei bereits bekanntem Host.
+- Zeitstempel beziehen sich auf Prüfungen innerhalb der aktuellen App-Sitzung, nicht auf fortlaufende Überwachung. Bei Tokenänderungen werden entsprechende Prüfzustände ungültig gemacht.
+- Fest kodierte offizielle Dokumentations-/Accountlinks mit HTTPS-Host-Whitelist. Keine von privaten Manifesten stammenden externen Navigations-URLs.
+
 ## Ungeklärte oder offene Risiken
 
 - Keine unabhängige Prüfung durch zweite Person/Instanz dokumentiert. Dieses Dokument ist eine vorbereitete Checkliste und stellt **keine** unabhängige Freigabe dar.

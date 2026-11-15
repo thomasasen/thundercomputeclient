@@ -1,5 +1,18 @@
 # Architektur
 
+## Lokale Voraussetzungen und Statusprüfungen
+
+`SystemReadinessService` stellt die Einrichtungsprüfung bereit. `SetupCheck` hält pro Bereich Status, Zeitstempel, verständliche Erklärung, offizielle URL und GUI-Navigationsziel; `MainViewModel` startet Prüfungen nur auf ausdrücklichen Klick, ohne Secret-Text in Log oder Status zu spiegeln. `MainWindow.xaml` zeigt die achte Seite und navigiert über ausschließlich freigegebene HTTPS-Hosts zu offiziellen Hilfeseiten. Jede Prüfung ist unabhängig und ihre Ergebnisse sind klar von bloßer Dateiexistenz getrennt.
+
+- GitHub: bestehender `GitHubWorkflowSource.FetchAsync` verifiziert über Bearer-Token die private Repo-Tree-/Blob-Revision, **kein anonymer öffentlicher Check**.
+- Thunder: `tnr status --json --no-wait`, anschließend JSON-Validierung; erzeugt keinen Pod.
+- OpenSSH: nur Dateiprüfung für `ssh.exe`, `ssh-keyscan.exe` und `ssh-keygen.exe` an Windows-Installations- oder PATH-Orten.
+- SSH-Schlüssel: Laufender Thunder-Pod erforderlich; `tnr connect <id> --json` liefert den validierten Endpunkt/Schlüsselpfad; der Client kontrolliert nur, ob die private Schlüsseldatei existiert.
+- SSH-Anmeldung: Vorhandener, früher durch den Benutzer bestätigter `known_hosts`-Eintrag ist Voraussetzung. Erst dann wird mit `StrictHostKeyChecking=yes` ein harmloser SSH-`true`-Befehl ausgeführt. Kein automatisches Akzeptieren von SSH-Fingerprints.
+- HF: `GET https://huggingface.co/api/whoami-v2`; Civitai: `GET https://civitai.com/api/v1/me`. Nur HTTPS-Bearer-Header, keine Redirects oder Cookies, keine Antwortdaten im UI. Das beweist lediglich Konto-API-Anmeldung, nicht gated model permissions.
+
+Tests verwenden injizierte Fake-Runner und HTTP-Handler ohne Live-Pod-/Provider-Zugangsdaten. Das Frontend hat acht Seiten im Windows-Smoke-Test; echte API-/SSH-Tests auf dem Benutzerrechner bleiben nötig.
+
 ## Grenzen
 
 - **WPF-Oberfläche:** `App.xaml`, `MainWindow.xaml` und `MainWindow.xaml.cs`; sieben Seiten, Desktop-Dialoge und Drag-and-Drop.

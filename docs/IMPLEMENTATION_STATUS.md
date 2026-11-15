@@ -17,7 +17,8 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit GitHub-API-Mocktests, Hardwareplanung, tnr-Pfaden, SSH-Hostkey-Scan-/Sicherheitsregressionen und sieben GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit GitHub-API-Mocktests, Hardwareplanung, tnr-Pfaden, SSH-Hostkey-Scan-/Sicherheitsregressionen und acht GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
+| Systemstatus / Onboarding | Achtseitige WPF-GUI mit sieben Diagnosepunkten für privates GitHub, Thunder CLI, OpenSSH, SSH-Schlüssel/Hostvertrauen, HF/Civitai. Echte lesende Checks nur auf Klick, Status-/Zeitstempel, offizielle Setup-Links, keine Kostenaktionen. Realgeräte-/Token-Test noch ausstehend |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
 ## Bewusste Sicherheitsgrenzen

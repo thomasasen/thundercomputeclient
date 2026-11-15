@@ -2,7 +2,20 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.10, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.11, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+
+## Systemstatus und Einrichtungsassistent
+
+Die achte Ansicht **Systemstatus** prüft Voraussetzungen erst nach einem ausdrücklichen Klick auf **„Jetzt alles sicher prüfen“**. Ein Button auf der Übersicht führt direkt dorthin. Jeder Eintrag zeigt Zustand, letzte Prüfung, Diagnose, konkrete Einrichtungsanleitung, einen Link zur offiziellen Anbieterseite und den passenden Bereich der App.
+
+Der Systemstatus unterscheidet ausdrücklich:
+
+- **Erfolgreich getestet:** eine echte, ausschließlich lesende Prüfung war erfolgreich (GitHub-API-Zugriff auf das private Repository, `tnr status`, optionale Hugging-Face-/Civitai-Kontoabfragen oder zuvor vertrauenswürdig konfigurierte SSH-Anmeldung).
+- **Vorhanden:** lokale Programme bzw. die angegebene SSH-Schlüsseldatei wurden gefunden; eine Netzwerkanmeldung ist dadurch **nicht** bewiesen.
+- **Fehlt / Einrichtung nötig / Fehler:** konkrete Abhilfe und offizieller Einrichtungsweg sind direkt anklickbar.
+- **Nicht prüfbar:** insbesondere SSH ohne laufenden Pod bzw. ohne zuvor unabhängig bestätigten Hostfingerprint; optional fehlende Provider-Tokens sind als optional gekennzeichnet.
+
+Die Prüfungen nutzen nur lesende API-Aufrufe. Keine Instanzerstellung, kein Bootstrap, keine Modelldownloads, kein Auto-Trust für SSH-Hostschlüssel und keine automatischen Installationen. Token aus Windows Credential Manager werden ausschließlich als HTTPS-Bearer-Header an den jeweils zuständigen Anbieter gesendet, niemals als URL-Parameter oder in Statuslogs. Für Hugging Face/Civitai bestätigt der erfolgreiche Konto-Test **nicht** den Zugriff auf jedes einzelne Gated-Modell.
 
 ## Privater GitHub-Zugriff: kein Checkout
 

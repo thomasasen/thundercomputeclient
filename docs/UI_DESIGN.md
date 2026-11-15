@@ -46,3 +46,11 @@ Umsetzung:
 Ziel: Der bisher tabbasierte Ablauf wurde mit expliziten nächsten Schritten verbunden. Aus der Übersicht lädt ein klarer Button den privaten Katalog und öffnet die Workflow-Auswahl. Dort ist die Mehrfachauswahl eindeutig markiert; die Folgeaktion öffnet erst nach Konfliktprüfung die Hardwarekonfiguration. Die Hardwareseite zeigt die hergeleiteten README-Referenzen **vor** den editierbaren GPU-/CPU-/Disk-Feldern. Empfehlungen werden erst auf ausdrücklichen Klick übernommen, nicht unbemerkt. Die permanente Create-Leiste bleibt und nach erfolgreicher Erstellung öffnet sich die Pod-Verwaltung mit Status, SSH-/ComfyUI- und Snapshot-Aktionen. „Installation & Logs“ führt in die bestehenden Setup- und Protokollfunktionen.
 
 Alle Daten bleiben im lokalen UI bzw. im privaten GitHub-API-Abruf; keine zusätzliche öffentliche Workflow-Quelle. Verfügbarkeit und Preise sind nicht live verifiziert. Navigation und reine Empfehlungen erzeugen keine GPU-Instanz und lösen keine Downloads aus.
+
+## Systemstatus und Einrichtung (Alpha 0.1.0-alpha.11)
+
+Als achte Seite ist **Systemstatus** neben den bestehenden Arbeitsbereichen permanent über die Seitenleiste erreichbar. Ein Schnellzugriff auf der Übersicht führt direkt dorthin. Die Oberfläche verwendet dieselben Karten, lesbare Statusbeschriftungen (nicht Farbe allein), deutliche Zeitstempel und passende Erfolg-/Warn-/Fehlerfarben in Hell und Dunkel.
+
+Jede der sieben Prüfungen hat einen klaren Titel, einen erklärenden Status, ein kurzes Einrichtungsverfahren, einen offiziellen Link zum jeweiligen Konto-/Dokumentationsbereich sowie die Navigation zum passenden GUI-Tab. Die Übersicht trennt erfolgreich **getestete** Verbindungen von lediglich **vorhandenen** Dateien und nicht prüfbaren Bedingungen; optional fehlende Provider-Tokens sind nicht mit zwingenden Voraussetzungen gleichgesetzt.
+
+Keine automatischen Ressourcenoperationen, kein automatisches SSH-Hostvertrauen. Die GUI-Smoke-Prüfung deckt alle acht Ansichten inklusive Systemstatus ohne Netzwerkzugriff ab.

@@ -1,5 +1,18 @@
 # Benutzerhandbuch
 
+## Systemstatus und Einrichtung
+
+In der Seitenleiste **Systemstatus** öffnen oder auf der Übersicht **Systemstatus prüfen** anklicken. Die Anzeige startet mit **Nicht geprüft**; ein gespeicherter Token allein ist kein erfolgreicher Verbindungstest. **Jetzt alles sicher prüfen** führt auf ausdrücklichen Wunsch nur lesende Prüfungen aus. Zu jedem der sieben Punkte werden Ergebnisse, Zeitstempel, ein direkter offizieller Einrichtungslink und eine Abkürzung in den jeweiligen App-Bereich angezeigt.
+
+- **GitHub:** „GitHub-Token erstellen“ führt direkt zum Fine-grained-PAT-Formular. Nur das private `thomasasen/runpod-ai-workflows` freigeben, **Contents: Read-only** wählen, Token unter **Zugangsdaten** speichern. Als getestet gilt erst der vollständige authentifizierte Abruf einer privaten GitHub-Katalogrevision.
+- **Thunder-CLI:** Den offiziellen MSI-Installer herunterladen, `tnr login` in PowerShell ausführen und den Check erneut starten. Eine erfolgreiche `tnr status --json --no-wait`-Antwort bestätigt die CLI-Anmeldung, nicht den Pod-Betrieb.
+- **OpenSSH:** Benötigt werden `ssh.exe`, `ssh-keyscan.exe`, `ssh-keygen.exe`. Der Link öffnet Microsofts Anleitung für den Windows-OpenSSH-Client. Ein OpenSSH-**Server** muss auf dem PC nicht installiert werden.
+- **SSH-Schlüssel:** Erst mit einem vorhandenen laufenden Pod kann der Client die von Thunder genannte private Schlüsseldatei prüfen. Er liest dabei nie den privaten Schlüsselinhalt.
+- **SSH-Anmeldung:** Der Hostfingerprint muss unabhängig über die Thunder-Konsole geprüft und im normalen Verbindungsdialog bestätigt sein. Nur danach testet der Systemstatus einen harmlosen SSH-`true`-Befehl. Hostprüfung wird nie automatisch abgeschaltet oder übersprungen.
+- **Hugging Face und Civitai:** Optional. Die Links führen zu den jeweiligen Token-Verwaltungsseiten. Sind Tokens hinterlegt, prüft ein lesender Konto-Endpunkt die API-Anmeldung. Das testet **nicht** jedes private, zugangsbeschränkte oder kostenpflichtige Modell.
+
+Fehlende optionale Tokens werden nicht als zwingender Fehler gewertet. Keine Prüfung erstellt oder startet einen Pod. Der Check kann ein bereits laufendes, kostenpflichtiges Pod verwenden, erzeugt dadurch aber keine zusätzliche Instanz.
+
 ## Einrichtung für das private Repository
 
 1. Die offizielle Thunder-Compute-CLI von https://github.com/Thunder-Compute/thunder-cli/releases/latest installieren und mit `tnr login` anmelden.
