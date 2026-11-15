@@ -24,12 +24,15 @@ public sealed class MainViewModel : Bindable, IDisposable
     private WorkflowSnapshot? _snapshot;
     private readonly ThunderCli _thunder;
     private readonly SshService _ssh;
+    private readonly SystemReadinessService _readiness;
     private readonly ClientSettings _settings;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly string _lockDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThunderClient");
     private bool _busy;
     private string _message = "Noch nicht verbunden";
+    private string _readinessSummary = "Noch keine Systemprüfung durchgeführt. Der Test wird nur auf Klick gestartet.";
+    private bool _readinessRunning;
     private string _commit = "unbekannt";
     private string _gitSyncStatus = "Noch nicht synchronisiert";
     private string _selectionSummary = "Keine Workflows ausgewählt";
@@ -58,10 +61,12 @@ public sealed class MainViewModel : Bindable, IDisposable
     public ObservableCollection<SnapshotItem> Snapshots { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
     public ObservableCollection<DownloadItem> Downloads { get; } = [];
+    public ObservableCollection<SetupCheck> SystemChecks { get; } = SystemReadinessService.CreateChecks();
 
     public event Action? PodCreated;
     public RelayCommand ApplyHardwareGuidanceCommand { get; }
     public AsyncCommand SyncCommand { get; }
+    public AsyncCommand RunSystemChecksCommand { get; }
     public AsyncCommand RefreshInstancesCommand { get; }
     public AsyncCommand CreateCommand { get; }
     public AsyncCommand BootstrapCommand { get; }
@@ -86,6 +91,8 @@ public sealed class MainViewModel : Bindable, IDisposable
         _settings = _store.Load();
         _thunder = new ThunderCli(_runner);
         _ssh = new SshService(_runner);
+        _readiness = new SystemReadinessService(_runner, _vault.Read,
+            (token, ct) => _github.FetchAsync(token, ct), () => SelectedInstance, _ssh);
         var available = new[]
         {
             new GpuChoice("a6000", "RTX A6000", 48, 6, 0.35m),
@@ -99,6 +106,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             gpu.PropertyChanged += (_, _) => RefreshPreview();
         }
         SyncCommand = New(SyncAsync);
+        RunSystemChecksCommand = New(RunSystemChecksAsync);
         RefreshInstancesCommand = New(() => RefreshInstancesAsync());
         CreateCommand = New(CreateAsync);
         BootstrapCommand = New(BootstrapAsync);
@@ -131,6 +139,54 @@ public sealed class MainViewModel : Bindable, IDisposable
         private set { if (Set(ref _busy, value)) OnPropertyChanged(nameof(CanCreatePod)); }
     }
     public string Message { get => _message; private set => Set(ref _message, value); }
+    public string ReadinessSummary { get => _readinessSummary; private set => Set(ref _readinessSummary, value); }
+    public bool ReadinessRunning { get => _readinessRunning; private set => Set(ref _readinessRunning, value); }
+
+    public async Task RunSystemChecksAsync()
+    {
+        if (ReadinessRunning) return;
+        if (Busy)
+        {
+            Message = "Andere Aktion läuft. Systemprüfung danach erneut starten.";
+            return;
+        }
+        ReadinessRunning = true;
+        ReadinessSummary = "Lesende Tests laufen: GitHub, Thunder, OpenSSH und gespeicherte Provider-Tokens.";
+        try
+        {
+            await _readiness.CheckAllAsync(SystemChecks,
+                _ => UpdateReadinessSummary(), _shutdown.Token);
+            UpdateReadinessSummary();
+            Message = "Systemstatus geprüft. Details und Einrichtungslinks im Status-Bereich.";
+        }
+        finally { ReadinessRunning = false; }
+    }
+
+    private void UpdateReadinessSummary()
+    {
+        var required = SystemChecks.Where(x => !x.Optional).ToArray();
+        var verified = required.Count(x => x.Status is "Erfolgreich getestet" or "Vorhanden");
+        var optional = SystemChecks.Count(x => x.Optional &&
+            x.Status == "Erfolgreich getestet");
+        ReadinessSummary = verified + "/" + required.Length +
+            " erforderliche Komponenten vorhanden bzw. erfolgreich geprüft; " +
+            optional + " optionale API(s) erfolgreich getestet. " +
+            "„Vorhanden“ ist kein erfolgreicher Verbindungstest.";
+    }
+
+    private void ResetSecretCheck(string service)
+    {
+        var name = service switch
+        {
+            "github" => "github",
+            "huggingface" => "huggingface",
+            "civitai" => "civitai",
+            _ => ""
+        };
+        var entry = SystemChecks.FirstOrDefault(x => x.Id == name);
+        entry?.Update("Nicht geprüft", "Token geändert. Bitte erneut testen.");
+        UpdateReadinessSummary();
+    }
     public string Commit { get => _commit; private set => Set(ref _commit, value); }
     public string GitSyncStatus { get => _gitSyncStatus; private set => Set(ref _gitSyncStatus, value); }
     public string SelectionSummary { get => _selectionSummary; private set => Set(ref _selectionSummary, value); }
@@ -285,6 +341,7 @@ public sealed class MainViewModel : Bindable, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(service));
             _vault.Save(service, value);
             UpdateSecretStatuses();
+            ResetSecretCheck(service);
             Message = $"{service}: sicher im Windows Credential Manager gespeichert.";
         }
         catch (Exception ex) { Error(ex); }
@@ -292,7 +349,7 @@ public sealed class MainViewModel : Bindable, IDisposable
 
     public void DeleteSecret(string service)
     {
-        try { _vault.Delete(service); UpdateSecretStatuses(); Message = $"{service}: Eintrag gelöscht."; }
+        try { _vault.Delete(service); UpdateSecretStatuses(); ResetSecretCheck(service); Message = $"{service}: Eintrag gelöscht."; }
         catch (Exception ex) { Error(ex); }
     }
 
@@ -713,6 +770,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         _shutdown.Cancel();
         _ssh.StopTunnel();
+        _readiness.Dispose();
         _github.Dispose();
         _shutdown.Dispose();
     }
