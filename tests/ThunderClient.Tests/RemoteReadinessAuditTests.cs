@@ -11,7 +11,7 @@ public class RemoteReadinessAuditTests
     public void ReadOnlyAuditUsesThePinnedManifestAndLocalComfyUIEndpoints()
     {
         var script = RemoteReadinessAudit.BuildScript(Commit, "T2I_MOSS-Image-Fast");
-        Assert.Contains("THUNDER_AUDIT_COMMIT=" + Commit, script);
+        Assert.Contains("THUNDER_AUDIT_COMMIT=\u0027" + Commit + "\u0027", script);
         Assert.Contains("from manifest import resolve, selected", script);
         Assert.Contains("download_failures.json", script);
         Assert.Contains(".runpod-node-commit", script);
