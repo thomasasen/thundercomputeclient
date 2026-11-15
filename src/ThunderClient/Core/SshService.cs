@@ -120,6 +120,17 @@ public sealed class SshService(ICommandRunner commands)
         File.AppendAllText(_knownHosts, line + Environment.NewLine, Encoding.ASCII);
     }
 
+    public async Task<CommandResult> ProbeAuthenticationAsync(
+        SshConnection endpoint, CancellationToken ct = default)
+    {
+        // Only use previously trusted known_hosts; never scan, accept or create keys.
+        // Bound runtime so a blocked remote shell does not hang the diagnostics UI.
+        var args = CommonArgs(endpoint).Concat(
+            ["-o", "NumberOfPasswordPrompts=0", "-T", $"ubuntu@{endpoint.Host}", "true"]);
+        return await commands.RunAsync("ssh", args, TimeSpan.FromSeconds(25),
+            cancellationToken: ct);
+    }
+
     public async Task<CommandResult> RunScriptAsync(SshConnection endpoint, string script,
         Action<string>? onLine = null, CancellationToken ct = default)
     {

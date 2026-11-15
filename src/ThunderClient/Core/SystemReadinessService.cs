@@ -64,7 +64,7 @@ public sealed class SystemReadinessService : IDisposable
         },
         new SetupCheck {
             Id="ssh-key", Title="SSH-Schlüssel · ausgewählter Pod",
-            Guide="Zuerst einen laufenden Pod unter Instanzen auswählen. Der Client fragt über 'tnr connect <ID> --json' den Schlüsselpfad ab und prüft nur, ob die private Schlüsseldatei existiert. Niemals den privaten Schlüssel teilen.",
+            Guide="Laufenden Pod unter Instanzen auswählen. Der Test sucht die lokale Schlüsseldatei unter TNR_HOME oder Benutzerprofil/.thunder/keys/UUID, ohne 'tnr connect' aufzurufen. Ein bewusster Verbindungsversuch kann beim Anbieter einen neuen SSH-Schlüssel anlegen.",
             HelpUrl="https://github.com/Thunder-Compute/thunder-compute-documentation/blob/main/guides/ssh-on-thunder-compute.mdx",
             HelpLabel="Thunder-SSH-Anleitung", SetupTabIndex=3
         },
@@ -181,7 +181,7 @@ public sealed class SystemReadinessService : IDisposable
         var selected = _selectedPod();
         _runningPod = selected is { Status: "RUNNING" } &&
                       pods.Any(x => x.Id == selected.Id && x.Status == "RUNNING")
-            ? selected : pods.FirstOrDefault(x => x.Status == "RUNNING");
+            ? selected : null;
         return ("Erfolgreich getestet",
             "CLI-Statusabfrage authentifiziert · " + pods.Count +
             " Instanz(en). Keine Instanz erstellt und keine Kostenaktion ausgelöst.");
@@ -214,28 +214,44 @@ public sealed class SystemReadinessService : IDisposable
                 ". Windows-OpenSSH-Client installieren.");
     }
 
-    private async Task<(string, string)> CheckSshKeyAsync(CancellationToken ct)
+    private Task<(string, string)> CheckSshKeyAsync(CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+        _sshEndpoint = null;
         if (_runningPod is null)
-            return ("Nicht prüfbar", "Kein laufender Pod gefunden. Zuerst einen bestehenden Pod auswählen oder erstellen.");
+            return Task.FromResult(("Nicht prüfbar",
+                "Kein zuvor ausgewählter RUNNING-Pod im aktuellen Thunder-Status. " +
+                "Pod unter Instanzen auswählen und den Test erneut ausführen."));
         if (FindExecutable("ssh") is null)
-            return ("Fehlt", "SSH-Client fehlt; Windows OpenSSH installieren.");
-        // The official CLI returns validated endpoint fields and key path.
-        // Never read or display private key material.
-        var cli = new ThunderCli(_runner);
-        try
-        {
-            _sshEndpoint = await cli.GetSshAsync(_runningPod, ct);
-            return ("Vorhanden", "Private SSH-Schlüsseldatei am von Thunder angegebenen Pfad gefunden (Dateiinhalt nicht gelesen). Anmeldung noch nicht getestet.");
-        }
-        catch (FormatException)
-        {
-            return ("Fehlt", "Thunder liefert noch keinen vollständigen SSH-Endpunkt oder die lokale private Schlüsseldatei fehlt.");
-        }
-        catch (ExternalCommandException)
-        {
-            return ("Fehler", "Thunder konnte den SSH-Endpunkt nicht ermitteln. Pod-Status und CLI-Anmeldung prüfen.");
-        }
+            return Task.FromResult(("Fehlt", "Windows-OpenSSH-Client fehlt."));
+        if (string.IsNullOrWhiteSpace(_runningPod.Uuid) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(_runningPod.Uuid,
+                @"\A[a-zA-Z0-9_-]{8,128}\z"))
+            return Task.FromResult(("Nicht prüfbar",
+                "Thunder liefert keine gültige Instanz-UUID für den lokalen SSH-Schlüsselpfad."));
+        if (string.IsNullOrWhiteSpace(_runningPod.Ip) ||
+            !System.Net.IPAddress.TryParse(_runningPod.Ip, out _) ||
+            _runningPod.Port is < 1 or > 65535)
+            return Task.FromResult(("Nicht prüfbar",
+                "SSH-IP oder SSH-Port fehlen noch im Thunder-Status. " +
+                "Status nach dem Start erneut aktualisieren."));
+        var thunderHome = Environment.GetEnvironmentVariable("TNR_HOME");
+        if (string.IsNullOrWhiteSpace(thunderHome))
+            thunderHome = Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.UserProfile), ".thunder");
+        var keyPath = Path.Combine(thunderHome, "keys", _runningPod.Uuid);
+        if (!File.Exists(keyPath))
+            return Task.FromResult(("Einrichtung nötig",
+                "Am Standardort des Thunder-Clients wurde noch keine private Schlüsseldatei " +
+                "gefunden. Der Client legt beim Statuscheck keinen Schlüssel an. " +
+                "Ein ausdrücklich gestartetes 'tnr connect' kann eine SSH-Schlüsseleinrichtung " +
+                "auslösen. Falls Thunder TNR_HOME oder einen Cache-Fallback nutzt, " +
+                "diesen Speicherort separat prüfen."));
+        _sshEndpoint = new SshConnection(_runningPod.Id, _runningPod.Ip,
+            _runningPod.Port, keyPath);
+        return Task.FromResult(("Vorhanden",
+            "Private SSH-Schlüsseldatei gefunden (Inhalt nicht gelesen). " +
+            "Die tatsächliche Anmeldung wird gesondert getestet."));
     }
 
     private async Task<(string, string)> CheckSshAuthenticationAsync(CancellationToken ct)
@@ -246,7 +262,7 @@ public sealed class SystemReadinessService : IDisposable
             return ("Einrichtung nötig", "Hostschlüssel noch nicht bestätigt. Unter Instanzen per SSH verbinden und Fingerprint unabhängig mit Thunder vergleichen.");
         try
         {
-            var outcome = await _ssh.RunScriptAsync(_sshEndpoint, "true\n", ct: ct);
+            var outcome = await _ssh.ProbeAuthenticationAsync(_sshEndpoint, ct);
             return outcome.Success
                 ? ("Erfolgreich getestet", "Authentifizierte SSH-Verbindung mit bestehendem Hostvertrauen erfolgreich. Nur ein harmloser true-Befehl ausgeführt.")
                 : ("Fehler", "SSH-Anmeldung gescheitert. Pod-Port, SSH-Key-Zuordnung und hinterlegten Hostfingerprint prüfen.");
