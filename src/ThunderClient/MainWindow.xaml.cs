@@ -135,6 +135,7 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("TextBrush", 24, 34, 48);
             SetBrush("SubtleBrush", 89, 103, 121);
             SetBrush("AccentBrush", 33, 101, 202);
+            SetBrush("OnAccentBrush", 255, 255, 255);
             SetBrush("BorderBrush", 221, 227, 235);
             SetBrush("HoverBrush", 229, 235, 243);
             SetBrush("SelectedBrush", 220, 233, 252);
@@ -149,6 +150,7 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("TextBrush", 240, 244, 249);
             SetBrush("SubtleBrush", 171, 185, 202);
             SetBrush("AccentBrush", 82, 157, 255);
+            SetBrush("OnAccentBrush", 14, 32, 52);
             SetBrush("BorderBrush", 56, 70, 88);
             SetBrush("HoverBrush", 42, 57, 75);
             SetBrush("SelectedBrush", 44, 77, 112);

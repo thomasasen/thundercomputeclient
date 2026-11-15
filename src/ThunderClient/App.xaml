@@ -10,6 +10,7 @@
         <SolidColorBrush x:Key="TextBrush" Color="#182230" />
         <SolidColorBrush x:Key="SubtleBrush" Color="#596779" />
         <SolidColorBrush x:Key="AccentBrush" Color="#2165CA" />
+        <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="BorderBrush" Color="#DDE3EB" />
         <SolidColorBrush x:Key="HoverBrush" Color="#E5EBF3" />
         <SolidColorBrush x:Key="SelectedBrush" Color="#DCE9FC" />

@@ -15,7 +15,7 @@
                 <StackPanel DockPanel.Dock="Top" Margin="5,3,0,36">
                     <Border Width="42" Height="42" HorizontalAlignment="Left" CornerRadius="13"
                             Background="{DynamicResource AccentBrush}" Margin="0,0,0,15">
-                        <TextBlock Text="T" FontSize="23" FontWeight="Bold" Foreground="White"
+                        <TextBlock Text="T" FontSize="23" FontWeight="Bold" Foreground="{DynamicResource OnAccentBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <TextBlock FontSize="20" FontWeight="Bold" Text="Thunder Compute" />
@@ -104,7 +104,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Command="{Binding SyncCommand}" Content="Git synchronisieren" />
                     <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen"
-                            Background="{DynamicResource AccentBrush}" Foreground="White" />
+                            Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" />
                 </StackPanel>
             </Grid>
             <TabControl x:Name="MainTabs" Grid.Row="1" SelectedIndex="0"
@@ -115,6 +115,15 @@
                     <StackPanel Margin="4,6,18,28">
                         <TextBlock Style="{StaticResource OverlineText}" Text="ÜBERSICHT" />
                         <TextBlock Style="{StaticResource LeadText}" Text="Alles Wichtige, ohne Umwege." Margin="0,7,0,20" />
+                        <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,15"
+                                Background="{DynamicResource FieldBrush}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource OverlineText}" Text="VERBINDUNGSSTATUS" />
+                                <TextBlock Text="{Binding GitSyncStatus}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding Message}" Foreground="{DynamicResource SubtleBrush}"
+                                           Margin="0,7,0,0" />
+                            </StackPanel>
+                        </Border>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -255,7 +264,7 @@
                                  AcceptsReturn="True" MinHeight="245" VerticalScrollBarVisibility="Auto" />
                         <Button Command="{Binding CreateCommand}"
                                 Content="Instanz erstellen und Kosten bestätigen …" FontWeight="SemiBold"
-                                Background="{DynamicResource AccentBrush}" Foreground="White" HorizontalAlignment="Left" />
+                                Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" HorizontalAlignment="Left" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -318,7 +327,7 @@
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
                                    Text="Logs aus dem zentralen Thunder-Bootstrap. Fortschritt nur, wenn die Quelle ihn liefert. Kein automatischer Neustart nach Verbindungsabbruch." />
                         <WrapPanel>
-                            <Button Command="{Binding BootstrapCommand}" Content="Bootstrap über SSH starten …" Background="{DynamicResource AccentBrush}" Foreground="White" />
+                            <Button Command="{Binding BootstrapCommand}" Content="Bootstrap über SSH starten …" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" />
                             <Button Command="{Binding ExportLogsCommand}" Content="Bereinigte Logs exportieren" />
                         </WrapPanel>
                     </StackPanel>

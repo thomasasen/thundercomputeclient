@@ -30,6 +30,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     private bool _busy;
     private string _message = "Noch nicht verbunden";
     private string _commit = "unbekannt";
+    private string _gitSyncStatus = "Noch nicht synchronisiert";
     private string _selectionSummary = "Keine Workflows ausgewählt";
     private string _preview = "Konfiguration wird nach Synchronisierung angezeigt.";
     private string _hardware = "Hardwarestatus nicht geladen";
@@ -121,6 +122,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public bool Busy { get => _busy; private set => Set(ref _busy, value); }
     public string Message { get => _message; private set => Set(ref _message, value); }
     public string Commit { get => _commit; private set => Set(ref _commit, value); }
+    public string GitSyncStatus { get => _gitSyncStatus; private set => Set(ref _gitSyncStatus, value); }
     public string SelectionSummary { get => _selectionSummary; private set => Set(ref _selectionSummary, value); }
     public string Preview { get => _preview; private set => Set(ref _preview, value); }
     public string Hardware { get => _hardware; private set => Set(ref _hardware, value); }
@@ -193,18 +195,33 @@ public sealed class MainViewModel : Bindable, IDisposable
     public void ReportStartupFailure(Exception exception)
     {
         var safe = RedactKnownSecrets(exception.Message);
-        Message = "Workflow-Synchronisierung nicht möglich: " + safe +
-            " · Git-Zugriff prüfen oder Workflow-Synchronisierung erneut starten. " +
+        GitSyncStatus = "Synchronisierung fehlgeschlagen";
+        Message = "Git: " + safe +
+            " · Git Credential Manager und lokale Ordnerrechte prüfen. " +
             "Diagnose: " + StartupDiagnostics.LogPath;
     }
 
     public async Task InitializeAsync()
     {
-        await SyncAsync();
+        // Independent subsystems must initialize even if the private Git checkout fails.
+        try { await SyncAsync(); }
+        catch (Exception ex)
+        {
+            StartupDiagnostics.Record("Git-Synchronisierung", ex);
+            ReportStartupFailure(ex);
+        }
         try { await RefreshInstancesAsync(); }
-        catch (Exception ex) { Error(ex); }
+        catch (Exception ex)
+        {
+            StartupDiagnostics.Record("Thunder-Instanzen", ex);
+            Log("Thunder-Status beim Start nicht verfügbar: " + ex.GetType().Name);
+        }
         try { await RefreshSnapshotsAsync(); }
-        catch (Exception ex) { Error(ex); }
+        catch (Exception ex)
+        {
+            StartupDiagnostics.Record("Thunder-Snapshots", ex);
+            Log("Snapshot-Liste beim Start nicht verfügbar: " + ex.GetType().Name);
+        }
         _monitorTask = MonitorLoopAsync(_shutdown.Token);
     }
 
@@ -256,6 +273,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         {
             var sync = await _git.SynchronizeAsync(WorkflowsDirectory, _shutdown.Token);
             Commit = sync.Commit;
+            GitSyncStatus = "Synchronisiert · " + sync.Commit[..Math.Min(12, sync.Commit.Length)];
             LoadWorkflows();
             Message = sync.Detail;
             Log("Workflow-Repository: " + sync.Commit);
@@ -267,6 +285,7 @@ public sealed class MainViewModel : Bindable, IDisposable
                 _dialogs.Confirm("Offline-Modus", "GitHub-Synchronisierung fehlgeschlagen. Den letzten lokalen Workflow-Stand ausdrücklich im Offline-Modus verwenden?"))
             {
                 Commit = await _git.CurrentCommitAsync(WorkflowsDirectory, _shutdown.Token);
+                GitSyncStatus = "Offline · " + Commit[..Math.Min(12, Commit.Length)];
                 LoadWorkflows();
                 Message = "OFFLINE: lokaler Stand " + Commit;
             }
