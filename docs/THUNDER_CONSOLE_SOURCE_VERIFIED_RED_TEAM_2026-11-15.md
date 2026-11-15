@@ -107,3 +107,83 @@ Erst nach gesonderter Zustimmung: Live-Versuch eines **bereits zugeordneten** Sc
 4. **Freigabe:** Windows/UI-Regression + Source-contract-Tests + gesondert erlaubter Live-Pod-E2E-Test + unabhängig durch eine andere Person/Gruppe überprüfter Security-Sign-off. **Draft-PR nicht mergen und kein Stable-Release.**
 
 **Offene externe Frage an Thunder:** Gibt es eine offizielle, unabhängig authentifizierte Anzeige/API des **SSH-Server-Hostfingerprints** pro Instanz, und lässt sich ein beim Create mitgegebenes Public-Key-Paar mit dem aktuell empfohlenen `tnr`-Pfad ohne anschließendes `/add_key` verwenden? Die vorhandene Dokumentation bestätigt das zweite in der jetzigen CLI-Version **nicht**.
+
+
+---
+
+## H. Ergänzende technische Gegenprüfung vom 16.11.2026
+
+### Verwendete Quellstände
+
+- Thunder Compute Dokumentation: `Thunder-Compute/thunder-compute-documentation` Commit `ec63523ec23735695de00377e7bd4c6baaa03c5a`.
+- Thunder CLI: `Thunder-Compute/thunder-cli` Commit `9e272f5ca6db4b4433e93d3e7671e3cdca12ee6b`.
+- Privates Workflow-Repository: `thomasasen/runpod-ai-workflows` Commit `b5276af36dd0ccd4477f49de86e4a120a8f8ac54`; vorheriger, im Client-Log sichtbarer Stand `b04c872f28abdf60f7f84e4cc3e1c47db6de6069`.
+- Client-Review: Branch `feature/windows-desktop-client`, keine Codeänderung in diesem Addendum.
+
+### H1 — P1: Der dokumentierte Speicher-Preflight blockiert bei Platzmangel nicht
+
+Die private Anleitung `docs/THUNDER_COMPUTE_SETUP.md` sagt, der Bootstrap führe einen freien-Speicher-Preflight aus und könne abbrechen. Der tatsächliche Pfad ist:
+
+1. `thunder/bootstrap.sh` setzt `HOSTING_PROVIDER=thunder` und startet den gemeinsamen Entrypoint.
+2. `start.sh` ruft `scripts/early_workers.py preflight` auf.
+3. `early_workers.py` ruft `startup_capacity.capacity_preflight` auf.
+4. `scripts/startup_capacity.py` protokolliert bei `free < required * 1.10` nur eine Warnung und gibt anschließend normal zurück. Es gibt für unzureichenden freien Speicher keinen Fehler/Abbruch.
+
+Symlink- und Pfadsicherheitsfehler blockieren weiterhin; die reine Kapazitätsunterschreitung tut es nicht. Damit ist die README-Aussage als Kapazitätsgarantie nicht erfüllt. Der Download kann trotz absehbar zu kleiner Disk beginnen und erst später mit Teil-Dateien bzw. Downloadfehlern enden.
+
+**Abnahme:** Für Thunder muss die vor dem ersten Modell-/Node-Transfer verfügbare Disk gegen fehlende Modellbytes plus begründeten Runtime-/Cache-/Output-Puffer geprüft werden. Wenn die Quota nicht zuverlässig messbar ist, darf ein großer Download nicht als sicher freigegeben werden. Mindestens explizite Warnung und Nutzerentscheidung; vorzugsweise harter Abbruch vor Transfer. Keine Annahme, dass `df` immer die gebuchte Quota darstellt.
+
+### H2 — P1: CUDA-Fehlertext ist im aktiven Thunder-Pfad nachweislich plattformfalsch
+
+`thunder/bootstrap.sh` exportiert `HOSTING_PROVIDER=thunder`. Der gemeinsame `start.sh` ruft danach `scripts/cuda_preflight.py` auf. Das Preflight-Skript prüft zwar sinnvoll `torch.cuda.is_available()`, `torch.cuda.device_count()` und `torch.cuda.mem_get_info()`, wertet `HOSTING_PROVIDER` aber nicht aus.
+
+Bei einem Fehler gibt es unabhängig vom Hosting-Anbieter `action=stop_pod_and_redeploy_on_healthy_gpu_host` aus und nennt im Klartext einen anderen RunPod-GPU-Host. Das ist im Thunder-Pfad keine gültige Handlungsanweisung. Thunder-spezifische Recovery muss die vorhandene Instanz, die Thunder Console, Kosten, Snapshot und ein separat bestätigtes Löschen berücksichtigen. Keine automatische Löschung und kein zweiter Create-Versuch.
+
+### H3 — P1: Thunder-Setup-README und laufender Bootstrap sind auseinander gelaufen
+
+Die Blobs von `docs/THUNDER_COMPUTE_SETUP.md`, `scripts/cuda_preflight.py` und `thunder/bootstrap.sh` sind zwischen `b04c872` und `b5276af` unverändert. Gleichzeitig wurden `start.sh` und `scripts/bootstrap.py` geändert und `scripts/civitai_transfer.py` neu eingeführt.
+
+Die Setup-Anleitung beschreibt weiterhin, dass unvollständige Civitai-`.part`-Dateien nicht sicher fortgesetzt werden. Der aktuelle Code kann bei großen Dateien (ab 0,5 GB), bestätigter Range-Unterstützung und starkem ETag abgeschlossene Segmente mit einem passenden Beleg wiederverwenden; andernfalls fällt er auf einen vollständigen Stream zurück. Die Funktion ist damit bedingt, aber die alte pauschale Anleitung ist nicht mehr präzise.
+
+Zusätzlich lädt `GitHubWorkflowSource.FetchAsync` im Desktop-Client nur Workflow-Manifeste, Workflow-READMEs und `thunder/bootstrap.sh`. Die zentrale `README.md`, `docs/THUNDER_COMPUTE_SETUP.md`, `docs/ARCHITECTURE.md` und die Runtime-Preflight-Skripte werden nicht als Client-Quellen geladen oder gegen die ausgewählte Revision geprüft. Die UI kann deshalb nicht behaupten, diese Betriebsanleitungen automatisch bei jedem Schritt zu validieren.
+
+**Abnahme:** Zentrale Thunder-Anleitung, Runtime-Skripte und jeweilige Commit-SHA als zusammengehörigen Vertrag behandeln. README-Aussagen durch Tests gegen den tatsächlich aufgerufenen Code absichern. Eine bewegliche `main`-Referenz darf nicht unbemerkt eine andere Runtime als die im GUI bestätigte Revision ausführen.
+
+### H4 — P1: Die Systemprüfung ist kein verpflichtendes Gate vor Create
+
+`RunSystemChecksAsync` ist eine explizit manuell gestartete Diagnose. `AutoDeployAsync` und `CreateAsync` rufen sie nicht auf und prüfen auch nicht, ob erforderliche Einträge erfolgreich getestet wurden.
+
+Der automatische Ablauf prüft selbst unter anderem Token-Präsenz, die Thunder-Instanzliste und vorhandene Pods. Er erzwingt aber vor dem kostenpflichtigen Create keine vollständige, dokumentierte Prüfung von Zahlungsstatus, aktuellen GPU-/vCPU-/Disk-Spezifikationen, aktuellen Preisen, Civitai-Tokenstatus, Modellrechten oder einer für Thunder passenden Runtime-Voraussetzung. Der optionale `/api/v1/me`-Test im Systemstatus ist keine Freigabebedingung und beweist keine Berechtigung für einzelne Modell-Dateien.
+
+Der nachgelagerte CUDA-Preflight läuft erst auf dem bereits bezahlten Pod. Die manuelle Hardwareabfrage des Clients wird im Auto-Deploy-Pfad nicht als Gate ausgeführt und ersetzt ohnehin keinen Torch-CUDA-Preflight.
+
+**Abnahme:** Vor dem ersten kostenpflichtigen Create müssen die tatsächlich notwendigen, aktuellen und dokumentierten Prüfungen ausgeführt oder als nicht verifizierbar blockiert werden. Jede Prüfung braucht Quelle, Abrufzeit, erwarteten Wert, Ist-Wert und klare Entscheidung. Provider-/Modellrechte nicht aus einem allgemeinen Token-HTTP-200 ableiten.
+
+### H5 — P1: Erfolgreiche Create-Antwort wird verworfen; Status-Race kann einen bezahlten Pod verwaisen lassen
+
+Die offizielle CLI gibt bei erfolgreichem `tnr create --json` die API-Antwort als JSON aus. Diese enthält die Instanzkennung und UUID. `ThunderCli.CreateWithFallbackAsync` verwirft jedoch `output.Stdout` und ruft unmittelbar danach `tnr status --json --no-wait` auf. Es akzeptiert den Erfolg nur, wenn diese zweite Abfrage genau eine Instanz liefert.
+
+Wenn die Statusliste nach erfolgreicher Create-Antwort noch nicht aktualisiert ist oder zwischenzeitlich eine weitere Instanz erscheint, wirft der Client einen Fehler, obwohl der kostenpflichtige Create bereits erfolgreich war. Der konkrete Identifier aus der erfolgreichen Create-Antwort wird nicht gesichert. Im Auto-Deploy bleibt dadurch `podId` möglicherweise leer; die Fehlermeldung kann den weiterlaufenden Pod nicht eindeutig benennen.
+
+Die bestehenden `ThunderTests` prüfen den Kapazitäts-Fallback, nicht aber eine erfolgreiche Create-Antwort bei vorübergehend leerer/verzögerter Statusliste.
+
+**Abnahme:** Die erfolgreiche JSON-Create-Antwort strikt parsen, Identifier/UUID sofort dauerhaft im laufenden Deployment-Zustand sichern und genau diese ID mit begrenztem Polling nachverfolgen. Nie eine zweite Instanz anlegen, nur weil die Statusliste verzögert ist. Wenn die Create-Antwort selbst unklar ist, zuerst read-only reconciliieren und den Benutzer mit dem bekannten Kostenrisiko informieren.
+
+### Zusätzliche adversariale Abnahmetests
+
+| Test-ID | Störfall | Erwartete Reaktion |
+| --- | --- | --- |
+| TC-19 | Freier Speicher liegt unter Modellbedarf plus 10 % | Kein Modell-/Node-Transfer; harte Sperre oder ausdrückliche, protokollierte Risikoentscheidung. Eine reine Warnung darf nicht als bestanden gelten. |
+| TC-20 | CUDA-Preflight scheitert mit `HOSTING_PROVIDER=thunder` | Thunder-spezifische Diagnose; keine RunPod-Anweisung, kein automatisches Löschen und kein zweiter Create. |
+| TC-21 | Setup-README bleibt alt, Runtime-Code ändert sich auf neuem `main` | Versionsabweichung sichtbar machen; Dokumentations-/Code-Vertrag vor Freigabe prüfen. |
+| TC-22 | `tnr create --json` erfolgreich, direkte Statusabfrage liefert vorübergehend `[]` | Create-Identifier behalten und exakt diese Instanz weiter pollen; keine neue Instanz und kein Verlust der Pod-ID. |
+| TC-23 | Benutzer überspringt den manuellen Systemstatus und startet Auto-Deploy | Kostenpflichtige Aktion nur nach den notwendigen Pflicht-Gates; offene/nicht prüfbare Voraussetzungen ausdrücklich anzeigen. |
+| TC-24 | Civitai-`/me` meldet ungültigen Token, ausgewählte Dateien benötigen Zugriff | Keine falsche Erfolgsanzeige; vor GPU-Downloads klare Blockierung oder ausdrücklich bestätigte, begrenzte Risikoentscheidung. |
+
+Diese sechs Tests sind neue Abnahmekriterien, nicht als ausgeführt oder bestanden zu verstehen.
+
+### Aktualisierte Freigabeentscheidung
+
+Keine Freigabe für unbeaufsichtigte kostenpflichtige Bereitstellungen. Die vorhandene Windows-CI mit 75 bestandenen Tests belegt den damaligen Mock-/UI-Stand, nicht die neuen Fälle TC-19 bis TC-24. Es wurde in dieser Nachprüfung weder ein Thunder-Pod erstellt noch eine Live-GPU-, SSH-, Modell- oder CUDA-Prüfung durchgeführt.
+
+Die bestehenden Issues #3 (Kosten), #4 (Resume/Commit-Pinning), #5 (bestehende Pods/Hardware) und #9 (verbindliche Quellen-Gates) bleiben offen. Der zusätzliche Create-Reconciliation-Befund ist separat zu verfolgen.
