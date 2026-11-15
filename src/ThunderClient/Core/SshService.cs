@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -64,7 +65,7 @@ public sealed class SshService(ICommandRunner commands)
         var script = "set -eu\n" +
             "nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu --format=csv,noheader || true\n" +
             "df -h \"$HOME\" || true\nfree -h || true\n";
-        var result = await RunScriptAsync(endpoint, script, cancellationToken: ct);
+        var result = await RunScriptAsync(endpoint, script, ct: ct);
         if (!result.Success) throw new ExternalCommandException("ssh Hardware-Prüfung", result);
         return result.Stdout;
     }
