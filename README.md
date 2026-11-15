@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.7, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.8, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 ## Privater GitHub-Zugriff: kein Checkout
 
@@ -24,6 +24,12 @@ Der Token wird nur in HTTPS-Authorization-Headern benutzt, nie als URL-Abfragepa
 - Vertrauenswürdige, externe Quelle zum Abgleich des SSH-ED25519-Hostfingerprints vor dem ersten Verbindungsaufbau.
 
 **Git for Windows/Git Credential Manager sind für den GUI-Workflow-Katalog nicht mehr erforderlich.** Für andere Projekte können sie natürlich weiterhin installiert bleiben.
+
+## Optimierte Instanzkonfiguration
+
+Unter **Neue Instanz** sind GPU-Priorität, Ressourcen und Startvorschau jetzt in klar getrennten Karten angeordnet. Alle GPU-Zeilen besitzen ein einheitliches Raster mit ausreichend breiten Feldern für vCPUs und geschätzte GPU-Stundenpreise. Ressourcenfelder nutzen ein zweispaltiges Formular mit vollständigen Beschriftungen.
+
+Die kostenpflichtige **Instanz erstellen**-Aktion bleibt beim Scrollen am unteren Rand sichtbar; die separate Sicherheitsbestätigung vor dem Erstellen bleibt unverändert. Der helle und dunkle Modus verwenden die korrekte Schriftfarbe auf primären Aktionsbuttons. Die Windows-GUI-Selbstprüfung kontrolliert beide Fensterbreiten (Standard und unterstütztes Minimum), alle sieben Seiten und den sichtbaren Erstellen-Button.
 
 ## Bedienung
 

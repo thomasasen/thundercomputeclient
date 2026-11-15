@@ -9,13 +9,13 @@ Die Anwendung ist ein Windows-Desktop-Arbeitsplatz für technisch anspruchsvolle
 Referenz: [emilkowalski/skills – apple-design/SKILL.md](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md), abgerufen am 15.11.2026. Die Quelle beschreibt weborientierte Interaktion und Apples Gestaltungsprinzipien; hier werden **Prinzipien** in native WPF-Steuerelemente übersetzt. Die Anwendung wird nicht als Apple-Anwendung oder macOS-Port ausgegeben.
 
 1. **Orientierung:** Eine feste Seitenleiste mit sieben klar benannten Zielen ersetzt die schwer lesbare Tab-Leiste. Aktueller Bereich ist markiert; jeder Bereich hat einen eigenständigen Seitentitel.
-2. **Sofortiges Feedback:** Hover, Pressed- und Keyboard-Focus-Zustände; eine dauerhafte Statuszeile und eine Git-Synchronisierungskarte. Kostenrelevante Aktionen behalten ihre explizite Bestätigung.
+2. **Sofortiges Feedback:** Hover, Pressed- und Keyboard-Focus-Zustände; eine dauerhafte Statuszeile und eine GitHub-API-Verbindungsstatus. Kostenrelevante Aktionen behalten ihre explizite Bestätigung.
 3. **Hierarchie:** Hintergrund, Sidebar, Inhaltsfläche und Eingabefeld sind über wenige konsistente Farbebenen getrennt. Karten mit 16px-Radius und großzügigem Abstand, ohne dekorative Überlagerungen.
 4. **Typografie:** Native Segoe UI, große Seitenüberschriften, niedrigere Abschnittstitel, hervorgehobene relevante Werte, beschreibende sekundäre Texte, Consolas für Hashes/Logs.
 5. **Dark/Light:** Alle zentralen Brushes sind austauschbar. Bestehende gespeicherte Präferenz bleibt erhalten; die Vorgabe für neue Profile ist hell.
 6. **Bewegung:** Keine automatischen Sprünge, Parallax-Animationen oder Bounce-Effekte. Direkte Maus-/Tastatur-Rückmeldung ohne erzwungenes Motion-Verhalten. GPU-Drag-and-Drop bleibt erhalten.
 7. **Zugänglichkeit:** Kontrast, sichtbare Keyboard-Fokusumrandung und mehrere Rückmeldeformen (Text statt allein Farbe). Schriftgrößen und Fenster können durch Windows angepasst werden; weitere UI-Accessibility-Tests auf realen Geräten bleiben erforderlich.
-8. **Verantwortung:** Fehlgeschlagener Git-Checkout blockiert nicht mehr die Anzeige anderer Bereiche. Kostenschätzungen bleiben ausdrücklich als Schätzungen gekennzeichnet; Token-Eingaben sind maskiert.
+8. **Verantwortung:** Fehlgeschlagene private GitHub-API-Abfragen blockieren nicht mehr die Anzeige anderer Bereiche. Kostenschätzungen bleiben ausdrücklich als Schätzungen gekennzeichnet; Token-Eingaben sind maskiert.
 
 ## Technische Umsetzung
 
@@ -26,3 +26,17 @@ Referenz: [emilkowalski/skills – apple-design/SKILL.md](https://github.com/emi
 - GitHub Actions: self-contained Windows-Publish und `--ui-smoke-test`; testet das tatsächliche Fenster, aber ersetzt **keine** manuelle Prüfung von Schrift-Skalierung, Tastaturbedienung, Resize und Fensterdarstellung am Endgerät.
 
 Bewusst keine Kopie von Web-CSS, JavaScript Pointer Events oder Framer-Motion-Springs in WPF; diese APIs gelten nicht für das native Zielsystem.
+
+## Optimierung der Seite „Neue Instanz“ (Alpha 0.1.0-alpha.8)
+
+Ausgangsbefund anhand eines echten Windows-Screenshots: Die GPU-Zeilen verwendeten horizontale StackPanels mit sehr kleinen, teilweise schwer lesbaren Eingaben und ungünstigen Abständen. Die Ressourcenkonfiguration erschien als dichtes WrapPanel, die Startvorschau lag weit unterhalb der sichtbaren Fläche und die Hauptaktion musste durch Scrollen gesucht werden. Die explizite TextBlock-Vordergrundfarbe überlagerte außerdem die von primären Buttons geerbte Schriftfarbe.
+
+Umsetzung:
+- GPU-Liste mit breiten, gleichmäßigen Zeilen als eigenständige Auswahlkarten. Einheitliches vierteiliges Raster für Aktivierung, GPU-Modell, vCPU-Wert und Stundenpreis. Mouse-Drag-and-Drop und Pfeiltasten-/Schaltflächen bleiben erhalten.
+- Ressourcenkonfiguration als zweispaltiges Raster mit vollständigen, einheitlich formatierten Beschriftungen. Die Feldgrößen passen sich der Breite der Seite an.
+- Startvorschau mit separater Überschrift, Hinweis auf fehlende Live-Preise und lesbarem Monospace-Textfeld.
+- Fixierter Aktionsbereich am unteren Rand der Instanzseite. Der Button „Instanz erstellen …“ führt denselben, weiterhin zwingend bestätigten kostenpflichtigen Create-Command aus.
+- TextBlock erbt die Vordergrundfarbe von umgebenden Controls, damit der primäre Button auch im hellen und dunklen Modus den vorgesehenen Schriftkontrast hat.
+- Schriftgrößen der Standardbedienelemente angehoben und GPU-Zeilen mit Fokus-, Hover- und Auswahlindikatoren ausgestattet.
+
+**Testgrenzen:** Der automatische WPF-GUI-Test rendert alle sieben Seiten, prüft die Kopierbarkeit des Logs und kontrolliert auf der Instanzseite GPU-Liste und fixierten Aktionsbutton bei Standardbreite und 1080px-Minimalbreite. Er ersetzt nicht die manuelle Sichtprüfung bei 125%/150% DPI, Bildschirmvergrößerung und kleinen Displays. Externe Abläufe und kostenpflichtige Operationen werden im GUI-Test nicht aufgerufen.

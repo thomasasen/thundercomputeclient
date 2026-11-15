@@ -4,7 +4,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 
 | Bereich | Stand |
 |---|---|
-| .NET 10 WPF, deutsche GUI, MVVM, Dark/Light | Designsystem mit Sidebar, Cards, Fokus-/Hoverzuständen, Light/Dark; Windows-CI öffnet alle sieben Ansichten, Endanwender-Smoketest weiterhin offen |
+| .NET 10 WPF, deutsche GUI, MVVM, Dark/Light | Sidebar/Cards, Light/Dark; GPU-Zeilen und Ressourcenformular neu gerastert, Startvorschau strukturiert, primärer Kostenbutton dauerhaft sichtbar. Windows-CI rendert sieben Ansichten und prüft 1320/1080px, Endanwender-Sichttest noch offen |
 | Privater GitHub-Katalog, API-Synchronisierung, Offline-Zustimmung | **Kein Checkout**: API-Abfrage mit Fine-grained PAT aus WinCred; Commit-/Blob-SHA, nur benötigte Dateien im RAM, Offline nur innerhalb laufender Sitzung. Echter PAT-Zugriff am Benutzer-PC noch nicht validiert |
 | Dynamische Workflow-Manifeste, Canvas, Mehrfachauswahl, Modell-Deduplikation | Implementiert; komplexe Manifest-Metadaten/Hardwareempfehlungen nicht vollständig |
 | GPU-Priorität, Editieren, Kostenbestätigung, sichere Fallback-Regel | Implementiert; Preise nur historische Schätzung, GPU/vCPU live von CLI validiert |
