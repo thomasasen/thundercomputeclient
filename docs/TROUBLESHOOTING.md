@@ -1,3 +1,23 @@
+# SSH-Verbindung: „A task was canceled“ nach der Pod-Erstellung
+
+**Beispiel aus der Nutzersitzung:** Die Thunder-CLI hat erfolgreich die L40-Instanz `0` angelegt, Pod `QUEUED → STARTING → RUNNING` und SSH-IP/Port gemeldet. Danach blieb die automatische Einrichtung bei **„authentifiziere Schlüssel und prüfe den Hostfingerprint“** stehen und meldete ca. 52 Sekunden später nur **„A task was canceled“**. Das ist **kein Beweis**, dass die VM oder der SSH-Port defekt sind. Die Modelldownloads und der Bootstrap wurden **nicht gestartet**. Ein bestehender Pod kann dennoch Kosten verursachen.
+
+**Technische Ursache der unverständlichen Meldung:** In der bisherigen Prozessausführung führte `CancelAfter(timeout)` für CLI-Teilprozesse ebenfalls zu `OperationCanceledException`, die in mehreren Aufrufern als Benutzerabbruch oder generischer Fehler ankam. In einem Teil der SSH-Strecke wurden interne Zeitlimits schon abgefangen, in anderen nicht; anhand des alten Logs ist der konkret blockierende Teilprozess **nicht sicher nachweisbar**.
+
+**Ab `v0.1.0-alpha.15`:** Die `ProcessRunner`-Schicht unterscheidet internes Zeitlimit von echter Benutzerunterbrechung und nennt Programm und Wartezeit. Spezifische Schritte der SSH-Vorbereitung werden unter **Downloads & Logs** ausgegeben; zeitbegrenzte `ssh-keyscan`-Versuche werden erkannt, und der isolierte `ssh.exe`-Fallback kann einen bereits empfangenen öffentlichen ED25519-Key auch nach Handshake-Timeout auswerten. Ein unerwartet intern abgebrochener Task wird mit dem **zuletzt aktiven Bereitstellungsschritt** diagnostiziert. Es werden **keine neuen kostenpflichtigen Pods** zur Fehlerbehandlung erstellt.
+
+**Vorgehen ohne Terminal:**
+
+1. Client schließen und die neue Alpha-Version installieren.
+2. Unter **Instanzen** kontrollieren, ob Pod `0` noch existiert, läuft und Kosten verursacht.
+3. Bei **genau einem** vorhandenen Pod die **automatische Einrichtung des bestehenden Pods** auswählen. Die App fordert die Zustimmung erneut an und erstellt keinen weiteren Pod.
+4. Bei einem neuen Hostschlüssel den SHA256-Fingerprint **unabhängig prüfen**, bevor er bestätigt wird. Die Anwendung nutzt keine automatische Vertrauensentscheidung.
+5. Falls die Verbindung erneut scheitert: Unter **Downloads & Logs** das **kopierbare Log** prüfen. Die letzte `SSH-Hostschlüssel`-/`SSH-Endpunkt`-Zeile und eine anschließende Zeitlimit-Meldung benennen den betroffenen Schritt. **Keine Tokens oder privaten SSH-Schlüssel teilen.**
+
+Die Kosten entstehen schon mit dem laufenden Pod. Wird er nicht gebraucht, unter **Instanzen** nach Sichtung der Daten/Snapshots ausdrücklich löschen. Nicht unaufgefordert einen zweiten Pod anlegen. Die umfassenderen Red-Team-Probleme (Preisverifikation, persistentes Resume, voller E2E-Test) bleiben offen.
+
+---
+
 # Windows-SSH-Hostschlüssel: `choose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com`
 
 **Betroffen:** Windows-OpenSSH-`ssh-keyscan.exe` (bekannter Upstream-Fehler [PowerShell/Win32-OpenSSH #2140](https://github.com/PowerShell/Win32-OpenSSH/issues/2140)); er tritt bei modernen Linux-OpenSSH-Servern auf. **Dies ist kein Beweis für einen falschen SSH-Port oder fehlenden ED25519-Hostkey.** In einem reproduzierten Nutzerlauf war der Pod bereits `RUNNING`, IP und Port vorhanden, jedoch brach die Hostschlüsselabfrage ab, bevor ein Bootstrap/Modelldownload begann.

@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.14, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.15, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 ## Ein-Klick-Bereitstellung
 
@@ -52,9 +52,17 @@ Der offizielle Thunder-Befehl `tnr connect 0 --json` liefert erfolgreiche SSH-Ve
 
 Der Remote-SSH-Port wird von Thunder vorgegeben und nicht mit `--disk`/`--gpu` beim Erstellen gewählt. Für ComfyUI verwendet der Client einen privaten Tunnel `127.0.0.1:8188 → Pod:127.0.0.1:8188` über die SSH-Verbindung. Eine öffentliche HTTP-Portfreigabe wird dafür **nicht** benötigt. HTTP-Freigaben, soweit aktiv, können gesondert **lesend** mit `tnr ports list --json` geprüft werden. Keine Portfreigabe erfolgt automatisch.
 
+## SSH-Abbruch „A task was canceled“ (Alpha.15)
+
+Die vorangegangene Alpha konnte bei einer hängenden Windows-OpenSSH-Abfrage nach einem bereits erstellten Pod lediglich **„A task was canceled“** anzeigen. Ein internes Befehl-Zeitlimit war in `ProcessRunner` nicht von einem ausdrücklichen Benutzerabbruch unterscheidbar; Diagnose und Wiederanlauf waren dadurch erschwert.
+
+Ab **v0.1.0-alpha.15** werden zeitbegrenzte CLI-/SSH-Prozesse als **Zeitüberschreitung mit Programmnamen und Sekundenangabe** statt als nichtssagender Abbruch gemeldet. Die Automatik protokolliert die SSH-Vorbereitung Schritt für Schritt (Thunder-Endpunkt, Hostvertrauen, `ssh-keyscan`-Versuch, isolierter `ssh.exe`-Fallback, Fingerprint-Dialog, SSH-Login). Damit ist der tatsächlich blockierende Schritt bei der nächsten Ausführung erkennbar. `ssh-keyscan` wird bei Zeitüberschreitung kontrolliert wiederholt; der `ssh.exe`-Fallback kann einen bereits temporär erfassten öffentlichen Hostschlüssel auch dann verwenden, wenn der `-N`-Handshake erst am Zeitlimit beendet wird. Der echte Hostschlüssel bleibt **nur nach unabhängiger Fingerprint-Prüfung** vertrauenswürdig; `StrictHostKeyChecking=yes` bleibt aktiv.
+
+Eine **vorhandene** VM soll unter **Instanzen** geprüft und nach ausdrücklicher Zustimmung weiterverwendet werden. Keine automatische zweite GPU-VM und kein automatisches Löschen bei Fehler. Der Pod kann weiter Kosten verursachen; die Modelldownloads starten erst nach einem erfolgreichen SSH-Login.
+
 ## Windows-SSH-Hostschlüssel: `choose_kex: unsupported KEX method`
 
-Ab **v0.1.0-alpha.14** wird der bekannte Fehler in **Windows `ssh-keyscan.exe`** mit `sntrup761x25519-sha512@openssh.com` (Win32-OpenSSH [#2140](https://github.com/PowerShell/Win32-OpenSSH/issues/2140)) automatisch behandelt: `ssh.exe` holt den *öffentlichen ED25519-Hostschlüssel* über einen einmaligen, **nicht authentifizierten** Handshake in eine **isolierte, direkt danach gelöschte Datei**. Der eigene, dauerhaft vertrauenswürdige `known_hosts`-Speicher wird **nicht** geändert, bevor der Benutzer den Fingerprint mit einer unabhängigen vertrauenswürdigen Quelle verglichen und ausdrücklich bestätigt hat. Es werden keine privaten Schlüssel oder Remote-Kommandos für diese temporäre Abfrage verwendet. Alle späteren SSH-Aktionen behalten `StrictHostKeyChecking=yes`.
+Ab **v0.1.0-alpha.15** wird der bekannte Fehler in **Windows `ssh-keyscan.exe`** mit `sntrup761x25519-sha512@openssh.com` (Win32-OpenSSH [#2140](https://github.com/PowerShell/Win32-OpenSSH/issues/2140)) automatisch behandelt: `ssh.exe` holt den *öffentlichen ED25519-Hostschlüssel* über einen einmaligen, **nicht authentifizierten** Handshake in eine **isolierte, direkt danach gelöschte Datei**. Der eigene, dauerhaft vertrauenswürdige `known_hosts`-Speicher wird **nicht** geändert, bevor der Benutzer den Fingerprint mit einer unabhängigen vertrauenswürdigen Quelle verglichen und ausdrücklich bestätigt hat. Es werden keine privaten Schlüssel oder Remote-Kommandos für diese temporäre Abfrage verwendet. Alle späteren SSH-Aktionen behalten `StrictHostKeyChecking=yes`.
 
 Bei Abbruch bleibt der bereits erstellte Thunder-Pod bestehen und kann Kosten verursachen. Kein automatischer zweiter Create-Versuch. Unter **Instanzen** den bestehenden Pod verwalten; beim nächsten bestätigten Ein-Klick-Start bietet der Client die Wiederverwendung der einzigen vorhandenen Instanz an. **Nicht** wegen dieses Fehlers einen neuen Pod erstellen. ComfyUI-Downloads starten erst *nach* erfolgreicher SSH-Hostvertrauensprüfung.
 

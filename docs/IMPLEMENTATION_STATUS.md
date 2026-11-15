@@ -46,3 +46,11 @@ Es werden keine undokumentierten Thunder-API-Endpunkte, Live-Verfügbarkeiten, t
 ## Alpha.14: Windows `ssh-keyscan` mit nicht unterstützter sntrup-KEX
 
 Ein konkreter Windows-OpenSSH-Bug blockierte beim Nutzer `ssh-keyscan` am bereits `RUNNING` gestarteten Pod **vor** den Modell-Downloads. Der Client verwendet bei dieser spezifischen Diagnose jetzt einen nicht authentifizierten, in temporärer known_hosts-Datei isolierten `ssh.exe`-Handshake mit ED25519 und anschließender gesonderter Nutzer-Fingerprint-Freigabe. Das ist ein auf den bekannten Fehler begrenzter Fallback, **kein** Ausschalten von StrictHostKeyChecking im eigentlichen SSH-Zugriff. Der Dialog zeigt künftig nur Handlungsanweisungen; vollständige technische Details bleiben im kopierbaren Log. Tests simulieren die reale Fehlermeldung und prüfen den vergänglichen Hostkey-Speicher, das Fehlen von Credentials/Remote-Commands und Fail-Closed-Verhalten. Echter Pod-End-to-End-Test bleibt ausstehend; Red-Team-Findings RT-01–10 bleiben offen.
+
+
+## Alpha.15: Interne SSH-Zeitlimits und Schrittprotokoll
+
+- Beobachtet: Reale Nutzerinstallation von L40-Pod `0` bis SSH-Vorbereitung erfolgreich, danach generisches „A task was canceled“. Kein Bootstrap/Download gestartet. Der damalige Logeintrag erlaubt **keine exakte Zuordnung** zu einem bestimmten SSH-Teilprozess.
+- Korrektur: `ProcessRunner` übersetzt **interne** Command-Zeitlimits in `TimeoutException` mit Programmname/Dauer und lässt **explizite** Cancellation separat. Die SSH-Vorbereitung protokolliert Thunder-Endpunkt, Hostvertrauen, Keyscan-Versuch, isolierte SSH-Key-Erfassung, Fingerprintfreigabe und Anmeldetest. Im Fallback kann ein bereits empfangener ED25519-Public-Key nach dem `ssh -N`-Zeitlimit geprüft werden. Unerwartete `OperationCanceledException` ohne abgebrochenen Deploy-Token werden als internes Zeitlimit mit letztem Schritt ausgegeben.
+- Windows-CI-Regression: echtes zeitbegrenztes Windows-Kommando und explizite Benutzer-Cancellation sowie isolierter Hostkey-Fallback nach simuliertem Prozessdeadline. **Kein** echter SSH-Test auf einem Thunder-Pod in CI.
+- Red-Team-P0 (nicht verifizierte Gesamtkosten / kein persistenter Remote-Supervisor) und andere P1 bleiben **offen**. Keine Stable-Freigabe.
