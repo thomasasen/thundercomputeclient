@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10, WPF) für die ComfyUI-Workflows im **privaten** Repository thomasasen/runpod-ai-workflows. Der Client ruft die offizielle Thunder-CLI (tnr) auf, synchronisiert Manifestdaten mit Git, erstellt Instanzen nach ausdrücklicher Bestätigung und startet den bestehenden Thunder-Bootstrap über eine abgesicherte SSH-Verbindung.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.2, nicht produktionsfreigegeben.** Build, mockbasierte Tests und ein automatisierter WPF-Fensterstart werden in Windows GitHub Actions geprüft. Fehler beim Start werden in `%LOCALAPPDATA%\\ThunderClient\\logs\\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
+**Status: Alpha-Vorabversion v0.1.0-alpha.3, nicht produktionsfreigegeben.** Build, 18 mockbasierte Regressionstests sowie ein automatisierter Windows-GUI-Test aller sieben Ansichten werden in GitHub Actions geprüft. Fehler beim Start werden unter `%LOCALAPPDATA%\ThunderClient\logs\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
 
 ## Voraussetzungen
 
@@ -23,6 +23,12 @@ Auf Windows mit .NET 10 SDK:
 
 Der GitHub-Actions-Workflow erzeugt aus dem Publish-Ordner ein per-user Inno-Setup-Installationspaket, SHA256SUMS und Testberichte. Der erste GitHub-Release ist ausdrücklich als Alpha-Vorabversion gekennzeichnet; stabile Releases bleiben bis zum Sicherheitsreview und Windows-Smoke-Test gesperrt. Die App installiert Updates **nicht** selbst.
 
+## Oberfläche
+
+Die Anwendung verwendet eine feste Seitenleiste, großzügig gegliederte Inhaltskarten, konsistente Formulare, sichtbare Fokuszustände, ein helles und dunkles Farbschema sowie eine persistente Statusleiste. Das Gestaltungskonzept ist an den Prinzipien des [Apple-Design-Skills](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md) orientiert und an Windows WPF angepasst. Alle sieben Ansichten werden in der Windows-CI ohne Netzwerk- oder GPU-Aktionen geöffnet.
+
+Bei fehlgeschlagenem Git-Klon bleibt die Oberfläche nutzbar und zeigt den Git-Synchronisierungsstatus an. Git Credential Manager und der im Windows Credential Manager hinterlegte Remote-Bootstrap-PAT sind **zwei getrennte Anmeldewege**. Hinweise zur Fehlersuche: [Troubleshooting](docs/TROUBLESHOOTING.md).
+
 ## Nutzung
 
 1. tnr installieren und anmelden; Git/GCM für das private Repository authentifizieren.
@@ -34,5 +40,5 @@ Der GitHub-Actions-Workflow erzeugt aus dem Publish-Ordner ein per-user Inno-Set
 
 Weder Workflows noch Modelldateien werden in dieses Repository kopiert. Die Bootstrap-/Modelldownloadlogik verbleibt ausschließlich in runpod-ai-workflows.
 
-Weitere Details: docs/USER_GUIDE.md, docs/ARCHITECTURE.md, docs/SECURITY_REVIEW.md und docs/IMPLEMENTATION_STATUS.md.
+Weitere Details: docs/USER_GUIDE.md, docs/ARCHITECTURE.md, docs/UI_DESIGN.md, docs/TROUBLESHOOTING.md, docs/SECURITY_REVIEW.md und docs/IMPLEMENTATION_STATUS.md.
 
