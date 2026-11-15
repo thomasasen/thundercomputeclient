@@ -22,21 +22,82 @@ public sealed class SshService(ICommandRunner commands)
         "-o", "ConnectTimeout=15"
     ];
 
+    // The first SSH connection can race with the VM's sshd boot. A bounded
+    // retry is permitted for discovery only; it never auto-trusts a host key.
     public async Task<(string Fingerprint, string KeyLine)> ScanHostKeyAsync(
         SshConnection endpoint, CancellationToken ct = default)
     {
-        var scan = await commands.RunAsync("ssh-keyscan",
-            ["-T", "10", "-p", endpoint.Port.ToString(), "-t", "ed25519", endpoint.Host],
-            TimeSpan.FromSeconds(20), cancellationToken: ct);
-        var line = scan.Stdout.Split('\n').Select(x => x.Trim()).FirstOrDefault(x =>
-            !x.StartsWith('#') && x.Contains("ssh-ed25519", StringComparison.Ordinal));
-        if (line is null) throw new InvalidOperationException("SSH-Hostschlüssel konnte nicht abgefragt werden.");
+        const int attempts = 3;
+        string lastDiagnostic = "keine Ausgabe";
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            CommandResult scan;
+            try
+            {
+                scan = await commands.RunAsync("ssh-keyscan",
+                    ["-T", "8", "-p", endpoint.Port.ToString(), "-t", "ed25519", endpoint.Host],
+                    TimeSpan.FromSeconds(15), cancellationToken: ct);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                lastDiagnostic = "ssh-keyscan hat das Zeitlimit überschritten.";
+                if (attempt < attempts) await Task.Delay(1500, ct);
+                continue;
+            }
+            // OpenSSH may return a nonzero exit code while emitting one valid
+            // key from several attempts. Only the exact host/port and ED25519
+            // format are accepted.
+            var line = scan.Stdout.Split('\n').Select(x => x.Trim())
+                .FirstOrDefault(x => !x.StartsWith('#') &&
+                    x.Contains("ssh-ed25519", StringComparison.Ordinal));
+            if (line is not null)
+                return ParseEd25519HostKey(endpoint, line);
+
+            lastDiagnostic = "ssh-keyscan Exitcode " + scan.ExitCode +
+                "; stderr: " + SafeScanMessage(scan.Stderr);
+            if (attempt < attempts) await Task.Delay(1500, ct);
+        }
+        throw new InvalidOperationException(
+            "SSH-Hostschlüssel konnte nach " + attempts + " Versuchen nicht abgefragt werden " +
+            "(Port " + endpoint.Port + ", nur ED25519). " + lastDiagnostic +
+            " Der SSH-Dienst des Pods kann noch starten, der Netzwerkport ist eventuell nicht erreichbar " +
+            "oder der Server bietet keinen ED25519-Schlüssel an. " +
+            "Pod-Status prüfen und später erneut verbinden. " +
+            "Die Hostschlüsselprüfung bleibt aktiv; keinen unbekannten Fingerprint ungeprüft bestätigen.");
+    }
+
+    public static (string Fingerprint, string KeyLine) ParseEd25519HostKey(
+        SshConnection endpoint, string line)
+    {
+        if (line.Contains('\r') || line.Contains('\n'))
+            throw new InvalidDataException("SSH-Keyscan enthält mehrere oder ungültige Zeilen.");
         var components = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (components.Length < 3 || components[1] != "ssh-ed25519")
-            throw new InvalidDataException("Unerwartetes SSH-Keyscan-Format.");
-        var hash = SHA256.HashData(Convert.FromBase64String(components[2]));
+        var expectedHost = endpoint.Port == 22
+            ? endpoint.Host : "[" + endpoint.Host + "]:" + endpoint.Port;
+        if (components.Length < 3 || components[0] != expectedHost ||
+            components[1] != "ssh-ed25519")
+            throw new InvalidDataException(
+                "SSH-Keyscan lieferte keinen ED25519-Schlüssel für den erwarteten Host und Port.");
+        byte[] keyBytes;
+        try { keyBytes = Convert.FromBase64String(components[2]); }
+        catch (FormatException ex)
+        {
+            throw new InvalidDataException("SSH-Hostschlüssel ist kein gültiger Base64-Schlüssel.", ex);
+        }
+        if (keyBytes.Length is < 40 or > 1024)
+            throw new InvalidDataException("Unerwartete ED25519-Hostschlüssellänge.");
+        var hash = SHA256.HashData(keyBytes);
         var fingerprint = "SHA256:" + Convert.ToBase64String(hash).TrimEnd('=');
-        return (fingerprint, line);
+        // Remove untrusted trailing comments from host-key material.
+        return (fingerprint, expectedHost + " ssh-ed25519 " + components[2]);
+    }
+
+    private static string SafeScanMessage(string stderr)
+    {
+        var singleLine = new string(stderr.Select(c => char.IsControl(c) ? ' ' : c).ToArray()).Trim();
+        return singleLine.Length == 0 ? "(keine Diagnose von ssh-keyscan)" :
+            singleLine[..Math.Min(350, singleLine.Length)];
     }
 
     public async Task<bool> HasKnownHostAsync(SshConnection endpoint, CancellationToken ct = default)
@@ -98,7 +159,7 @@ public sealed class SshService(ICommandRunner commands)
     {
         var args = CommonArgs(endpoint).Concat([$"ubuntu@{endpoint.Host}"]).ToArray();
         var start = new ProcessStartInfo("wt.exe") { UseShellExecute = true };
-        start.ArgumentList.Add("ssh");
+        start.ArgumentList.Add(ProcessRunner.ResolveOpenSshPath("ssh"));
         foreach (var arg in args) start.ArgumentList.Add(arg);
         try { Process.Start(start); }
         catch (Win32Exception)
@@ -106,7 +167,7 @@ public sealed class SshService(ICommandRunner commands)
             // cmd.exe starts an interactive SSH console when Windows Terminal is unavailable.
             var fallback = new ProcessStartInfo("cmd.exe") { UseShellExecute = true };
             fallback.ArgumentList.Add("/k");
-            fallback.ArgumentList.Add("ssh " + string.Join(" ", args.Select(QuoteWindows)));
+            fallback.ArgumentList.Add(QuoteWindows(ProcessRunner.ResolveOpenSshPath("ssh")) + " " + string.Join(" ", args.Select(QuoteWindows)));
             Process.Start(fallback);
         }
     }
@@ -119,7 +180,7 @@ public sealed class SshService(ICommandRunner commands)
         var identity = endpoint.Host + ":" + endpoint.Port;
         if (TunnelIsRunning && _tunnelIdentity == identity) return;
         StopTunnel();
-        var start = new ProcessStartInfo("ssh") { UseShellExecute = false, CreateNoWindow = true };
+        var start = new ProcessStartInfo(ProcessRunner.ResolveOpenSshPath("ssh")) { UseShellExecute = false, CreateNoWindow = true };
         foreach (var arg in CommonArgs(endpoint)) start.ArgumentList.Add(arg);
         foreach (var arg in new[] { "-o", "ExitOnForwardFailure=yes", "-N", "-L", "127.0.0.1:8188:127.0.0.1:8188", $"ubuntu@{endpoint.Host}" })
             start.ArgumentList.Add(arg);

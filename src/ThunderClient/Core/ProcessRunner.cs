@@ -55,6 +55,20 @@ public sealed class ProcessRunner : ICommandRunner
         return "tnr";
     }
 
+    public static string ResolveOpenSshPath(string executable, string? windowsFolder = null)
+    {
+        if (executable is not ("ssh" or "ssh-keyscan" or "ssh-keygen"))
+            throw new ArgumentOutOfRangeException(nameof(executable));
+        var folder = windowsFolder ??
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(folder))
+        {
+            var native = Path.Combine(folder, "System32", "OpenSSH", executable + ".exe");
+            if (File.Exists(native)) return native;
+        }
+        return executable;
+    }
+
     public async Task<CommandResult> RunAsync(string executable, IEnumerable<string> arguments,
         TimeSpan timeout, string? standardInput = null, Action<string>? onLine = null,
         CancellationToken cancellationToken = default)
@@ -62,7 +76,9 @@ public sealed class ProcessRunner : ICommandRunner
         using var timer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timer.CancelAfter(timeout);
         var resolved = executable.Equals("tnr", StringComparison.OrdinalIgnoreCase)
-            ? ResolveThunderCliPath() : executable;
+            ? ResolveThunderCliPath()
+            : executable is "ssh" or "ssh-keyscan" or "ssh-keygen"
+                ? ResolveOpenSshPath(executable) : executable;
         var start = new ProcessStartInfo(resolved)
         {
             UseShellExecute = false,
