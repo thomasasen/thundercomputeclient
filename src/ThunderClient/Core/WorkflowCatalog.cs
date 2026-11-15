@@ -4,26 +4,28 @@ using System.Text.RegularExpressions;
 namespace ThunderClient.Core;
 
 public sealed record SelectionEstimate(int TotalFiles, double? TotalGb, int FilesWithoutSize, int Collisions);
+public sealed record WorkflowDocument(string Name, string ManifestJson, string? Readme,
+    IReadOnlyList<string> CanvasFiles);
+
 public static class WorkflowCatalog
 {
-    public static IReadOnlyList<WorkflowItem> Load(string checkout)
+    // In-memory parsing is shared by the authenticated GitHub API and local fixture tests.
+    // No Git checkout or path-dependent IO is required for the real workflow catalog.
+    public static IReadOnlyList<WorkflowItem> LoadFromDocuments(
+        IEnumerable<WorkflowDocument> documents, string commit)
     {
-        var root = Path.Combine(checkout, "workflows");
-        if (!Directory.Exists(root)) throw new DirectoryNotFoundException("workflows/ im Checkout fehlt.");
         var results = new List<WorkflowItem>();
-        foreach (var directory in Directory.EnumerateDirectories(root).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+        foreach (var document in documents.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var name = Path.GetFileName(directory);
-            if (!Regex.IsMatch(name, @"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")) continue;
-            var manifestPath = Path.Combine(directory, "model.json");
-            var canvases = Directory.GetFiles(directory, "workflow*.json", SearchOption.TopDirectoryOnly)
-                .Select(Path.GetFileName).Where(x => x is not null).Select(x => x!)
+            if (!Regex.IsMatch(document.Name, @"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"))
+                continue;
+            var canvases = document.CanvasFiles
+                .Where(x => Regex.IsMatch(x, @"^workflow[^/\\]*\.json$", RegexOptions.IgnoreCase))
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
-            if (!File.Exists(manifestPath) || canvases.Length == 0) continue;
-
+            if (canvases.Length == 0) continue;
             try
             {
-                using var json = JsonDocument.Parse(File.ReadAllText(manifestPath));
+                using var json = JsonDocument.Parse(document.ManifestJson);
                 var data = json.RootElement;
                 if (!data.TryGetProperty("models", out var modelArray) ||
                     modelArray.ValueKind != JsonValueKind.Array) continue;
@@ -48,24 +50,46 @@ public static class WorkflowCatalog
                         es.ValueKind == JsonValueKind.True;
                     models.Add(new ModelWeight(source, category, filename, sourceId, size, estimated));
                 }
-                var readmePath = Path.Combine(directory, "README.md");
-                var readme = File.Exists(readmePath) ? File.ReadAllLines(readmePath) : [];
-                var title = readme.Select(x => x.Trim()).FirstOrDefault(x => x.StartsWith("# "))
-                    ?.TrimStart('#', ' ') ?? name;
-                var description = readme.Select(x => x.Trim()).FirstOrDefault(x =>
+                var lines = (document.Readme ?? "").Split('\n');
+                var title = lines.Select(x => x.Trim()).FirstOrDefault(x => x.StartsWith("# "))
+                    ?.TrimStart('#', ' ') ?? document.Name;
+                var description = lines.Select(x => x.Trim()).FirstOrDefault(x =>
                     x.Length > 30 && !x.StartsWith('#') && !x.StartsWith('|') &&
                     !x.StartsWith('[') && !x.StartsWith('!')) ?? title;
                 results.Add(new WorkflowItem
                 {
-                    Name = name, Family = title, Description = description,
+                    Name = document.Name, Family = title, Description = description,
                     Models = models, CanvasFiles = canvases,
-                    ReadmeUrl = $"https://github.com/thomasasen/runpod-ai-workflows/blob/main/workflows/{name}/README.md"
+                    ReadmeUrl = $"https://github.com/thomasasen/runpod-ai-workflows/blob/{commit}/workflows/{document.Name}/README.md"
                 });
             }
-            catch (JsonException) { /* Ungültige Workflows nicht als valide anzeigen */ }
-            catch (IOException) { /* Datei beim Update nicht lesbar */ }
+            catch (JsonException)
+            {
+                // An invalid manifest is never interpreted as a valid workflow.
+            }
         }
         return results;
+    }
+
+    // Retained for local fixture/tests only; the desktop app uses LoadFromDocuments.
+    public static IReadOnlyList<WorkflowItem> Load(string checkout)
+    {
+        var root = Path.Combine(checkout, "workflows");
+        if (!Directory.Exists(root)) throw new DirectoryNotFoundException("workflows/ fehlt.");
+        var docs = new List<WorkflowDocument>();
+        foreach (var directory in Directory.EnumerateDirectories(root))
+        {
+            var manifest = Path.Combine(directory, "model.json");
+            if (!File.Exists(manifest)) continue;
+            var canvases = Directory.GetFiles(directory, "workflow*.json", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileName).Where(x => x is not null).Select(x => x!).ToArray();
+            if (canvases.Length == 0) continue;
+            var readme = Path.Combine(directory, "README.md");
+            docs.Add(new WorkflowDocument(Path.GetFileName(directory),
+                File.ReadAllText(manifest), File.Exists(readme) ? File.ReadAllText(readme) : null,
+                canvases));
+        }
+        return LoadFromDocuments(docs, "main");
     }
 
     private static string GetString(JsonElement element, string name)
