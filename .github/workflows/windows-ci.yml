@@ -1,0 +1,62 @@
+name: Windows Build, Tests und Installer
+on:
+  push:
+    branches: [main, "feature/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore tests/ThunderClient.Tests/ThunderClient.Tests.csproj
+      - name: Test (nur Mocks, keine GPU/Downloads)
+        run: dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=thunderclient-tests.trx" --results-directory artifacts/testresults
+      - name: Publish Desktop App
+        run: dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          $iscc = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+      - name: Build Installer
+        shell: powershell
+        run: |
+          $iscc = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          & $iscc "installer\ThunderClient.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Generate SHA-256
+        shell: powershell
+        run: |
+          Get-ChildItem artifacts/installer/*.exe | Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" } |
+            Set-Content -Encoding Ascii artifacts/installer/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thunder-client-windows
+          path: |
+            artifacts/installer/
+            artifacts/testresults/
+          if-no-files-found: warn
+      - name: Publish GitHub Release (only tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/installer/*.exe
+            artifacts/installer/SHA256SUMS.txt
+          generate_release_notes: true
+
