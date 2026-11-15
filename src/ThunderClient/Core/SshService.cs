@@ -55,6 +55,29 @@ public sealed class SshService(ICommandRunner commands)
             if (line is not null)
                 return ParseEd25519HostKey(endpoint, line);
 
+            // Win32-OpenSSH 9.2/9.5 ssh-keyscan advertises a sntrup KEX
+            // that its own Windows binary cannot negotiate (upstream #2140).
+            // Unlike ssh-keyscan, ssh.exe filters unavailable algorithms.
+            // Capture an ED25519 key into a disposable file using ssh.exe;
+            // this file is NEVER used for subsequent authenticated sessions.
+            if (IsBrokenWindowsKeyscanKex(scan.Stderr))
+            {
+                try { return await ScanHostKeyViaIsolatedSshAsync(endpoint, ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException)
+                {
+                    throw new InvalidOperationException(
+                        "Windows-OpenSSH ssh-keyscan kann den vom Pod angebotenen " +
+                        "Schlüsselaustausch nicht verarbeiten (bekannter Windows-Fehler). " +
+                        "Die automatische Abfrage mit ssh.exe in einer isolierten, " +
+                        "nur temporären known_hosts-Datei ist ebenfalls gescheitert: " +
+                        ex.Message +
+                        " Pod NICHT erneut erstellen. Unter Systemstatus die " +
+                        "OpenSSH-Installation prüfen; alternativ eine aktuelle " +
+                        "kompatible OpenSSH-Version verwenden. " +
+                        "Der echte SSH-Hostschlüssel wird niemals automatisch vertraut.", ex);
+                }
+            }
             lastDiagnostic = "ssh-keyscan Exitcode " + scan.ExitCode +
                 "; stderr: " + SafeScanMessage(scan.Stderr);
             if (attempt < attempts) await Task.Delay(1500, ct);
@@ -66,6 +89,98 @@ public sealed class SshService(ICommandRunner commands)
             "oder der Server bietet keinen ED25519-Schlüssel an. " +
             "Pod-Status prüfen und später erneut verbinden. " +
             "Die Hostschlüsselprüfung bleibt aktiv; keinen unbekannten Fingerprint ungeprüft bestätigen.");
+    }
+
+    public static bool IsBrokenWindowsKeyscanKex(string diagnostic)
+        => diagnostic.Contains("choose_kex: unsupported KEX method", StringComparison.OrdinalIgnoreCase) &&
+           diagnostic.Contains("sntrup761x25519-sha512@openssh.com", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Work around Win32-OpenSSH ssh-keyscan #2140 without reducing host
+    /// authentication security. A normal ssh client negotiates the host key
+    /// into an isolated disposable known_hosts file. accept-new is permitted
+    /// ONLY for collecting an untrusted public key in that temporary file.
+    /// No user credentials, private key, real known_hosts or shell command
+    /// are sent. The key still requires out-of-band user approval and is
+    /// subsequently used with StrictHostKeyChecking=yes.
+    /// </summary>
+    private async Task<(string Fingerprint, string KeyLine)> ScanHostKeyViaIsolatedSshAsync(
+        SshConnection endpoint, CancellationToken ct)
+    {
+        if (!System.Net.IPAddress.TryParse(endpoint.Host, out _) ||
+            endpoint.Port is < 1 or > 65535)
+            throw new InvalidOperationException("Ungültige SSH-IP oder Portnummer für die Hostschlüsselabfrage.");
+
+        var isolatedDir = Path.Combine(Path.GetTempPath(),
+            "ThunderClient-HostKey-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(isolatedDir);
+        var untrustedKnownHosts = Path.Combine(isolatedDir, "untrusted_known_hosts");
+        try
+        {
+            var args = new[]
+            {
+                "-F", "none", // ignore the user's ssh config and ProxyCommand
+                "-p", endpoint.Port.ToString(),
+                "-o", "HostKeyAlgorithms=ssh-ed25519",
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "UserKnownHostsFile=" + untrustedKnownHosts,
+                "-o", "GlobalKnownHostsFile=NUL",
+                "-o", "HashKnownHosts=no",
+                "-o", "UpdateHostKeys=no",
+                "-o", "CheckHostIP=no",
+                "-o", "BatchMode=yes",
+                "-o", "ConnectTimeout=10",
+                "-o", "ConnectionAttempts=1",
+                "-o", "NumberOfPasswordPrompts=0",
+                "-o", "PreferredAuthentications=none",
+                "-o", "PubkeyAuthentication=no",
+                "-o", "PasswordAuthentication=no",
+                "-o", "KbdInteractiveAuthentication=no",
+                "-o", "HostbasedAuthentication=no",
+                "-o", "GSSAPIAuthentication=no",
+                "-N", // no remote command is ever executed
+                "ubuntu@" + endpoint.Host
+            };
+            CommandResult handshake;
+            try
+            {
+                handshake = await commands.RunAsync("ssh", args, TimeSpan.FromSeconds(18),
+                    cancellationToken: ct);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // A host can support "none" login; the client would stay
+                // connected with -N until the timeout. The public key may
+                // still have been captured before that timeout.
+                handshake = new CommandResult(255, "", "SSH-Handshake-Zeitlimit.");
+            }
+            if (!File.Exists(untrustedKnownHosts))
+                throw new InvalidOperationException(
+                    "SSH hat keine ED25519-Hostschlüsseldatei geliefert. " +
+                    SafeScanMessage(handshake.Stderr));
+
+            // Do not trust a successful process exit: only an exactly matched
+            // host:port + cryptographically well-formed ED25519 blob is usable.
+            var expectedHost = endpoint.Port == 22
+                ? endpoint.Host : "[" + endpoint.Host + "]:" + endpoint.Port;
+            var lines = await File.ReadAllLinesAsync(untrustedKnownHosts, ct);
+            var candidates = lines.Where(line =>
+                line.StartsWith(expectedHost + " ssh-ed25519 ", StringComparison.Ordinal))
+                .ToArray();
+            if (candidates.Length != 1)
+                throw new InvalidOperationException(
+                    "Der temporäre SSH-Handshake lieferte keine eindeutige " +
+                    "ED25519-Hostschlüsselzeile für diesen Pod.");
+            return ParseEd25519HostKey(endpoint, candidates[0]);
+        }
+        finally
+        {
+            // Only ephemeral, untrusted public material was ever stored here.
+            // This is NOT the application's approved known_hosts file.
+            try { Directory.Delete(isolatedDir, recursive: true); }
+            catch (IOException) { /* best effort on cancellation */ }
+            catch (UnauthorizedAccessException) { /* best effort */ }
+        }
     }
 
     public static (string Fingerprint, string KeyLine) ParseEd25519HostKey(
