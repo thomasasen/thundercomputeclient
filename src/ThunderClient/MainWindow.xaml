@@ -81,6 +81,12 @@
                                 <TextBlock Text="Einstellungen" />
                             </StackPanel>
                         </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="08" />
+                                <TextBlock Text="Systemstatus" />
+                            </StackPanel>
+                        </ListBoxItem>
                     </ListBox>
                 </StackPanel>
             </DockPanel>
@@ -163,6 +169,8 @@
                                             Content="1  Katalog laden und Workflows wählen"
                                             Background="{DynamicResource AccentBrush}"
                                             Foreground="{DynamicResource OnAccentBrush}" />
+                                    <Button x:Name="OpenSystemStatusButton" Click="OpenSystemStatus_Click"
+                                            Content="Systemstatus prüfen" />
                                     <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen" />
                                     <Button Command="{Binding HardwareCommand}" Content="Hardware abrufen" />
                                     <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen" />
@@ -599,6 +607,77 @@
                                    Foreground="{DynamicResource SubtleBrush}" Margin="0,10" />
                         </StackPanel>
                     </Border>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Systemstatus">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="4,6,16,24">
+                        <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,17">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource OverlineText}" Text="EINRICHTUNG  /  SICHERE DIAGNOSE" />
+                                <TextBlock Style="{StaticResource SectionHeading}" FontSize="24"
+                                           Text="Sind alle Voraussetzungen bereit?" Margin="0,8,0,6" />
+                                <TextBlock Style="{StaticResource LeadText}" FontSize="14"
+                                           Text="Verbindungen testen, fehlende Zugangsdaten erkennen und direkt zu den offiziellen Einrichtungsseiten wechseln. Keine Tests erstellen Pods, starten Downloads oder akzeptieren SSH-Hostschlüssel automatisch." />
+                                <TextBlock Text="{Binding ReadinessSummary}" TextWrapping="Wrap"
+                                           FontWeight="SemiBold" Margin="0,16,0,11" />
+                                <WrapPanel>
+                                    <Button x:Name="RunSystemChecksButton"
+                                            Command="{Binding RunSystemChecksCommand}"
+                                            Content="Jetzt alles sicher prüfen"
+                                            Background="{DynamicResource AccentBrush}"
+                                            Foreground="{DynamicResource OnAccentBrush}"
+                                            Padding="19,12" />
+                                    <Button Click="GoToCredentials_Click"
+                                            Content="Zugangsdaten verwalten" />
+                                    <Button Click="GoToPods_Click" Content="Pod auswählen" />
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,10,0,0"
+                                           Text="„Erfolgreich getestet“ bedeutet einen abgeschlossenen lesenden API- oder Login-Test. „Vorhanden“ bestätigt nur eine lokale Datei bzw. ein Werkzeug. SSH wird erst mit laufendem Pod und zuvor bestätigtem Hostfingerprint getestet." />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Style="{StaticResource SectionHeading}" Text="Einzelprüfungen"
+                                   Margin="0,2,0,14" />
+                        <ItemsControl x:Name="ReadinessItems" ItemsSource="{Binding SystemChecks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,11">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Title}" FontSize="17"
+                                                           FontWeight="SemiBold" Margin="0,0,12,0" />
+                                                <Border Grid.Column="1" CornerRadius="9" Padding="10,6"
+                                                        Background="{DynamicResource FieldBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1">
+                                                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource AccentBrush}" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Detail}" FontSize="14"
+                                                       Margin="0,10,0,10" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Guide}"
+                                                       Style="{StaticResource FieldHint}" />
+                                            <WrapPanel Margin="0,12,0,0">
+                                                <Button Content="{Binding HelpLabel}"
+                                                        Click="OpenCheckHelp_Click" />
+                                                <Button Content="Im Client einrichten"
+                                                        Click="GoToCheckSetup_Click" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource FieldHint}" Margin="3,8,0,4"
+                                   Text="Ein grüner technischer Prüfstatus ersetzt keine Abnahme einzelner Modellberechtigungen, keine unabhängige SSH-Fingerprint-Verifikation und keine Kontrolle laufender Thunder-Kosten." />
+                    </StackPanel>
                 </ScrollViewer>
             </TabItem>
             </TabControl>
