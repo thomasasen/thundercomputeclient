@@ -49,6 +49,8 @@ public sealed record InstanceItem(string Id, string Uuid, string Name, string St
     string Gpu, string Ip, int Port, DateTimeOffset? Created, int StorageGb = 0, int GpuCount = 0)
 {
     public string Display => $"{Id} · {Name} · {Gpu} · {Status}";
+    public string SshPortDisplay => Port is >= 1 and <= 65535
+        ? Port.ToString(CultureInfo.InvariantCulture) : "Noch nicht bereit";
 }
 
 public sealed record SshConnection(string InstanceId, string Host, int Port, string KeyFile);

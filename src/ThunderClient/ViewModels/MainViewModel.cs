@@ -250,12 +250,25 @@ public sealed class MainViewModel : Bindable, IDisposable
     public InstanceItem? SelectedInstance
     {
         get => _selectedInstance;
-        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(CostSummary)); UpdateWizardNotice(); } }
+        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(ConnectionSummary)); OnPropertyChanged(nameof(CostSummary)); UpdateWizardNotice(); } }
     }
     public WorkflowItem? SelectedWorkflow { get => _selectedWorkflow; set => Set(ref _selectedWorkflow, value); }
     public GpuChoice? SelectedGpu { get => _selectedGpu; set => Set(ref _selectedGpu, value); }
     public SnapshotItem? SelectedSnapshot { get => _selectedSnapshot; set => Set(ref _selectedSnapshot, value); }
     public string InstanceSummary => SelectedInstance is null ? "Keine Instanz ausgewählt" : SelectedInstance.Display;
+    public string ConnectionSummary
+    {
+        get
+        {
+            var pod = SelectedInstance;
+            if (pod is null) return "SSH: Bitte Pod auswählen. ComfyUI läuft privat über den SSH-Tunnel auf 127.0.0.1:8188.";
+            var port = pod.Port is >= 1 and <= 65535
+                ? pod.Port.ToString() : "noch nicht bereit";
+            return "SSH: " + pod.Ip + ":" + port +
+                " (Port von Thunder). ComfyUI: lokal 127.0.0.1:8188 per SSH-Tunnel; " +
+                "eine öffentliche HTTP-Portfreigabe wird dafür nicht benötigt.";
+        }
+    }
     public string CostSummary
     {
         get
