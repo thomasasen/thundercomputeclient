@@ -39,7 +39,7 @@ public static class WorkflowCatalog
                     var source = GetString(model, "source");
                     var sourceId = source == "hf"
                         ? GetString(model, "repo") + "/" + GetString(model, "file")
-                        : source + ":" + GetString(model, "version_id");
+                        : source + ":" + GetString(model, "version_id") + ":" + GetString(model, "sha256");
                     double? size = null;
                     if (model.TryGetProperty("size_gb", out var sizeValue) &&
                         sizeValue.ValueKind == JsonValueKind.Number &&

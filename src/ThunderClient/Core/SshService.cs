@@ -11,6 +11,8 @@ public sealed class SshService(ICommandRunner commands)
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "ThunderClient", "known_hosts");
     private Process? _tunnel;
+    private string? _tunnelIdentity;
+    public bool TunnelIsRunning => _tunnel is { HasExited: false };
 
     private string[] CommonArgs(SshConnection endpoint) =>
     [
@@ -111,19 +113,22 @@ public sealed class SshService(ICommandRunner commands)
 
     public void StartTunnel(SshConnection endpoint)
     {
-        if (_tunnel is { HasExited: false }) return;
+        var identity = endpoint.Host + ":" + endpoint.Port;
+        if (TunnelIsRunning && _tunnelIdentity == identity) return;
+        StopTunnel();
         var start = new ProcessStartInfo("ssh") { UseShellExecute = false, CreateNoWindow = true };
         foreach (var arg in CommonArgs(endpoint)) start.ArgumentList.Add(arg);
         foreach (var arg in new[] { "-N", "-L", "127.0.0.1:8188:127.0.0.1:8188", $"ubuntu@{endpoint.Host}" })
             start.ArgumentList.Add(arg);
         _tunnel = Process.Start(start) ?? throw new InvalidOperationException("SSH-Tunnel konnte nicht gestartet werden.");
+        _tunnelIdentity = identity;
     }
 
     public void StopTunnel()
     {
         if (_tunnel is null) return;
         try { if (!_tunnel.HasExited) _tunnel.Kill(entireProcessTree: true); }
-        finally { _tunnel.Dispose(); _tunnel = null; }
+        finally { _tunnel.Dispose(); _tunnel = null; _tunnelIdentity = null; }
     }
 }
 

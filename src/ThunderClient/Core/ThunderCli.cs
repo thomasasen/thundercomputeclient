@@ -61,10 +61,15 @@ public sealed class ThunderCli(ICommandRunner commands)
             Text(x, "id"), Text(x, "name"), Text(x, "status"), Int(x, "minimumDiskSizeGb"))).ToArray();
     }
 
-    public static bool IsCertainCapacityFailure(string response) =>
-        Regex.IsMatch(response,
+    public static bool IsCertainCapacityFailure(string response)
+    {
+        if (Regex.IsMatch(response,
+            @"(?i)(payment|authenticat|unauthoriz|forbidden|timeout|timed out|network|connection|quota|billing|invalid token|insufficient balance)",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))) return false;
+        return Regex.IsMatch(response,
             @"(?i)(out of GPU capacity|GPU configuration\s+[a-zA-Z0-9_-]+\s+x\d+\s+is currently unavailable)",
             RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+    }
 
     // Das Sperrfile verhindert parallele Creates in zwei Client-Prozessen desselben Windows-Accounts.
     public async Task<InstanceItem> CreateWithFallbackAsync(
@@ -121,6 +126,7 @@ public sealed class ThunderCli(ICommandRunner commands)
         var keyFile = Text(data, "key_file");
         var port = Int(data, "port");
         if (string.IsNullOrEmpty(host) || host.IndexOfAny([' ', '\r', '\n', '/', '\\']) >= 0 ||
+            !System.Net.IPAddress.TryParse(host, out _) ||
             port is < 1 or > 65535 || !Path.IsPathFullyQualified(keyFile) || !File.Exists(keyFile))
             throw new FormatException("Thunder lieferte keine vollständigen vertrauenswürdigen SSH-Verbindungsparameter.");
         return new SshConnection(instance.Id, host, port, keyFile);

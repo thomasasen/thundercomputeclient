@@ -34,6 +34,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     private string _preview = "Konfiguration wird nach Synchronisierung angezeigt.";
     private string _hardware = "Hardwarestatus nicht geladen";
     private string _downloadStatus = "Bootstrap noch nicht gestartet";
+    private string _downloadSummary = "Keine Downloadereignisse empfangen";
     private string _versionStatus = "Nicht geprüft";
     private string _snapshotName = "comfyui-backup";
     private string _gitTokenStatus = "";
@@ -49,6 +50,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public ObservableCollection<InstanceItem> Instances { get; } = [];
     public ObservableCollection<SnapshotItem> Snapshots { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
+    public ObservableCollection<DownloadItem> Downloads { get; } = [];
 
     public AsyncCommand SyncCommand { get; }
     public AsyncCommand RefreshInstancesCommand { get; }
@@ -121,6 +123,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string Preview { get => _preview; private set => Set(ref _preview, value); }
     public string Hardware { get => _hardware; private set => Set(ref _hardware, value); }
     public string DownloadStatus { get => _downloadStatus; private set => Set(ref _downloadStatus, value); }
+    public string DownloadSummary { get => _downloadSummary; private set => Set(ref _downloadSummary, value); }
     public string VersionStatus { get => _versionStatus; private set => Set(ref _versionStatus, value); }
     public string GitTokenStatus { get => _gitTokenStatus; private set => Set(ref _gitTokenStatus, value); }
     public string HfTokenStatus { get => _hfTokenStatus; private set => Set(ref _hfTokenStatus, value); }
@@ -230,7 +233,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         }
         catch (Exception ex)
         {
-            Log("GitHub-Synchronisierung fehlgeschlagen: " + Sanitize(ex.Message));
+            Log("GitHub-Synchronisierung fehlgeschlagen: " + RedactKnownSecrets(ex.Message));
             if (Directory.Exists(Path.Combine(WorkflowsDirectory, ".git")) &&
                 _dialogs.Confirm("Offline-Modus", "GitHub-Synchronisierung fehlgeschlagen. Den letzten lokalen Workflow-Stand ausdrücklich im Offline-Modus verwenden?"))
             {
@@ -391,6 +394,8 @@ public sealed class MainViewModel : Bindable, IDisposable
         if (!_dialogs.Confirm("Bootstrap starten",
             "Der bestehende Thunder-Adapter aus dem synchronisierten Git-Checkout wird einmalig auf der ausgewählten Instanz ausgeführt. GPU-Kosten laufen. Vorhandene Installationsvorgänge oder einen Verbindungsabbruch vorher prüfen. Jetzt starten?"))
             return;
+        Downloads.Clear();
+        DownloadSummary = "Warte auf Downloadereignisse aus dem Bootstrap";
         DownloadStatus = "Installing / Downloading (Log prüfen)";
         Busy = true;
         try
@@ -421,6 +426,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         var ssh = await TrustedSshAsync();
         _ssh.StartTunnel(ssh);
         await Task.Delay(600, _shutdown.Token);
+        if (!_ssh.TunnelIsRunning) throw new InvalidOperationException("SSH-Tunnel ist vorzeitig beendet worden. ComfyUI wurde nicht geöffnet.");
         Process.Start(new ProcessStartInfo("http://127.0.0.1:8188/") { UseShellExecute = true });
         Message = "Privater SSH-Tunnel auf 127.0.0.1:8188 geöffnet.";
     }
@@ -499,7 +505,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             "[GESCHWÄRZT]", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     }
 
-    private void Log(string line)
+    private string RedactKnownSecrets(string line)
     {
         var safe = Sanitize(line);
         foreach (var service in new[] { "github", "huggingface", "civitai" })
@@ -507,12 +513,34 @@ public sealed class MainViewModel : Bindable, IDisposable
             var secret = _vault.Read(service);
             if (!string.IsNullOrEmpty(secret)) safe = safe.Replace(secret, "[GESCHWÄRZT]", StringComparison.Ordinal);
         }
+        return safe;
+    }
+
+    private void Log(string line)
+    {
+        var safe = RedactKnownSecrets(line);
         void Apply()
         {
             LogLines.Add(DateTime.Now.ToString("HH:mm:ss") + "  " + safe);
             while (LogLines.Count > 600) LogLines.RemoveAt(0);
-            if (safe.Contains("[DOWNLOAD-STATUS]", StringComparison.Ordinal))
-                DownloadStatus = safe;
+            if (safe.Contains("[DOWNLOAD-STATUS]", StringComparison.Ordinal)) DownloadStatus = safe;
+            if (DownloadTracker.TryParse(safe, out var update) && update is not null)
+            {
+                var entry = Downloads.FirstOrDefault(x => x.Model == update.Model);
+                if (entry is null)
+                {
+                    entry = new DownloadItem(update.Model, update.State, update.Progress);
+                    Downloads.Add(entry);
+                }
+                else
+                {
+                    entry.State = update.State;
+                    entry.Progress = update.Progress;
+                }
+                DownloadSummary = $"{Downloads.Count} Modelle protokolliert · " +
+                    $"{Downloads.Count(x => x.State is "GELADEN" or "VORHANDEN")} abgeschlossen · " +
+                    $"{Downloads.Count(x => x.State == "FEHLER")} fehlgeschlagen";
+            }
         }
         var dispatcher = System.Windows.Application.Current.Dispatcher;
         if (dispatcher.CheckAccess()) Apply();
@@ -521,7 +549,7 @@ public sealed class MainViewModel : Bindable, IDisposable
 
     private void Error(Exception exception)
     {
-        var safe = Sanitize(exception.Message);
+        var safe = RedactKnownSecrets(exception.Message);
         Message = "Fehler: " + safe;
         Log(Message);
         _dialogs.Notify("Thunder Client", safe);

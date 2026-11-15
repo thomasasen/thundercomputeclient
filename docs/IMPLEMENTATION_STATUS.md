@@ -12,7 +12,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Windows Credential Manager, Git GCM / Thunder CLI Auth | Implementiert, echte Kontoverbindungen nicht live getestet |
 | Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert, Remote-Resumption nach Abbruch nicht automatisiert |
 | Privater Loopback-Tunnel, ComfyUI im Browser, SSH-Terminal | Implementiert, End-to-End nicht live getestet |
-| Download-/Installationslogs | Rohes strukturiertes Log sichtbar; kein garantiertes per-Datei-Tracking, keine validierten Fortschrittsprozente |
+| Download-/Installationslogs | Strukturierte pro-Modelldatei-Ereignisse aus vorhandenem download_monitor.py werden beobachtet; Fortschritt nur bei tatsächlicher Logangabe, keine erfundenen Werte. Persistente Reconnect-Historie fehlt |
 | GPU-/CPU-/RAM-/Disk-Auslastung | Hardware-Textdiagnostik über SSH; noch keine kontinuierlichen Echtzeitgrafiken |
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
