@@ -92,6 +92,14 @@ public sealed class SshHostKeyTests
     }
 
     [Fact]
+    public void RejectsBase64BlobThatIsNotActuallyEd25519()
+    {
+        var arbitraryBlob = Convert.ToBase64String(new byte[51]);
+        Assert.Throws<InvalidDataException>(() => SshService.ParseEd25519HostKey(
+            Endpoint(), $"[{Host}]:{Port} ssh-ed25519 {arbitraryBlob}"));
+    }
+
+    [Fact]
     public void WindowsOpenSshToolHasPriorityOverOtherImplementations()
     {
         var root = Path.Combine(Path.GetTempPath(), "thunder-ssh-" + Guid.NewGuid().ToString("N"));

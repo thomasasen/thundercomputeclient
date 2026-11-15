@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
@@ -60,7 +61,7 @@ public sealed class SshService(ICommandRunner commands)
         }
         throw new InvalidOperationException(
             "SSH-Hostschlüssel konnte nach " + attempts + " Versuchen nicht abgefragt werden " +
-            "(Port " + endpoint.Port + ", nur ED25519). " + lastDiagnostic +
+            "(Host " + endpoint.Host + ", Port " + endpoint.Port + ", nur ED25519). " + lastDiagnostic +
             " Der SSH-Dienst des Pods kann noch starten, der Netzwerkport ist eventuell nicht erreichbar " +
             "oder der Server bietet keinen ED25519-Schlüssel an. " +
             "Pod-Status prüfen und später erneut verbinden. " +
@@ -85,8 +86,11 @@ public sealed class SshService(ICommandRunner commands)
         {
             throw new InvalidDataException("SSH-Hostschlüssel ist kein gültiger Base64-Schlüssel.", ex);
         }
-        if (keyBytes.Length is < 40 or > 1024)
-            throw new InvalidDataException("Unerwartete ED25519-Hostschlüssellänge.");
+        if (keyBytes.Length != 51 ||
+            BinaryPrimitives.ReadInt32BigEndian(keyBytes.AsSpan(0, 4)) != 11 ||
+            Encoding.ASCII.GetString(keyBytes, 4, 11) != "ssh-ed25519" ||
+            BinaryPrimitives.ReadInt32BigEndian(keyBytes.AsSpan(15, 4)) != 32)
+            throw new InvalidDataException("Unerwartetes ED25519-Hostschlüsselformat.");
         var hash = SHA256.HashData(keyBytes);
         var fingerprint = "SHA256:" + Convert.ToBase64String(hash).TrimEnd('=');
         // Remove untrusted trailing comments from host-key material.
