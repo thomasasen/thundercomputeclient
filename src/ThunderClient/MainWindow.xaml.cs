@@ -46,8 +46,11 @@ public partial class MainWindow : Window, IUserDialogs
     // The app-level ContentRendered callback invokes this only with --ui-smoke-test.
     public void VerifyPagesForSmokeTest()
     {
-        if (Navigation.Items.Count != 7 || MainTabs.Items.Count != 7)
+        if (Navigation.Items.Count != 8 || MainTabs.Items.Count != 8)
             throw new InvalidOperationException("Navigation und Inhalte sind nicht vollständig.");
+        if (ReadinessItems.Items.Count != 7 ||
+            RunSystemChecksButton.Content is not "Jetzt alles sicher prüfen")
+            throw new InvalidOperationException("Systemstatus-Ansicht ist nicht vollständig.");
         if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
             CopyStartupLogButton.Content is not "Startdiagnose kopieren")
             throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
@@ -144,6 +147,46 @@ public partial class MainWindow : Window, IUserDialogs
 
     private void OpenPodSetup_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = 4;
+
+    private void OpenSystemStatus_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = 7;
+
+    private void GoToCredentials_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = 5;
+
+    private void GoToPods_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = 3;
+
+    private void GoToCheckSetup_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: SetupCheck setup } &&
+            setup.SetupTabIndex is >= 0 and <= 7)
+            MainTabs.SelectedIndex = setup.SetupTabIndex;
+    }
+
+    private void OpenCheckHelp_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: SetupCheck setup }) return;
+        // Allowlisted official setup destinations only, never a URL from a remote manifest.
+        if (!Uri.TryCreate(setup.HelpUrl, UriKind.Absolute, out var target) ||
+            target.Scheme != Uri.UriSchemeHttps ||
+            target.Host is not ("github.com" or "huggingface.co" or "learn.microsoft.com" or "developer.civitai.com"))
+        {
+            Notify("Einrichtungshilfe", "Der externe Hilfelink ist nicht vertrauenswürdig.");
+            return;
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target.AbsoluteUri)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Notify("Einrichtungshilfe", "Der Browser konnte nicht geöffnet werden.");
+        }
+    }
 
     private void CopyLog_Click(object sender, RoutedEventArgs e)
     {
