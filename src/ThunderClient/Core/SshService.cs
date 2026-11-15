@@ -83,6 +83,9 @@ public sealed class SshService(ICommandRunner commands)
             throw new InvalidDataException("Thunder-Adapter enthält keinen erwarteten Bash-Header.");
         if (string.IsNullOrWhiteSpace(gitToken)) throw new InvalidOperationException("GitHub-Token für den Remote-Bootstrap fehlt.");
         var script = "set -e\numask 077\n" +
+            "command -v flock >/dev/null || { echo '[THUNDER-CLIENT] flock fehlt'; exit 41; }\n" +
+            "exec 9>\"$HOME/.thunderclient-bootstrap.lock\"\n" +
+            "if ! flock -n 9; then echo '[THUNDER-CLIENT] Ein Bootstrap läuft bereits'; exit 42; fi\n" +
             "export GITHUB_TOKEN=" + QuoteShell(gitToken) + "\n" +
             "export HF_TOKEN=" + QuoteShell(huggingFace ?? "") + "\n" +
             "export CIVITAI_TOKEN=" + QuoteShell(civitai ?? "") + "\n" +
