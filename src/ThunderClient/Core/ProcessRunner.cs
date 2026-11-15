@@ -142,6 +142,20 @@ public sealed class ProcessRunner : ICommandRunner
             await Task.WhenAll(outTask, errTask, process.WaitForExitAsync(timer.Token));
             return new CommandResult(process.ExitCode, stdout.ToString(), stderr.ToString());
         }
+        catch (OperationCanceledException ex)
+            when (!cancellationToken.IsCancellationRequested && timer.IsCancellationRequested)
+        {
+            // A command deadline is NOT a cancellation by the user. A raw
+            // TaskCanceledException loses the context required for recovery,
+            // especially when a paid Thunder pod already exists.
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            throw new TimeoutException(
+                "Programm '" + executable + "' hat innerhalb von " +
+                timeout.TotalSeconds.ToString("0.#",
+                    System.Globalization.CultureInfo.InvariantCulture) +
+                " Sekunden nicht geantwortet. Der Vorgang wurde " +
+                "wegen des Zeitlimits beendet, nicht durch den Benutzer.", ex);
+        }
         catch
         {
             if (!process.HasExited) process.Kill(entireProcessTree: true);

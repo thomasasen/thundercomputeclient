@@ -26,13 +26,16 @@ public sealed class SshService(ICommandRunner commands)
     // The first SSH connection can race with the VM's sshd boot. A bounded
     // retry is permitted for discovery only; it never auto-trusts a host key.
     public async Task<(string Fingerprint, string KeyLine)> ScanHostKeyAsync(
-        SshConnection endpoint, CancellationToken ct = default)
+        SshConnection endpoint, CancellationToken ct = default,
+        Action<string>? progress = null)
     {
         const int attempts = 3;
         string lastDiagnostic = "keine Ausgabe";
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             ct.ThrowIfCancellationRequested();
+            progress?.Invoke("SSH-Hostschlüssel: Abfrage " + attempt + "/" + attempts +
+                " über ssh-keyscan (maximal 15 Sekunden pro Versuch).");
             CommandResult scan;
             try
             {
@@ -40,9 +43,19 @@ public sealed class SshService(ICommandRunner commands)
                     ["-T", "8", "-p", endpoint.Port.ToString(), "-t", "ed25519", endpoint.Host],
                     TimeSpan.FromSeconds(15), cancellationToken: ct);
             }
+            catch (TimeoutException)
+            {
+                lastDiagnostic = "ssh-keyscan hat nach 15 Sekunden nicht geantwortet.";
+                progress?.Invoke(lastDiagnostic);
+                if (attempt < attempts) await Task.Delay(1500, ct);
+                continue;
+            }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
+                // Compatibility with runners which expose internal deadline
+                // cancellation directly instead of a TimeoutException.
                 lastDiagnostic = "ssh-keyscan hat das Zeitlimit überschritten.";
+                progress?.Invoke(lastDiagnostic);
                 if (attempt < attempts) await Task.Delay(1500, ct);
                 continue;
             }
@@ -62,9 +75,13 @@ public sealed class SshService(ICommandRunner commands)
             // this file is NEVER used for subsequent authenticated sessions.
             if (IsBrokenWindowsKeyscanKex(scan.Stderr))
             {
-                try { return await ScanHostKeyViaIsolatedSshAsync(endpoint, ct); }
+                progress?.Invoke("Windows-OpenSSH-KEX-Fehler erkannt. " +
+                    "Lese den öffentlichen Hostschlüssel mit ssh.exe, ohne Anmeldung " +
+                    "und ohne Änderung der vertrauenswürdigen Hostschlüssel.");
+                try { return await ScanHostKeyViaIsolatedSshAsync(endpoint, ct, progress); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                catch (Exception ex) when (ex is InvalidOperationException or IOException)
+                catch (Exception ex) when (ex is InvalidOperationException or
+                    IOException or TimeoutException or OperationCanceledException)
                 {
                     throw new InvalidOperationException(
                         "Windows-OpenSSH ssh-keyscan kann den vom Pod angebotenen " +
@@ -105,7 +122,7 @@ public sealed class SshService(ICommandRunner commands)
     /// subsequently used with StrictHostKeyChecking=yes.
     /// </summary>
     private async Task<(string Fingerprint, string KeyLine)> ScanHostKeyViaIsolatedSshAsync(
-        SshConnection endpoint, CancellationToken ct)
+        SshConnection endpoint, CancellationToken ct, Action<string>? progress)
     {
         if (!System.Net.IPAddress.TryParse(endpoint.Host, out _) ||
             endpoint.Port is < 1 or > 65535)
@@ -147,11 +164,18 @@ public sealed class SshService(ICommandRunner commands)
                 handshake = await commands.RunAsync("ssh", args, TimeSpan.FromSeconds(18),
                     cancellationToken: ct);
             }
+            catch (TimeoutException)
+            {
+                // The isolated known_hosts file may already contain a valid
+                // ED25519 public key, even if ssh -N outlives its deadline.
+                progress?.Invoke("SSH-Handshake-Zeitlimit. " +
+                    "Prüfe, ob der öffentliche Schlüssel bereits erfasst wurde.");
+                handshake = new CommandResult(255, "", "SSH-Handshake-Zeitlimit.");
+            }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                // A host can support "none" login; the client would stay
-                // connected with -N until the timeout. The public key may
-                // still have been captured before that timeout.
+                progress?.Invoke("SSH-Handshake wurde nach internem Zeitlimit beendet. " +
+                    "Prüfe, ob ein öffentlicher Schlüssel vorliegt.");
                 handshake = new CommandResult(255, "", "SSH-Handshake-Zeitlimit.");
             }
             if (!File.Exists(untrustedKnownHosts))
@@ -171,6 +195,8 @@ public sealed class SshService(ICommandRunner commands)
                 throw new InvalidOperationException(
                     "Der temporäre SSH-Handshake lieferte keine eindeutige " +
                     "ED25519-Hostschlüsselzeile für diesen Pod.");
+            progress?.Invoke("Öffentlicher ED25519-Hostschlüssel erfasst. " +
+                "Vor dem Vertrauensaufbau ist eine unabhängige Fingerprint-Prüfung notwendig.");
             return ParseEd25519HostKey(endpoint, candidates[0]);
         }
         finally

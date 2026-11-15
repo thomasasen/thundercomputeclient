@@ -748,7 +748,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             PodCreated?.Invoke();
             DeploymentLogsRequested?.Invoke();
             SetAutoDeploymentStage("SSH-Endpunkt bereit: authentifiziere Schlüssel und prüfe den Hostfingerprint.");
-            var ssh = await TrustedSshAsync(ct);
+            var ssh = await TrustedSshAsync(ct, SetAutoDeploymentStage);
             var probe = await _ssh.ProbeAuthenticationAsync(ssh, ct);
             if (!probe.Success)
                 throw new InvalidOperationException(
@@ -792,10 +792,14 @@ public sealed class MainViewModel : Bindable, IDisposable
         }
         catch (Exception ex)
         {
-            var reason = RedactKnownSecrets(ex.Message);
+            var reason = ex is TimeoutException timeout
+                ? RedactKnownSecrets(timeout.Message)
+                : RedactKnownSecrets(ex.Message);
             var isHostKeyIssue =
                 reason.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase);
+                reason.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
+                reason.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
+                reason.Contains("Programm 'ssh-keygen'", StringComparison.OrdinalIgnoreCase);
             AutoDeploymentStatus = isHostKeyIssue
                 ? "SSH-Hostschlüssel noch nicht bestätigt. " +
                   (podId is null ? "Keine Pod-ID bestätigt. " :
@@ -855,18 +859,23 @@ public sealed class MainViewModel : Bindable, IDisposable
         finally { Busy = false; }
     }
 
-    private async Task<SshConnection> TrustedSshAsync(CancellationToken ct = default)
+    private async Task<SshConnection> TrustedSshAsync(CancellationToken ct = default,
+        Action<string>? progress = null)
     {
         var item = SelectedInstance ?? throw new InvalidOperationException("Zuerst eine Instanz auswählen.");
         var token = ct == default ? _shutdown.Token : ct;
+        progress?.Invoke("Ermittle SSH-Verbindungsdaten über die offizielle Thunder-CLI.");
         var endpoint = await _thunder.GetSshAsync(item, token);
+        progress?.Invoke("Prüfe gespeichertes SSH-Hostvertrauen (maximal 10 Sekunden).");
         if (!await _ssh.HasKnownHostAsync(endpoint, token))
         {
-            var scan = await _ssh.ScanHostKeyAsync(endpoint, token);
+            var scan = await _ssh.ScanHostKeyAsync(endpoint, token, progress);
+            progress?.Invoke("SSH-Fingerprint muss jetzt unabhängig geprüft und bestätigt werden.");
             if (!_dialogs.ApproveFingerprint(endpoint.Host, scan.Fingerprint))
                 throw new OperationCanceledException("SSH-Fingerprint nicht bestätigt.");
             _ssh.TrustHostKey(scan.KeyLine);
         }
+        progress?.Invoke("SSH-Hostvertrauen geprüft. Starte sicheren SSH-Anmeldetest.");
         return endpoint;
     }
 
@@ -1054,7 +1063,9 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         var safe = RedactKnownSecrets(exception.Message);
         if (safe.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase))
+            safe.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
+            safe.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
+            safe.Contains("Programm 'ssh-keygen'", StringComparison.OrdinalIgnoreCase))
         {
             var pod = SelectedInstance?.Id;
             Message = "SSH-Verbindung noch nicht möglich. " +
