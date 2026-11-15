@@ -121,7 +121,7 @@ public sealed class SshService(ICommandRunner commands)
         StopTunnel();
         var start = new ProcessStartInfo("ssh") { UseShellExecute = false, CreateNoWindow = true };
         foreach (var arg in CommonArgs(endpoint)) start.ArgumentList.Add(arg);
-        foreach (var arg in new[] { "-N", "-L", "127.0.0.1:8188:127.0.0.1:8188", $"ubuntu@{endpoint.Host}" })
+        foreach (var arg in new[] { "-o", "ExitOnForwardFailure=yes", "-N", "-L", "127.0.0.1:8188:127.0.0.1:8188", $"ubuntu@{endpoint.Host}" })
             start.ArgumentList.Add(arg);
         _tunnel = Process.Start(start) ?? throw new InvalidOperationException("SSH-Tunnel konnte nicht gestartet werden.");
         _tunnelIdentity = identity;
