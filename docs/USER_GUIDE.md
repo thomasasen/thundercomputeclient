@@ -1,5 +1,13 @@
 # Benutzerhandbuch
 
+## SSH-Ports und Schlüsselkontrolle
+
+In **Instanzen** zeigt die Liste jetzt den tatsächlichen, von Thunder gemeldeten SSH-Port. Der Port kann vor Fertigstellung des Pod-Starts noch fehlen. Die numerische Instanz-ID `0` ist normal.
+
+Es gibt zwei unterschiedliche Portarten: der von Thunder zugewiesene SSH-Port für `ubuntu@<pod-ip>` und der **lokale** ComfyUI-Loopback-Port `127.0.0.1:8188`. Der Client leitet den ComfyUI-Port ausschließlich durch den SSH-Tunnel weiter. Er veröffentlicht dadurch keinen ComfyUI-Port über eine öffentliche HTTP-URL. Bereits vorhandene öffentliche Portfreigaben werden mit `tnr ports list --json` (nur lesend) ermittelt; der Client legt sie nicht automatisch an.
+
+Bei Problemen mit `tnr connect --json` ist die von der CLI ausgegebene strukturierte JSON-Fehlermeldung entscheidend; Fortschritt und `Usage:` sind dafür nicht ausreichend. Eine bewusste SSH-Verbindung kann einen fehlenden SSH-Schlüssel im Thunder-Konto generieren. Der **Systemstatus** prüft dagegen nur lokale Schlüsseldateien unter dem Standard-TNR-Verzeichnis (oder `TNR_HOME`) und ein bereits bestätigtes SSH-Hostvertrauen, ohne Schlüssel zu erzeugen. Alle Fingerprints müssen weiterhin unabhängig bestätigt werden.
+
 ## Systemstatus und Einrichtung
 
 In der Seitenleiste **Systemstatus** öffnen oder auf der Übersicht **Systemstatus prüfen** anklicken. Die Anzeige startet mit **Nicht geprüft**; ein gespeicherter Token allein ist kein erfolgreicher Verbindungstest. **Jetzt alles sicher prüfen** führt auf ausdrücklichen Wunsch nur lesende Prüfungen aus. Zu jedem der sieben Punkte werden Ergebnisse, Zeitstempel, ein direkter offizieller Einrichtungslink und eine Abkürzung in den jeweiligen App-Bereich angezeigt.

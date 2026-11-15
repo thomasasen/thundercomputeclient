@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.11, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.12, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 ## Systemstatus und Einrichtungsassistent
 
@@ -27,6 +27,16 @@ Der Client verwendet für das Workflow-Repository **ausschließlich die authenti
 4. Ein unvollständig/ungültig geladener Katalog wird nicht übernommen. Bei Netzwerkausfall kann nur der zuletzt in **derselben Sitzung** geladene Stand nach ausdrücklicher Zustimmung weiterverwendet werden.
 
 Der Token wird nur in HTTPS-Authorization-Headern benutzt, nie als URL-Abfrageparameter, Git-Prozessargument oder Konfigurationsdatei. Die Anwendung lässt für GitHub-API-Requests keine Weiterleitungen zu anderen Hosts zu. Ein PAT ist **nicht** in der App enthalten und muss lokal vom berechtigten Benutzer hinterlegt werden. Die GitHub-Repository-Berechtigungen werden nicht geändert. Die Ausführung des vorhandenen Remote-Bootstraps über SSH braucht denselben Lesetoken.
+
+## Pod-Ports und nachvollziehbare SSH-Fehlerdiagnose
+
+Unter **Instanzen** wird der vom Anbieter gemeldete **SSH-Port** jetzt neben IP und Pod-Status angezeigt. Die ID `0` ist bei Thunder gültig; ein nicht eingetragener Port wird als „Noch nicht bereit“ gekennzeichnet.
+
+Der offizielle Thunder-Befehl `tnr connect 0 --json` liefert erfolgreiche SSH-Verbindungsdetails als JSON und **Fehler als JSON-Objekt auf stdout**. Vorher zeigte der Desktop-Client bei Exitcode 1 nur den stderr-Fortschritt und die generische CLI-Hilfe, wodurch die eigentliche Ursache verborgen blieb. Der Client wertet jetzt vorrangig das strukturierte `error`-Feld aus, entfernt offensichtliche Tokens, beschränkt die Länge und bewahrt den Exitcode. Gleichzeitige CLI-Verbindungsanbahnungen innerhalb eines Client-Prozesses werden serialisiert.
+
+**Wichtig:** `tnr connect --json` ist **nicht garantiert rein lesend**: Die CLI kann einen noch fehlenden SSH-Schlüssel auf dem Thunder-Konto erzeugen und lokal speichern. Die Systemstatus-Ansicht prüft deshalb SSH-Key-Existenz nun **ohne** `tnr connect`; für einen Live-SSH-Test ist ein zuvor verifizierter Hostfingerprint nötig.
+
+Der Remote-SSH-Port wird von Thunder vorgegeben und nicht mit `--disk`/`--gpu` beim Erstellen gewählt. Für ComfyUI verwendet der Client einen privaten Tunnel `127.0.0.1:8188 → Pod:127.0.0.1:8188` über die SSH-Verbindung. Eine öffentliche HTTP-Portfreigabe wird dafür **nicht** benötigt. HTTP-Freigaben, soweit aktiv, können gesondert **lesend** mit `tnr ports list --json` geprüft werden. Keine Portfreigabe erfolgt automatisch.
 
 ## SSH-Hostschlüssel und Verbindungsdiagnose
 

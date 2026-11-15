@@ -16,6 +16,14 @@ Schutzgüter: GitHub-PAT, HF/Civitai-API-Tokens, SSH-Schlüssel, lokal eingelese
 8. Snapshot/Deletion mit ausdrücklichen Bestätigungen, Backup-Hinweisen; keine automatische Wiederholung eines abgebrochenen Bootstrap.
 9. Tests mocken alle externen Aufrufe, sodass keine Kosten und Downloads ausgelöst werden.
 
+## SSH-CLI-Schlüsselprovisionierung und Porttrennung
+
+Thunder `tnr connect <id> --json` liest nicht nur Daten: Wenn kein lokaler Key existiert, kann die CLI einen SSH-Schlüssel serverseitig registrieren und lokal speichern. Daher verwendet die neue Systemstatus-Prüfung **keinen** `tnr connect`-Aufruf mehr; sie prüft den erwarteten lokalen Schlüsselpfad per `File.Exists` und versucht nur bei bereits bestätigtem known_hosts einen zeitbegrenzten, nicht schreibenden SSH-`true`-Befehl.
+
+Ein explizites GUI-Verbindungsereignis ruft `tnr connect <id> --json` weiter auf; parallele Aufrufe des gleichen ThunderCli-Objekts werden per Semaphore serialisiert, um konkurrierende SSH-Key-Provisionierungen zu vermeiden. CLI-Fehlermeldungen aus dem JSON-`error`-Feld auf stdout werden begrenzt und redigiert; keine vollständigen JSON-Antworten oder CLI-Usage-Seiten werden ungeprüft als Fehlermeldung übernommen.
+
+SSH-Port und ComfyUI-Port sind getrennt: der von Thunder gemeldete SSH-Port verbindet zur Instanz, während `127.0.0.1:8188` ausschließlich als lokaler SSH-Forward genutzt wird. **Keine öffentliche HTTP-Portfreigabe** wird automatisch konfiguriert. Hostfingerprint-Vertrauen bleibt zwingend.
+
 ## Systemstatus-Sicherheitsgrenzen
 
 - Die Systemprüfung wird **nur explizit auf Klick** ausgeführt; sie ruft keinerlei `tnr create`, `tnr delete`, Bootstrap oder Modelldownload auf.

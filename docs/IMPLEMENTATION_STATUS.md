@@ -10,14 +10,14 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | GPU-Priorität, Editieren, Kostenbestätigung, sichere Fallback-Regel | Implementiert; Preise nur historische Schätzung, GPU/vCPU live von CLI validiert |
 | Thunder Status, Create, Delete, Snapshot Create/List, Snapshot-Template | Implementiert mit dokumentierten tnr-JSON-Befehlen; nicht live getestet |
 | Windows Credential Manager, GitHub-API-PAT / Thunder CLI Auth | Implementiert; Git GCM nicht mehr nötig. tnr.exe-Pfaderkennung, Windows-Fehlerdiagnose. Echte Kontoverbindungen nicht live getestet |
-| Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert; SSH-Hostkey-Scan mit begrenztem Retry, Windows-OpenSSH-Priorität und diagnostizierbarem Exitcode/Host/Port (kein Auto-Trust). Keine echte SSH-Erreichbarkeitsprüfung am Benutzer-Pod. Adapter Commit-gepinnt, Remote-Entrypoint weiterhin main; Resume nicht automatisiert |
+| Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert; SSH-Hostkey-Scan mit begrenztem Retry, Windows-OpenSSH-Priorität und diagnostizierbarem Exitcode/Host/Port (kein Auto-Trust). Ab alpha.12: SSH-Port im Instanzraster, konkrete JSON-Fehlerdiagnose aus CLI stdout, serieller Key-Setup-Aufruf; Systemstatus prüft SSH-Keys ohne side-effect-haltiges tnr connect. Keine echte SSH-Erreichbarkeitsprüfung am Benutzer-Pod. Adapter Commit-gepinnt, Remote-Entrypoint weiterhin main; Resume nicht automatisiert |
 | Privater Loopback-Tunnel, ComfyUI im Browser, SSH-Terminal | Implementiert, End-to-End nicht live getestet |
 | Download-/Installationslogs | Strukturierte pro-Modelldatei-Ereignisse aus vorhandenem download_monitor.py werden beobachtet; Fortschritt nur bei tatsächlicher Logangabe, keine erfundenen Werte. Persistente Reconnect-Historie fehlt |
 | GPU-/CPU-/RAM-/Disk-Auslastung | Hardware-Textdiagnostik über SSH; Instanzstatus automatisch alle 30 Sekunden, noch keine kontinuierlichen Hardwaregrafiken |
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit GitHub-API-Mocktests, Hardwareplanung, tnr-Pfaden, SSH-Hostkey-Scan-/Sicherheitsregressionen und acht GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit GitHub-API-Mocktests, Hardwareplanung, SSH-CLI-JSON-Fehler- und Readiness-Sicherheitstests, tnr-Pfaden, SSH-Hostkey-Scan-/Sicherheitsregressionen und acht GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
 | Systemstatus / Onboarding | Achtseitige WPF-GUI mit sieben Diagnosepunkten für privates GitHub, Thunder CLI, OpenSSH, SSH-Schlüssel/Hostvertrauen, HF/Civitai. Echte lesende Checks nur auf Klick, Status-/Zeitstempel, offizielle Setup-Links, keine Kostenaktionen. Realgeräte-/Token-Test noch ausstehend |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
