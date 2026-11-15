@@ -33,7 +33,8 @@ public partial class App : Application
             {
                 window.ContentRendered += (_, _) =>
                 {
-                    StartupDiagnostics.Trace("WPF-Fenster vollständig gerendert.");
+                    window.VerifyPagesForSmokeTest();
+                    StartupDiagnostics.Trace("Alle sieben WPF-Bereiche gerendert und Navigation geprüft.");
                     window.Close();
                     Shutdown(0);
                 };
