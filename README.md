@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.9, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.10, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 ## Privater GitHub-Zugriff: kein Checkout
 
@@ -14,6 +14,14 @@ Der Client verwendet für das Workflow-Repository **ausschließlich die authenti
 4. Ein unvollständig/ungültig geladener Katalog wird nicht übernommen. Bei Netzwerkausfall kann nur der zuletzt in **derselben Sitzung** geladene Stand nach ausdrücklicher Zustimmung weiterverwendet werden.
 
 Der Token wird nur in HTTPS-Authorization-Headern benutzt, nie als URL-Abfrageparameter, Git-Prozessargument oder Konfigurationsdatei. Die Anwendung lässt für GitHub-API-Requests keine Weiterleitungen zu anderen Hosts zu. Ein PAT ist **nicht** in der App enthalten und muss lokal vom berechtigten Benutzer hinterlegt werden. Die GitHub-Repository-Berechtigungen werden nicht geändert. Die Ausführung des vorhandenen Remote-Bootstraps über SSH braucht denselben Lesetoken.
+
+## SSH-Hostschlüssel und Verbindungsdiagnose
+
+Beim erstmaligen Verbinden prüft der Client einen **ED25519-Hostschlüssel** des Thunder-SSH-Endpunkts. Ab `alpha.10` werden vorübergehende fehlgeschlagene `ssh-keyscan`-Abfragen begrenzt wiederholt; die Ausgabe enthält bei einem Fehlschlag Host, Port, Exitcode und die relevante Diagnose des Windows-OpenSSH-Clients. Wenn vorhanden, verwendet die App bewusst den nativen Windows-OpenSSH-Client unter `System32\\OpenSSH`.
+
+Der Client akzeptiert **keinen** neuen Schlüssel automatisch. Der SHA256-Fingerprint muss anhand einer **unabhängigen, vertrauenswürdigen Thunder-Quelle** bestätigt werden. `StrictHostKeyChecking=yes` bleibt aktiviert. Falls der SSH-Dienst nach dem Pod-Start noch nicht erreichbar ist, später erneut versuchen; diese Anpassung garantiert keine SSH-Verbindung bei gesperrtem/falschem Port oder fehlendem ED25519-Schlüssel.
+
+Fehlersuche: [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Voraussetzungen
 

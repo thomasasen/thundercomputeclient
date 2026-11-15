@@ -9,7 +9,7 @@ Schutzgüter: GitHub-PAT, HF/Civitai-API-Tokens, SSH-Schlüssel, lokal eingelese
 1. GitHub-Upstream ausschließlich lesen: an festem HTTPS-`api.github.com`-Host ohne Redirect; Fine-grained-PAT aus WinCred mit Contents: Read-only; Commit/Tree/Blob-SHA-Konsistenz; kein Git-Checkout, keine privaten Dateien als Disk-Cache.
 2. Kein Token in URLs, Git/JSON, Prozessargumenten oder gespeichertem Cache. API-Authorization ausschließlich per HTTPS-Header. Eigener WinCred-Namespace, maskierte Anzeige, Löschfunktion.
 3. Remote-Bootstrap über OpenSSH-Standard-Eingabe, kein persistenter Secret-File-Schritt. Lokaler Adapter wird über Commit-gepinnten GitHub-Blob gelesen; die separate Remote-Pod-Entry-Stufe nutzt weiter main.
-4. SSH StrictHostKeyChecking=yes; ED25519-Fingerprint vor erstmaliger Hinterlegung explizit bestätigen.
+4. SSH StrictHostKeyChecking=yes; ED25519-Fingerprint vor erstmaliger Hinterlegung explizit und anhand unabhängiger vertrauenswürdiger Thunder-Quelle bestätigen. Host/Port und ED25519-Keyblob werden validiert. Bounded Retry nur für Keyscan ohne Treffer; kein Auto-Trust und keine Abschwächung auf unbekannte Hostschlüssel.
 5. Private ComfyUI-Anbindung über SSH 127.0.0.1:8188, keine Portfreigabe über Thunder.
 6. Einmaliger kostenpflichtiger Erstellungsdialog, lokale exklusive Create-Sperre, status-before/status-after, automatischer Fallback nur bei positivem Kapazitätsmuster.
 7. Historische Preis-Schätzungen ausdrücklich gekennzeichnet; keine falsche harte Kostenbegrenzung.
