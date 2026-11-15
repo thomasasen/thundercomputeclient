@@ -3,6 +3,7 @@
 **Fehlerbehebungs- und Diagnoseversion für Windows 11 x64. Alpha-Vorabversion, nicht produktionsfreigegeben.**
 
 ## Änderungen gegenüber alpha.1
+- **Startabsturz behoben:** Die read-only-Eigenschaften `Hardware` und `Preview` waren in WPF-Textfeldern versehentlich per `TwoWay` gebunden. Beide Bindungen sind jetzt `OneWay`. Der Fehler wurde reproduziert und der anschließende Fensterstart in Windows-CI erfolgreich getestet.
 - Robustere Initialisierung des WPF-Hauptfensters mit sichtbarer Fehlermeldung bei Startproblemen.
 - Startdiagnose unter `%LOCALAPPDATA%\\ThunderClient\\logs\\startup.log` (reduzierte, lokal gespeicherte Fehlerdetails).
 - Automatischer Windows-GUI-Smoke-Test im CI: die echte veröffentlichte EXE muss das WPF-Fenster erstellen und vollständig rendern, ohne Git- oder Thunder-Zugriff.
