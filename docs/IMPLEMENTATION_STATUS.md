@@ -17,7 +17,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit 18 Tests, sieben GUI-Ansichten, kopierbarer Log-Ansicht, Installer und SHA-256; realer Benutzer-PC weiterhin nur teilweise getestet |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit 20 Tests (einschließlich Sparse-Checkout-Regressionsfällen), sieben GUI-Ansichten, kopierbarem Log, Installer und SHA-256; Live-Checkout am Benutzergerät noch nicht bestätigt |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
 ## Bewusste Sicherheitsgrenzen

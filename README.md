@@ -2,12 +2,12 @@
 
 Nativer Windows-Desktop-Client (.NET 10, WPF) für die ComfyUI-Workflows im **privaten** Repository thomasasen/runpod-ai-workflows. Der Client ruft die offizielle Thunder-CLI (tnr) auf, synchronisiert Manifestdaten mit Git, erstellt Instanzen nach ausdrücklicher Bestätigung und startet den bestehenden Thunder-Bootstrap über eine abgesicherte SSH-Verbindung.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.4, nicht produktionsfreigegeben.** Build, 18 mockbasierte Regressionstests sowie ein automatisierter Windows-GUI-Test aller sieben Ansichten werden in GitHub Actions geprüft. Fehler beim Start werden unter `%LOCALAPPDATA%\ThunderClient\logs\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
+**Status: Alpha-Vorabversion v0.1.0-alpha.5, nicht produktionsfreigegeben.** Build, 18 mockbasierte Regressionstests sowie ein automatisierter Windows-GUI-Test aller sieben Ansichten werden in GitHub Actions geprüft. Fehler beim Start werden unter `%LOCALAPPDATA%\ThunderClient\logs\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
 
 ## Voraussetzungen
 
 - Windows 11 x64, .NET selbstenthaltenes Installationspaket; Windows 10 nicht getestet.
-- Offizielle Thunder Compute CLI (tnr), angemeldet über tnr login.
+- Offizielle Thunder Compute CLI (`tnr`), angemeldet über `tnr login`. `Get-Command tnr` muss sie im Windows-PATH finden; nach Installation/PATH-Änderung den Client neu starten.
 - Git for Windows inklusive Git Credential Manager, für das private Workflow-Repository mit Lesezugriff angemeldet.
 - OpenSSH-Client, ssh-keygen und ssh-keyscan unter Windows.
 - GitHub fine-grained PAT mit Contents: Read-only nur auf runpod-ai-workflows, separat für den **Remote-Bootstrap** im Windows Credential Manager gespeichert. Hugging Face und Civitai bei Bedarf ebenfalls.
@@ -27,7 +27,7 @@ Der GitHub-Actions-Workflow erzeugt aus dem Publish-Ordner ein per-user Inno-Set
 
 Die Anwendung verwendet eine feste Seitenleiste, großzügig gegliederte Inhaltskarten, konsistente Formulare, sichtbare Fokuszustände, ein helles und dunkles Farbschema sowie eine persistente Statusleiste. Das Gestaltungskonzept ist an den Prinzipien des [Apple-Design-Skills](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md) orientiert und an Windows WPF angepasst. Alle sieben Ansichten werden in der Windows-CI ohne Netzwerk- oder GPU-Aktionen geöffnet.
 
-Bei fehlgeschlagenem Git-Klon bleibt die Oberfläche nutzbar und zeigt den Git-Synchronisierungsstatus an. Git Credential Manager und der im Windows Credential Manager hinterlegte Remote-Bootstrap-PAT sind **zwei getrennte Anmeldewege**. Hinweise zur Fehlersuche: [Troubleshooting](docs/TROUBLESHOOTING.md).
+Auf Windows klont die App das private Workflow-Repository über **Git Sparse Checkout** (`workflows/`, `thunder/`, `scripts/`, `docs/` und Root-Dateien). Dadurch werden die unter `incoming/` vorhandenen Windows-ungültigen Dateinamen nicht ausgecheckt. Das Upstream-Repository bleibt unverändert. Bei fehlgeschlagenem Git-Klon bleibt die Oberfläche nutzbar und zeigt den Git-Synchronisierungsstatus an. Git Credential Manager und der im Windows Credential Manager hinterlegte Remote-Bootstrap-PAT sind **zwei getrennte Anmeldewege**. Hinweise zur Fehlersuche: [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Kopierbare Protokolle
 

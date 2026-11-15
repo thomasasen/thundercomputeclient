@@ -11,6 +11,12 @@ notepad "$env:LOCALAPPDATA\ThunderClient\logs\startup.log"
 
 Die Datei kann fehlen, wenn noch kein Diagnoseereignis aufgetreten ist. Vor dem Teilen auf enthaltene Pfade, Namen und Zugangsdaten prüfen. Tokens niemals veröffentlichen.
 
+## Windows: Git-Fehler `invalid path 'incoming/Krea 2 + FLUX.2: ...'`
+
+**Ursache nachweislich gefunden (15.11.2026):** Das private Quellrepository enthält in `incoming/` einen Verzeichnisnamen mit dem Zeichen `:`. Dieses Zeichen ist in Windows-Dateinamen nicht zulässig. Der normale vollständige Git-Checkout schlägt unabhängig von der Git-Anmeldung fehl. Im Git-Quellbaum wurden ausschließlich unter `incoming/` solche ungültigen Pfade festgestellt.
+
+Ab `v0.1.0-alpha.5` erfolgt der Clone mit `--no-checkout`. Anschließend begrenzt **Git Sparse Checkout** die lokal benötigten Pfade auf `workflows/`, `thunder/`, `scripts/`, `docs/` und Root-Dateien, bevor `main` ausgecheckt wird. Dasselbe gilt für spätere Fast-Forward-Updates. `incoming/` wird lokal bewusst nicht ausgecheckt; das private Quellrepository wird nicht bearbeitet.
+
 ## Beim Start: Access to the path 'pack-...idx' is denied
 
 Das ist ein Datei-Zugriffsproblem im lokalen Git-Checkout oder beim Aufräumen eines gescheiterten Klons. **Die genaue Ursache auf dem jeweiligen Rechner lässt sich aus dieser Meldung allein nicht bestimmen.** Mögliche Ursachen sind ein gescheiterter privater Git-Clone, geöffnete Dateien, Dateiberechtigungen oder Sicherheitssoftware.
@@ -28,9 +34,16 @@ Wenn `git ls-remote` scheitert, zuerst die Git-Anmeldung und **Read-only-Zugriff
 
 Wenn `git ls-remote` funktioniert, aber Klonen/Fetch weiterhin an einer `.idx`-Datei scheitert, die vollständige, bereinigte Meldung aus dem App-Status und dem Startprotokoll prüfen. Den Workflow-Checkout nicht unüberlegt löschen; er kann eigene Änderungen enthalten. Keine Firewall-, Defender- oder Sicherheitssoftware pauschal deaktivieren.
 
-## Thunder-Instanzen fehlen
+## Thunder-Instanzen fehlen / `Win32Exception`
 
-Die CLI in einer regulären PowerShell unabhängig prüfen:
+Wenn die Status- und Snapshot-Prüfung jeweils mit einer `Win32Exception` aussteigen, ist eine fehlende `tnr`-CLI im PATH eine naheliegende Ursache, aus dem alten Log alleine aber nicht bewiesen. Ab `v0.1.0-alpha.5` wird bei fehlendem Programm eine verständliche Meldung angezeigt.
+
+```powershell
+Get-Command tnr -ErrorAction SilentlyContinue
+Get-Command git -ErrorAction SilentlyContinue
+```
+
+Wenn bei `tnr` kein Programm gefunden wird, die **offizielle Thunder-CLI** installieren und danach die App neu starten. Die CLI in einer regulären PowerShell unabhängig prüfen:
 
 ```powershell
 tnr status --json --no-wait
