@@ -18,6 +18,14 @@ Authentifizierung: Fine-grained PAT mit **Contents: Read-only** für das eine pr
 
 Bei einem Fehler wird die vorhandene Snapshot-Instanz **nicht** ausgetauscht. Offline-Nutzung ist nach expliziter Zustimmung nur für einen bereits in **derselben Sitzung** erfolgreich geladenen Stand möglich. Ein Start ohne Token kann die Katalogdaten nicht abrufen.
 
+## Geführte Pod-Bereitstellung und Hardwareberatung
+
+Das UI verbindet vier bestehende Schritte: Katalog laden (private GitHub-API), Workflow-Auswahl (Mehrfachauswahl mit Dateikonfliktprüfung), Hardwareplanung und Pod-Verwaltung. Die Seite Workflows speichert die Auswahl vor dem Wechsel zur Hardwareseite. Nach erfolgreichem bestätigtem Create-Command signalisiert das ViewModel das Ereignis `PodCreated`; das Fenster navigiert zur Verwaltung und hält die neu erstellte Instanz ausgewählt.
+
+`HardwareRecommendations.Parse` liest ausschließlich den Abschnitt `## Persistent Volume und GPU-Empfehlungen` der privaten Workflow-README-Dateien. Angaben sind **RunPod-Referenzen** und keine Thunder-Spezifikationen oder gemessenen Werte. `HardwareRecommendations.Plan` erzeugt eine in der GUI deutlich gekennzeichnete VRAM-Orientierung und einen Disk-Planungswert aus deduplizierter Modellgröße + 40 GB Pauschalreserve sowie dokumentiertem RunPod-Persistent-Volume. Bei fehlenden Größen wird keine Diskempfehlung erfunden. Bei mehreren Workflows wird die strengere VRAM-Referenz herangezogen; das Laufzeitverhalten einer gemeinsamen Instanz ist nicht gemessen.
+
+Die Anwendung ändert Einstellungen nie allein durch die Auswahl eines Workflows. Erst `ApplyHardwareGuidanceCommand` erlaubt ein Erhöhen der Disk und ein Filtern der lokalen GPU-Kandidaten anhand der **VRAM-Klasse**. vCPU, Template, Preisgrenze und GPU-Anzahl bleiben unter Benutzerkontrolle. Thunder-`tnr`-Create und konservative Fallback-Regeln sowie die separate Kostenbestätigung bleiben unverändert.
+
 ## Manifest- und Kostensicherheit
 
 Manifest-Schema: `workflows/<Ordner>/model.json` mit Feld `models`, vorhandene `workflow*.json`-Canvas-Dateinamen und optional `README.md`. Dateiidentität = Kategorie/Dateiname. Doppelte Modellziele mit unterschiedlicher Quelle blockieren den Bootstrap. Fehlende Größen bleiben unbekannt.

@@ -6,7 +6,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 |---|---|
 | .NET 10 WPF, deutsche GUI, MVVM, Dark/Light | Sidebar/Cards, Light/Dark; GPU-Zeilen und Ressourcenformular neu gerastert, Startvorschau strukturiert, primärer Kostenbutton dauerhaft sichtbar. Windows-CI rendert sieben Ansichten und prüft 1320/1080px, Endanwender-Sichttest noch offen |
 | Privater GitHub-Katalog, API-Synchronisierung, Offline-Zustimmung | **Kein Checkout**: API-Abfrage mit Fine-grained PAT aus WinCred; Commit-/Blob-SHA, nur benötigte Dateien im RAM, Offline nur innerhalb laufender Sitzung. Echter PAT-Zugriff am Benutzer-PC noch nicht validiert |
-| Dynamische Workflow-Manifeste, Canvas, Mehrfachauswahl, Modell-Deduplikation | Implementiert; komplexe Manifest-Metadaten/Hardwareempfehlungen nicht vollständig |
+| Dynamische Workflow-Manifeste, Canvas, Mehrfachauswahl, Modell-Deduplikation | Implementiert; geführte Auswahl plus RunPod-Hardwaretabellen/Volumen aus READMEs, VRAM-/Disk-Planung und optionale manuelle Übernahme. Keine bestätigten Thunder-Live-Empfehlungen |
 | GPU-Priorität, Editieren, Kostenbestätigung, sichere Fallback-Regel | Implementiert; Preise nur historische Schätzung, GPU/vCPU live von CLI validiert |
 | Thunder Status, Create, Delete, Snapshot Create/List, Snapshot-Template | Implementiert mit dokumentierten tnr-JSON-Befehlen; nicht live getestet |
 | Windows Credential Manager, GitHub-API-PAT / Thunder CLI Auth | Implementiert; Git GCM nicht mehr nötig. tnr.exe-Pfaderkennung, Windows-Fehlerdiagnose. Echte Kontoverbindungen nicht live getestet |
@@ -17,7 +17,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit privaten GitHub-API-Mocktests, tnr-Pfad-Regressionen und sieben GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit privaten GitHub-API-Mocktests, 8 Hardwareplanungs-Regressionen, tnr-Pfad-Regressionen und sieben GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
 ## Bewusste Sicherheitsgrenzen

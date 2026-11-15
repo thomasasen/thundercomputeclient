@@ -10,6 +10,16 @@
 
 Der Token wird ausschließlich per HTTPS-`Authorization`-Header an `api.github.com` übertragen. Kein öffentliches Raw-GitHub-URL-Verfahren. Fehlende Berechtigung führt zu einer verständlichen Fehleranzeige. Bei Netzwerkfehlern kann nur der in derselben Sitzung zuvor geladene Katalog nach Zustimmung verwendet werden. **Nach App-Neustart gibt es keinen lokalen Offline-Katalog.** Das private Upstream-Repository wird nicht verändert.
 
+## Geführter Workflow bis zur Pod-Verwaltung
+
+Unter **Übersicht** auf **Katalog laden und Workflows wählen** klicken. Dies lädt das private Repository über den bereits gespeicherten GitHub-Lesetoken und öffnet **Workflows**. Dort einen oder mehrere Workflows über die Checkboxen auswählen. Die Zusammenfassung zeigt die deduplizierte Modellgröße; Konflikte blockieren den nächsten Schritt.
+
+**Auswahl übernehmen → Hardware prüfen** speichert die Auswahl und zeigt die Hardwareplanung. Die Referenzen kommen aus den README-Tabellen im privaten Repository und enthalten typische **RunPod-GPU-Typen**, VRAM-Klassen und das einzelne RunPod-Persistent-Volume. Der Client leitet daraus keine reale Thunder-Hardwareverfügbarkeit ab. Für die gesamte Instanzdisk rechnet er getrennt mit der deduplizierten Modellgröße plus 40 GB konservativer Pauschalreserve (keine gemessene Schwelle). Fehlende Größen werden nicht ersetzt.
+
+Mit **Planungswerte übernehmen** können die Referenzwerte ausdrücklich angewendet werden: die Disk wird nur erhöht, nicht reduziert; GPU-Kandidaten werden bei vollständigen Referenzen allein nach VRAM-Klasse gefiltert. GPU-Modell-/Treiberkompatibilität ist damit **nicht** bewiesen. Prüfen und ändern: GPU-Priorität, vCPUs, GPU-Anzahl, Gesamtdisk, Template/Snapshot und Schätzpreisgrenze. Die Preise bleiben historische Schätzungen.
+
+Nach **Pod erstellen …** erscheint die bekannte, ausdrückliche Kostenbestätigung. Bei erfolgreicher Erstellung springt der Client automatisch zur Seite **Pods verwalten**. Bestehende Pods können dort unabhängig vom Assistenten ausgewählt werden. Status aktualisieren, SSH-Terminal, privaten ComfyUI-Tunnel, Installation/Logs, Snapshots und bestätigtes Löschen verwenden. Keine unbeaufsichtigte GPU-Stopp-/Abrechnungsfunktion.
+
 ## Workflows und GPU
 
 Unter **Workflows** mehrere Einträge auswählen. Größe und Anzahl der Modelldateien stammen aus dem Manifest; gemeinsame Dateiziele werden dedupliziert, Widersprüche verhindern den Bootstrap. Namen der Canvas-Dateien werden aus dem Tree gelesen, der Inhalt der Canvas-Dateien wird für den lokalen Katalog nicht benötigt.

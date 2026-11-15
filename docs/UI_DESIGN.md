@@ -40,3 +40,9 @@ Umsetzung:
 - Schriftgrößen der Standardbedienelemente angehoben und GPU-Zeilen mit Fokus-, Hover- und Auswahlindikatoren ausgestattet.
 
 **Testgrenzen:** Der automatische WPF-GUI-Test rendert alle sieben Seiten, prüft die Kopierbarkeit des Logs und kontrolliert auf der Instanzseite GPU-Liste und fixierten Aktionsbutton bei Standardbreite und 1080px-Minimalbreite. Er ersetzt nicht die manuelle Sichtprüfung bei 125%/150% DPI, Bildschirmvergrößerung und kleinen Displays. Externe Abläufe und kostenpflichtige Operationen werden im GUI-Test nicht aufgerufen.
+
+## Geführte Bereitstellung und Pod-Verwaltung (Alpha 0.1.0-alpha.9)
+
+Ziel: Der bisher tabbasierte Ablauf wurde mit expliziten nächsten Schritten verbunden. Aus der Übersicht lädt ein klarer Button den privaten Katalog und öffnet die Workflow-Auswahl. Dort ist die Mehrfachauswahl eindeutig markiert; die Folgeaktion öffnet erst nach Konfliktprüfung die Hardwarekonfiguration. Die Hardwareseite zeigt die hergeleiteten README-Referenzen **vor** den editierbaren GPU-/CPU-/Disk-Feldern. Empfehlungen werden erst auf ausdrücklichen Klick übernommen, nicht unbemerkt. Die permanente Create-Leiste bleibt und nach erfolgreicher Erstellung öffnet sich die Pod-Verwaltung mit Status, SSH-/ComfyUI- und Snapshot-Aktionen. „Installation & Logs“ führt in die bestehenden Setup- und Protokollfunktionen.
+
+Alle Daten bleiben im lokalen UI bzw. im privaten GitHub-API-Abruf; keine zusätzliche öffentliche Workflow-Quelle. Verfügbarkeit und Preise sind nicht live verifiziert. Navigation und reine Empfehlungen erzeugen keine GPU-Instanz und lösen keine Downloads aus.

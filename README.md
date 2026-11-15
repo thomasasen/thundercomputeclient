@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.8, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.9, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 ## Privater GitHub-Zugriff: kein Checkout
 
@@ -24,6 +24,17 @@ Der Token wird nur in HTTPS-Authorization-Headern benutzt, nie als URL-Abfragepa
 - Vertrauenswürdige, externe Quelle zum Abgleich des SSH-ED25519-Hostfingerprints vor dem ersten Verbindungsaufbau.
 
 **Git for Windows/Git Credential Manager sind für den GUI-Workflow-Katalog nicht mehr erforderlich.** Für andere Projekte können sie natürlich weiterhin installiert bleiben.
+
+## Geführter Ablauf: Katalog → Workflows → Hardware → Pod
+
+Auf der Übersicht startet **„Katalog laden und Workflows wählen“** den lesenden Zugriff auf das private GitHub-Repository und öffnet danach die Workflow-Bibliothek. Anschließend:
+
+1. **Workflow-Auswahl:** Einen oder mehrere Workflows in der Auswahlspalte aktivieren. Bei widersprüchlichen Modelldateien wird die Weiterführung blockiert. **„Auswahl übernehmen → Hardware prüfen“** speichert die Auswahl und öffnet die Instanzkonfiguration.
+2. **Hardwareempfehlungen:** Der Client liest die Hardwaretabellen und das RunPod-Speichervolumen aus den authentifizierten Workflow-READMEs. Er dedupliziert Modellgrößen und bildet eine **vorsichtige Thunder-Disk-Planung (Modellgrößen + 40 GB Pauschalreserve, mindestens die höhere dokumentierte RunPod-Referenz)**. GPU-VRAM wird als kleinste in der jeweiligen README-Tabelle gelistete RunPod-VRAM-Klasse ausgewiesen, bei Mehrfachauswahl als größte dieser Klassen. **Das sind Referenzwerte, keine auf Thunder gemessenen Mindestanforderungen.**
+3. **Anpassen / Übernehmen:** „Planungswerte übernehmen“ erhöht nur eine zu kleine Disk und aktiviert ausschließlich GPU-Kandidaten, die bei vollständigen README-Angaben zur VRAM-Orientierung passen. Das ist **keine Kompatibilitäts-, Preis- oder Verfügbarkeitsbestätigung**. GPU-Typ, vCPUs, Anzahl, Template und maximalen Schätzpreis ausdrücklich selbst prüfen und ändern.
+4. **Pod erstellen und verwalten:** „Pod erstellen“ verlangt weiter die ausdrückliche Kostenfreigabe. Bei Erfolg wird automatisch die Seite **Pods verwalten** geöffnet. Dort sind Status, SSH, privater ComfyUI-Zugang, Installationslogs, Snapshots und bestätigtes Löschen erreichbar.
+
+Bestehende Pods können auch ohne Neuanlage jederzeit über die Seitenleiste geöffnet werden. Ein Stoppen der GPU ohne Löschen ist **nicht** als kostenfreier Pausenmodus implementiert.
 
 ## Optimierte Instanzkonfiguration
 
