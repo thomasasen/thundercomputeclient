@@ -28,7 +28,7 @@
                         <StackPanel>
                             <TextBlock FontSize="12" FontWeight="SemiBold" Text="Privater Workspace" />
                             <TextBlock FontSize="11" Foreground="{DynamicResource SubtleBrush}" Margin="0,6,0,0"
-                                       Text="Workflow-Katalog nur aus dem autorisierten Git-Repository" />
+                                       Text="Workflow-Katalog über private GitHub-API" />
                         </StackPanel>
                     </Border>
                     <TextBlock Margin="4,13,0,0" FontSize="11" Foreground="{DynamicResource SubtleBrush}"
@@ -110,7 +110,7 @@
             <TabControl x:Name="MainTabs" Grid.Row="1" SelectedIndex="0"
                         Style="{StaticResource ContentOnlyTabs}"
                         Margin="28,0,24,6">
-            <TabItem Header="Dashboard">
+            <TabItem Header="Übersicht">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="4,6,18,28">
                         <TextBlock Style="{StaticResource OverlineText}" Text="ÜBERSICHT" />
@@ -215,62 +215,172 @@
                 </Grid>
             </TabItem>
             <TabItem Header="Neue Instanz">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Border Style="{StaticResource SurfaceCard}" Margin="4,6,18,22">
-                        <StackPanel Margin="0,0,0,0">
-                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="GPU und Ressourcen konfigurieren" />
-                        <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,7,0,9"
-                                   Text="GPU-Priorität per Drag-and-drop oder Pfeilschaltflächen ändern. vCPU und Schätzpreis je GPU editierbar. Thunder validiert die tatsächlichen GPU-/vCPU-Kombinationen." />
-                        <ListBox x:Name="GpuList" ItemsSource="{Binding GpuChoices}" SelectedItem="{Binding SelectedGpu}"
-                                 AllowDrop="True" Drop="GpuList_Drop" PreviewMouseLeftButtonDown="GpuList_PreviewMouseLeftButtonDown"
-                                 PreviewMouseMove="GpuList_PreviewMouseMove"
-                                 Background="{DynamicResource SurfaceBrush}" MinHeight="155">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="7,4">
-                                        <CheckBox IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Display}" Width="250" VerticalAlignment="Center" />
-                                        <TextBlock Text="vCPUs" Margin="8,0" VerticalAlignment="Center" />
-                                        <TextBox Text="{Binding Vcpus, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                 Width="52" />
-                                        <TextBlock Text="GPU USD/h (Schätzung)" Margin="14,0,6,0" VerticalAlignment="Center" />
-                                        <TextBox Text="{Binding GpuHourlyEstimate, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                 Width="70" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <WrapPanel>
-                            <Button Command="{Binding GpuUpCommand}" Content="↑ Höher" />
-                            <Button Command="{Binding GpuDownCommand}" Content="↓ Tiefer" />
-                        </WrapPanel>
-                        <WrapPanel Margin="0,12,0,4">
-                            <StackPanel Margin="0,0,20,0">
-                                <TextBlock Text="GPU-Anzahl" />
-                                <TextBox Text="{Binding GpuCount, Mode=TwoWay}" Width="110" />
-                            </StackPanel>
-                            <StackPanel Margin="0,0,20,0">
-                                <TextBlock Text="Gesamtdisk (GB)" />
-                                <TextBox Text="{Binding DiskGb, Mode=TwoWay}" Width="130" />
-                            </StackPanel>
-                            <StackPanel Margin="0,0,20,0">
-                                <TextBlock Text="Template / Snapshot" />
-                                <TextBox Text="{Binding Template, Mode=TwoWay}" Width="180" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Maximaler Schätzpreis (USD/h)" />
-                                <TextBox Text="{Binding MaximumHourlyUsd, Mode=TwoWay}" Width="145" />
-                            </StackPanel>
-                        </WrapPanel>
-                        <TextBlock FontWeight="Bold" Text="Startvorschau (nicht live bepreist)" Margin="0,15,0,8" />
-                        <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
-                                 AcceptsReturn="True" MinHeight="245" VerticalScrollBarVisibility="Auto" />
-                        <Button Command="{Binding CreateCommand}"
-                                Content="Instanz erstellen und Kosten bestätigen …" FontWeight="SemiBold"
-                                Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" HorizontalAlignment="Left" />
+                <Grid Margin="4,6,14,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,12,12">
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="01  /  GPU-AUSWAHL" />
+                                    <TextBlock Style="{StaticResource SectionHeading}" Margin="0,8,0,4"
+                                               Text="GPU-Priorität" />
+                                    <TextBlock Style="{StaticResource LeadText}" FontSize="14" Margin="0,0,0,19"
+                                               Text="Von oben nach unten wird die gewünschte Hardware geprüft. Die Preise sind Schätzwerte, keine Live-Tarife." />
+                                    <ListBox x:Name="GpuList" ItemsSource="{Binding GpuChoices}"
+                                             SelectedItem="{Binding SelectedGpu}"
+                                             ItemContainerStyle="{StaticResource GpuItemStyle}"
+                                             HorizontalContentAlignment="Stretch"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                             AllowDrop="True" Drop="GpuList_Drop"
+                                             PreviewMouseLeftButtonDown="GpuList_PreviewMouseLeftButtonDown"
+                                             PreviewMouseMove="GpuList_PreviewMouseMove"
+                                             Background="Transparent" BorderThickness="0" Padding="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Padding="15,12" Background="{DynamicResource FieldBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1" CornerRadius="12">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="38" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="112" />
+                                                            <ColumnDefinition Width="174" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Grid.Column="0"
+                                                                  IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                                  VerticalAlignment="Center"
+                                                                  ToolTip="GPU für die Prioritätsliste aktivieren" />
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center"
+                                                                    Margin="0,0,12,0">
+                                                            <TextBlock Text="{Binding Display}" FontSize="15"
+                                                                       FontWeight="SemiBold" />
+                                                            <TextBlock Text="GPU-Modell" FontSize="12"
+                                                                       Foreground="{DynamicResource SubtleBrush}"
+                                                                       Margin="0,4,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                                                            <TextBlock Style="{StaticResource FormLabel}"
+                                                                       Text="vCPUs" />
+                                                            <TextBox Text="{Binding Vcpus, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                     HorizontalAlignment="Stretch"
+                                                                     Margin="0,5,0,0"
+                                                                     AutomationProperties.Name="vCPU-Anzahl" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="3">
+                                                            <TextBlock Style="{StaticResource FormLabel}"
+                                                                       Text="GPU · USD/h (Schätzung)" />
+                                                            <TextBox Text="{Binding GpuHourlyEstimate, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                     HorizontalAlignment="Stretch"
+                                                                     Margin="0,5,0,0"
+                                                                     AutomationProperties.Name="Geschätzter GPU-Stundenpreis" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Command="{Binding GpuUpCommand}" Content="↑  Nach oben" />
+                                            <Button Command="{Binding GpuDownCommand}" Content="↓  Nach unten" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="Reihenfolge auch per Drag-and-drop ändern"
+                                                   Style="{StaticResource FieldHint}" HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="02  /  INSTANZ-KONFIGURATION" />
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="Ressourcen"
+                                               Margin="0,8,0,16" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="18" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,13">
+                                            <TextBlock Style="{StaticResource FormLabel}" Text="GPU-Anzahl" />
+                                            <TextBox Text="{Binding GpuCount, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="GPU-Anzahl" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,13">
+                                            <TextBlock Style="{StaticResource FormLabel}" Text="Gesamtdisk (GB)" />
+                                            <TextBox Text="{Binding DiskGb, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="Gesamtdisk in Gigabyte" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FormLabel}" Text="Template / Snapshot" />
+                                            <TextBox Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="Template oder Snapshot" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FormLabel}"
+                                                       Text="Maximaler Schätzpreis (USD/h)" />
+                                            <TextBox Text="{Binding MaximumHourlyUsd, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="Maximaler geschätzter Stundenpreis" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,5,0,0"
+                                               Text="Die tatsächliche Hardwarekonfiguration prüft Thunder beim Erstellen. Die Preisgrenze ist kein serverseitiges Kostenlimit." />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="03  /  VOR DEM START" />
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="Startvorschau"
+                                               Margin="0,8,0,4" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                               Text="Konfiguration und Kostenschätzung vor dem kostenpflichtigen Erstellen kontrollieren." />
+                                    <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True"
+                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                             FontFamily="Consolas" FontSize="13"
+                                             MinHeight="160" MaxHeight="220"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Disabled"
+                                             AutomationProperties.Name="Kopierbare Startvorschau" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
+                    </ScrollViewer>
+                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}"
+                            Padding="16,13" Margin="0,6,14,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
+                                <TextBlock FontWeight="SemiBold" Text="Kostenpflichtiger Vorgang" />
+                                <TextBlock Style="{StaticResource FieldHint}" Text="Erstellung erst nach deiner ausdrücklichen Bestätigung."
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <Button x:Name="InstanceCreateButton" Grid.Column="1"
+                                    Command="{Binding CreateCommand}"
+                                    Content="Instanz erstellen …"
+                                    Background="{DynamicResource AccentBrush}"
+                                    Foreground="{DynamicResource OnAccentBrush}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    MinHeight="44" Padding="20,11" />
+                        </Grid>
                     </Border>
-                </ScrollViewer>
+                </Grid>
             </TabItem>
             <TabItem Header="Instanzen">
                 <Grid Margin="4,6,18,16">
