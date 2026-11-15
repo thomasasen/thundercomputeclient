@@ -185,7 +185,8 @@
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
                                    Text="Automatisch erkannt aus workflows/*/model.json und vorhandenen Canvas-Dateien. Mehrfachauswahl aktivieren." Margin="0,7,0,10" />
                     </StackPanel>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding Workflows}" SelectedItem="{Binding SelectedWorkflow}"
+                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="9">
+                        <DataGrid ItemsSource="{Binding Workflows}" SelectedItem="{Binding SelectedWorkflow}"
                               CanUserAddRows="False" MinHeight="250">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="Auswahl" Width="75">
@@ -203,6 +204,7 @@
                             <DataGridTextColumn Header="Modellgröße" Binding="{Binding ModelSize}" Width="140" />
                         </DataGrid.Columns>
                     </DataGrid>
+                    </Border>
                     <StackPanel Grid.Row="2" Margin="0,13,0,0">
                         <TextBlock FontWeight="Bold" Text="{Binding SelectionSummary}" />
                         <TextBlock Text="{Binding SelectedWorkflow.Description}" Margin="0,5,0,5" />
@@ -214,7 +216,8 @@
             </TabItem>
             <TabItem Header="Neue Instanz">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4,6,18,24">
+                    <Border Style="{StaticResource SurfaceCard}" Margin="4,6,18,22">
+                        <StackPanel Margin="0,0,0,0">
                         <TextBlock FontSize="24" FontWeight="SemiBold" Text="GPU und Ressourcen konfigurieren" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,7,0,9"
                                    Text="GPU-Priorität per Drag-and-drop oder Pfeilschaltflächen ändern. vCPU und Schätzpreis je GPU editierbar. Thunder validiert die tatsächlichen GPU-/vCPU-Kombinationen." />
@@ -265,7 +268,8 @@
                         <Button Command="{Binding CreateCommand}"
                                 Content="Instanz erstellen und Kosten bestätigen …" FontWeight="SemiBold"
                                 Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" HorizontalAlignment="Left" />
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Instanzen">
@@ -280,7 +284,8 @@
                         <TextBlock Text="Status stammt aus tnr status --json --no-wait. Eine Instanz zur Nutzung auswählen."
                                    Margin="0,7,0,12" />
                     </StackPanel>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
+                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="9">
+                        <DataGrid ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
                               CanUserAddRows="False">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="85" />
@@ -290,6 +295,7 @@
                             <DataGridTextColumn Header="IP" Binding="{Binding Ip}" Width="165" />
                         </DataGrid.Columns>
                     </DataGrid>
+                    </Border>
                     <StackPanel Grid.Row="2">
                         <WrapPanel Margin="0,10">
                             <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
@@ -350,7 +356,8 @@
             </TabItem>
             <TabItem Header="Zugangsdaten">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4,6,18,24" Width="700" HorizontalAlignment="Left">
+                    <Border Style="{StaticResource SurfaceCard}" Margin="4,6,18,22">
+                        <StackPanel Margin="0,0,0,0" Width="700" HorizontalAlignment="Left">
                         <TextBlock FontSize="24" FontWeight="SemiBold" Text="Zugangsdatenmanager" />
                         <TextBlock Margin="0,8,0,15" Foreground="{DynamicResource SubtleBrush}"
                                    Text="Tokens liegen ausschließlich im Windows Credential Manager. Thunder verwendet die bestehende tnr-Anmeldung, Git für den privaten Checkout den Git Credential Manager. Ein separates GitHub-PAT wird nur für den Remote-Bootstrap gebraucht." />
@@ -383,12 +390,14 @@
                         </WrapPanel>
                         <TextBlock Margin="0,17,0,5" Foreground="{DynamicResource SubtleBrush}"
                                    Text="SSH: Vor der ersten Verbindung muss der angezeigte ED25519-Hostfingerprint über einen unabhängigen Thunder-Kanal verifiziert und ausdrücklich bestätigt werden." />
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Einstellungen">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4,6,18,24" HorizontalAlignment="Left" Width="750">
+                    <Border Style="{StaticResource SurfaceCard}" Margin="4,6,18,22">
+                        <StackPanel Margin="0,0,0,0" HorizontalAlignment="Left" Width="750">
                         <TextBlock FontSize="24" FontWeight="SemiBold" Text="Einstellungen und Updates" />
                         <TextBlock Text="Lokaler Workflow-Checkout" Margin="0,18,0,2" />
                         <TextBox Text="{Binding WorkflowsDirectory, Mode=TwoWay}" Width="650" HorizontalAlignment="Left" />
@@ -408,7 +417,8 @@
                         <Button Command="{Binding UpdateCheckCommand}" Content="Release-Version prüfen" HorizontalAlignment="Left" />
                         <TextBlock Text="Es werden keine ungeprüften Downloads ausgeführt. Installationspakete nur aus offiziell überprüften GitHub Releases beziehen."
                                    Foreground="{DynamicResource SubtleBrush}" Margin="0,10" />
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
             </TabControl>
