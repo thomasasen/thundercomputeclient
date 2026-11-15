@@ -20,7 +20,8 @@ public sealed class MainViewModel : Bindable, IDisposable
     private readonly ICommandRunner _runner = new ProcessRunner();
     private readonly CredentialVault _vault = new();
     private readonly SettingsStore _store = new();
-    private readonly GitWorkspace _git;
+    private readonly GitHubWorkflowSource _github = new();
+    private WorkflowSnapshot? _snapshot;
     private readonly ThunderCli _thunder;
     private readonly SshService _ssh;
     private readonly ClientSettings _settings;
@@ -78,7 +79,6 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         _dialogs = dialogs;
         _settings = _store.Load();
-        _git = new GitWorkspace(_runner);
         _thunder = new ThunderCli(_runner);
         _ssh = new SshService(_runner);
         var available = new[]
@@ -136,11 +136,6 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string CivitaiTokenStatus { get => _civitaiTokenStatus; private set => Set(ref _civitaiTokenStatus, value); }
     public string SnapshotName { get => _snapshotName; set => Set(ref _snapshotName, value); }
 
-    public string WorkflowsDirectory
-    {
-        get => _settings.WorkflowsDirectory;
-        set { _settings.WorkflowsDirectory = value; OnPropertyChanged(); }
-    }
     public int DiskGb
     {
         get => _settings.DiskGb;
@@ -200,19 +195,19 @@ public sealed class MainViewModel : Bindable, IDisposable
     public void ReportStartupFailure(Exception exception)
     {
         var safe = RedactKnownSecrets(exception.Message);
-        GitSyncStatus = "Synchronisierung fehlgeschlagen";
-        Message = "Git: " + safe +
-            " · Git Credential Manager und lokale Ordnerrechte prüfen. " +
+        GitSyncStatus = "Privater GitHub-Zugriff fehlgeschlagen";
+        Message = "GitHub-API: " + safe +
+            " · Lesetoken unter Zugangsdaten prüfen und Katalog erneut aktualisieren. " +
             "Diagnose: " + StartupDiagnostics.LogPath;
     }
 
     public async Task InitializeAsync()
     {
-        // Independent subsystems must initialize even if the private Git checkout fails.
+        // Independent subsystems initialize even if the authenticated private GitHub API fails.
         try { await SyncAsync(); }
         catch (Exception ex)
         {
-            StartupDiagnostics.Record("Git-Synchronisierung", ex);
+            StartupDiagnostics.Record("GitHub-Katalog", ex);
             ReportStartupFailure(ex);
         }
         try { await RefreshInstancesAsync(); }
@@ -247,7 +242,7 @@ public sealed class MainViewModel : Bindable, IDisposable
 
     private void UpdateSecretStatuses()
     {
-        GitTokenStatus = _vault.Exists("github") ? "Gespeichert: ••••••••" : "Nicht hinterlegt";
+        GitTokenStatus = _vault.Exists("github") ? "Lesetoken gespeichert: ••••••••" : "Lesetoken fehlt: privater GitHub-Katalog nicht abrufbar";
         HfTokenStatus = _vault.Exists("huggingface") ? "Gespeichert: ••••••••" : "Nicht hinterlegt";
         CivitaiTokenStatus = _vault.Exists("civitai") ? "Gespeichert: ••••••••" : "Nicht hinterlegt";
     }
@@ -276,23 +271,28 @@ public sealed class MainViewModel : Bindable, IDisposable
         Busy = true;
         try
         {
-            var sync = await _git.SynchronizeAsync(WorkflowsDirectory, _shutdown.Token);
-            Commit = sync.Commit;
-            GitSyncStatus = "Synchronisiert · " + sync.Commit[..Math.Min(12, sync.Commit.Length)];
+            var token = _vault.Read("github");
+            var next = await _github.FetchAsync(token ?? "", _shutdown.Token);
+            // Replace only after all manifests and the bootstrap passed validation.
+            foreach (var previous in Workflows) previous.PropertyChanged -= WorkflowChanged;
+            _snapshot = next;
+            Commit = next.Commit;
+            GitSyncStatus = "API-Lesezugriff · " + next.Commit[..12];
             LoadWorkflows();
-            Message = sync.Detail;
-            Log("Workflow-Repository: " + sync.Commit);
+            Message = next.Workflows.Count + " Workflows aus privater GitHub-Revision geladen.";
+            Log("GitHub-Katalog aktualisiert: " + next.Commit);
         }
         catch (Exception ex)
         {
-            Log("GitHub-Synchronisierung fehlgeschlagen: " + RedactKnownSecrets(ex.Message));
-            if (Directory.Exists(Path.Combine(WorkflowsDirectory, ".git")) &&
-                _dialogs.Confirm("Offline-Modus", "GitHub-Synchronisierung fehlgeschlagen. Den letzten lokalen Workflow-Stand ausdrücklich im Offline-Modus verwenden?"))
+            Log("GitHub-Katalog fehlgeschlagen: " + RedactKnownSecrets(ex.Message));
+            if (_snapshot is not null &&
+                _dialogs.Confirm("Bisheriger Stand (nur Arbeitsspeicher)",
+                    "GitHub ist nicht erreichbar. Den zuletzt erfolgreich gelesenen Katalog dieser Sitzung verwenden? " +
+                    "Keine neuen Inhalte werden geladen."))
             {
-                Commit = await _git.CurrentCommitAsync(WorkflowsDirectory, _shutdown.Token);
-                GitSyncStatus = "Offline · " + Commit[..Math.Min(12, Commit.Length)];
-                LoadWorkflows();
-                Message = "OFFLINE: lokaler Stand " + Commit;
+                Commit = _snapshot.Commit;
+                GitSyncStatus = "Offline im Arbeitsspeicher · " + Commit[..12];
+                Message = "OFFLINE: bisheriger Katalog aus dieser Sitzung, Revision " + Commit;
             }
             else throw;
         }
@@ -304,7 +304,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         foreach (var previous in Workflows) previous.PropertyChanged -= WorkflowChanged;
         Workflows.Clear();
         var chosen = _settings.SelectedWorkflows.ToHashSet(StringComparer.Ordinal);
-        foreach (var workflow in WorkflowCatalog.Load(WorkflowsDirectory))
+        foreach (var workflow in _snapshot?.Workflows ?? [])
         {
             workflow.IsSelected = chosen.Contains(workflow.Name);
             workflow.PropertyChanged += WorkflowChanged;
@@ -442,11 +442,12 @@ public sealed class MainViewModel : Bindable, IDisposable
         var token = _vault.Read("github");
         if (string.IsNullOrWhiteSpace(token))
             throw new InvalidOperationException("GitHub-Token für privaten Remote-Bootstrap im Zugangsdaten-Tab hinterlegen.");
-        var adapterPath = Path.Combine(WorkflowsDirectory, "thunder", "bootstrap.sh");
-        if (!File.Exists(adapterPath)) throw new FileNotFoundException("Thunder-Bootstrap fehlt im Workflow-Checkout.", adapterPath);
+        if (_snapshot is null)
+            throw new InvalidOperationException("Zuerst den privaten GitHub-Katalog erfolgreich laden.");
+        var script = _snapshot.BootstrapScript;
         var ssh = await TrustedSshAsync();
         if (!_dialogs.Confirm("Bootstrap starten",
-            "Der bestehende Thunder-Adapter aus dem synchronisierten Git-Checkout wird einmalig auf der ausgewählten Instanz ausgeführt. GPU-Kosten laufen. Vorhandene Installationsvorgänge oder einen Verbindungsabbruch vorher prüfen. Jetzt starten?"))
+            "Der Thunder-Adapter aus der geprüften privaten GitHub-Revision wird einmalig auf der ausgewählten Instanz ausgeführt. GPU-Kosten laufen. Vorhandene Installationsvorgänge oder einen Verbindungsabbruch vorher prüfen. Jetzt starten?"))
             return;
         Downloads.Clear();
         DownloadSummary = "Warte auf Downloadereignisse aus dem Bootstrap";
@@ -454,7 +455,6 @@ public sealed class MainViewModel : Bindable, IDisposable
         Busy = true;
         try
         {
-            var script = await File.ReadAllTextAsync(adapterPath, _shutdown.Token);
             var result = await _ssh.BootstrapAsync(ssh, script, WorkflowNames,
                 token, _vault.Read("huggingface"), _vault.Read("civitai"),
                 Log, _shutdown.Token);
@@ -614,6 +614,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         _shutdown.Cancel();
         _ssh.StopTunnel();
+        _github.Dispose();
         _shutdown.Dispose();
     }
 }

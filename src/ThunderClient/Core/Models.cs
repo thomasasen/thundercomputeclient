@@ -54,9 +54,6 @@ public sealed record SshConnection(string InstanceId, string Host, int Port, str
 
 public sealed class ClientSettings
 {
-    public string WorkflowsDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ThunderClient", "runpod-ai-workflows");
     public int DiskGb { get; set; } = 160;
     public int GpuCount { get; set; } = 1;
     public decimal MaximumHourlyUsd { get; set; } = 0.85m;
