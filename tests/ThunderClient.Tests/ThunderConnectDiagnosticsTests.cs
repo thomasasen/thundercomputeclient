@@ -35,7 +35,10 @@ public sealed class ThunderConnectDiagnosticsTests
     public void ExactAddKeyApiTimeoutIsRecognizedWithoutUnrelatedPortGuess()
     {
         var result = new CommandResult(1,
-            """{"error":"failed to add SSH key: transport error: failed to make request: Post \\"https://api.thundercompute.com:8443/v1/instances/0/add_key\\": context deadline exceeded"}""",
+            JsonSerializer.Serialize(new { error =
+                "failed to add SSH key: transport error: failed to make request: " +
+                "Post \"https://api.thundercompute.com:8443/v1/instances/0/add_key\": " +
+                "context deadline exceeded" }),
             "Fetching instances...\nChecking SSH keys...\nUsage: tnr connect [instance_id]");
         Assert.True(ThunderCli.IsSshKeyRegistrationTimeout(result));
         var text = ThunderCli.ExplainSshConnectionFailure(result);
