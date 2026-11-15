@@ -25,13 +25,45 @@ public interface ICommandRunner
 
 public sealed class ProcessRunner : ICommandRunner
 {
+    // The desktop process may retain an older PATH than a newly opened PowerShell.
+    // Thunder's Windows installer also installs under Program Files (x86)/tnr.
+    // Use an explicit absolute exe path when available; do not require an elevated shell.
+    public static string ResolveThunderCliPath(string? searchPath = null,
+        string? programFilesX86 = null, string? programFiles = null)
+    {
+        var currentPath = searchPath ?? Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var entry in currentPath.Split(Path.PathSeparator,
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            var directory = entry.Trim().Trim('"');
+            if (!Path.IsPathFullyQualified(directory)) continue;
+            var exe = Path.Combine(directory, "tnr.exe");
+            if (File.Exists(exe)) return exe;
+        }
+        var standardLocations = new[]
+        {
+            programFilesX86 ?? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            programFiles ?? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
+        };
+        foreach (var root in standardLocations)
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root)) continue;
+            var exe = Path.Combine(root, "tnr", "tnr.exe");
+            if (File.Exists(exe)) return exe;
+        }
+        // Let Process.Start report the actual Windows error if no path is found.
+        return "tnr";
+    }
+
     public async Task<CommandResult> RunAsync(string executable, IEnumerable<string> arguments,
         TimeSpan timeout, string? standardInput = null, Action<string>? onLine = null,
         CancellationToken cancellationToken = default)
     {
         using var timer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timer.CancelAfter(timeout);
-        var start = new ProcessStartInfo(executable)
+        var resolved = executable.Equals("tnr", StringComparison.OrdinalIgnoreCase)
+            ? ResolveThunderCliPath() : executable;
+        var start = new ProcessStartInfo(resolved)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -47,20 +79,23 @@ public sealed class ProcessRunner : ICommandRunner
             if (!process.Start())
                 throw new InvalidOperationException($"Prozessstart fehlgeschlagen: {executable}");
         }
-        catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
+        catch (Win32Exception ex)
         {
-            var description = executable.ToLowerInvariant() switch
+            var reason = ex.NativeErrorCode switch
             {
-                "tnr" => "Die offizielle Thunder-CLI 'tnr' wurde nicht gefunden. " +
-                    "Bitte installieren, im Terminal mit 'Get-Command tnr' prüfen " +
-                    "und den Client nach einer PATH-Änderung neu starten.",
-                "git" => "Git for Windows wurde nicht gefunden. " +
-                    "Bitte installieren und im Terminal mit 'Get-Command git' prüfen.",
-                "ssh" or "ssh-keygen" or "ssh-keyscan" =>
-                    "OpenSSH fehlt im Windows-PATH. Bitte den Windows-OpenSSH-Client installieren.",
-                _ => $"Programm '{executable}' wurde nicht gefunden."
+                2 or 3 => "Das Programm oder ein zugehöriger Pfad wurde vom GUI-Prozess nicht gefunden.",
+                5 => "Windows hat den Programmstart verweigert (Zugriffsrechte oder Sicherheitsrichtlinie).",
+                193 => "Die Datei ist keine ausführbare Anwendung für diese Windows-Architektur.",
+                740 => "Die Anwendung fordert erhöhte Rechte an. Der Client führt keine automatische Rechteerhöhung aus.",
+                _ => ex.Message
             };
-            throw new InvalidOperationException(description, ex);
+            var action = executable.Equals("tnr", StringComparison.OrdinalIgnoreCase)
+                ? " In PowerShell 'Get-Command tnr' und 'tnr status --json --no-wait' prüfen. " +
+                  "Nach einer Installation die Desktop-App neu starten."
+                : "";
+            throw new InvalidOperationException(
+                $"Prozess '{executable}' konnte nicht gestartet werden " +
+                $"(Windows-Fehler {ex.NativeErrorCode}, Pfad '{resolved}'): {reason}.{action}", ex);
         }
 
         try
