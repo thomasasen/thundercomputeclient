@@ -26,6 +26,14 @@ public static class AutoProvisioning
     {
         if (workflows.Count == 0)
             throw new InvalidOperationException("Mindestens einen Workflow auswählen.");
+        var restricted = workflows
+            .Where(x => !string.IsNullOrWhiteSpace(x.RequiredAuthorizationEnv))
+            .Select(x => x.Name).ToArray();
+        if (restricted.Length > 0)
+            throw new InvalidOperationException(
+                "Diese Workflows verlangen laut Manifest eine zusätzliche ausdrückliche " +
+                "Autorisierungsbestätigung, die der Desktop-Client nicht automatisch setzen darf: " +
+                string.Join(", ", restricted) + ". Zuerst unter den Workflow-READMEs prüfen.");
         if (commit.Length != 40 || !commit.All(Uri.IsHexDigit))
             throw new InvalidOperationException("Private GitHub-Revision nicht bestätigt. Katalog erneut laden.");
 

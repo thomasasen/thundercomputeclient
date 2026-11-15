@@ -100,6 +100,20 @@ public sealed class AutoProvisioningTests
         new("0", "uuid", "pod", status, "l40", ip, port, null);
 
     [Fact]
+    public void AdditionalAuthorizationCannotBeSilentlyGrantedByAutomation()
+    {
+        var restricted = new WorkflowItem {
+            Name = "restricted", Family = "restricted", Description = "test",
+            ReadmeUrl = "https://github.com/private", CanvasFiles = ["workflow.json"],
+            Models = [new ModelWeight("hf", "checkpoints", "restricted.bin", "org/repo", 10, false)],
+            RequiredAuthorizationEnv = "USER_ACKNOWLEDGED_LICENSE"
+        };
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            AutoProvisioning.Plan([restricted], Commit, Gpus(), 1, 160, "base", .85m));
+        Assert.Contains("Autorisierungsbestätigung", error.Message);
+    }
+
+    [Fact]
     public async Task WaitsForRealSshEndpointWithoutCreatingOrProvisioningAnything()
     {
         var statuses = new IReadOnlyList<InstanceItem>[]

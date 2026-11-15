@@ -61,6 +61,7 @@ public static class WorkflowCatalog
                     Name = document.Name, Family = title, Description = description,
                     Models = models, CanvasFiles = canvases,
                     HardwareReference = HardwareRecommendations.Parse(document.Readme),
+                    RequiredAuthorizationEnv = GetString(data, "required_authorization_env"),
                     ReadmeUrl = $"https://github.com/thomasasen/runpod-ai-workflows/blob/{commit}/workflows/{document.Name}/README.md"
                 });
             }

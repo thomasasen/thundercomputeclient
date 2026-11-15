@@ -645,6 +645,12 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "GitHub-Lesetoken unter Zugangsdaten hinterlegen (privates Repository).");
         var hfToken = _vault.Read("huggingface");
         var civitaiToken = _vault.Read("civitai");
+        if (chosen.SelectMany(x => x.Models).Any(x => x.Source == "civitai") &&
+            string.IsNullOrWhiteSpace(civitaiToken))
+            throw new InvalidOperationException(
+                "Die ausgewählten Workflows enthalten Civitai-Modelle, aber kein " +
+                "Civitai-Token ist hinterlegt. Für die automatische Vollinstallation " +
+                "erst unter Zugangsdaten einen Civitai-API-Key speichern und im Systemstatus prüfen.");
         var adapter = _snapshot.BootstrapScript;
         // A selected set and its adapter are frozen before the first awaited
         // provider call; editing checkboxes during a running deploy cannot change it.

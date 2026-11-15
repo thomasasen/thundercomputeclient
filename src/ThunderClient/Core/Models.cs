@@ -20,6 +20,7 @@ public sealed class WorkflowItem : Bindable
     public required IReadOnlyList<string> CanvasFiles { get; init; }
     public required IReadOnlyList<ModelWeight> Models { get; init; }
     public WorkflowHardwareReference HardwareReference { get; init; } = WorkflowHardwareReference.Empty;
+    public string RequiredAuthorizationEnv { get; init; } = "";
     public bool IsSelected { get => _selected; set => Set(ref _selected, value); }
     public string Canvases => string.Join(", ", CanvasFiles);
     public string ModelCount => Models.Count.ToString(CultureInfo.InvariantCulture);
