@@ -74,8 +74,8 @@ public sealed class SystemReadinessService : IDisposable
         new SetupCheck {
             Id="civitai", Title="Civitai · Modell-API",
             Guide="Optional: Im Civitai-Konto einen API-Key anlegen, unter Zugangsdaten speichern und über den lesenden '/api/v1/me'-Endpunkt testen. Der Test bestätigt nicht die Downloadberechtigung jedes einzelnen Modells.",
-            HelpUrl="https://developer.civitai.com/site/",
-            HelpLabel="Civitai-API-Dokumentation", SetupTabIndex=5, Optional=true
+            HelpUrl="https://civitai.com/user/account",
+            HelpLabel="Civitai-API-Key erstellen", SetupTabIndex=5, Optional=true
         }
     ]);
 
@@ -169,8 +169,10 @@ public sealed class SystemReadinessService : IDisposable
         {
             return ("Fehler", "Thunder hat keine gültige Instanzliste zurückgegeben.");
         }
-        _runningPod = _selectedPod() is { Status: "RUNNING" } chosen
-            ? chosen : pods.FirstOrDefault(x => x.Status == "RUNNING");
+        var selected = _selectedPod();
+        _runningPod = selected is { Status: "RUNNING" } &&
+                      pods.Any(x => x.Id == selected.Id && x.Status == "RUNNING")
+            ? selected : pods.FirstOrDefault(x => x.Status == "RUNNING");
         return ("Erfolgreich getestet",
             "CLI-Statusabfrage authentifiziert · " + pods.Count +
             " Instanz(en). Keine Instanz erstellt und keine Kostenaktion ausgelöst.");
