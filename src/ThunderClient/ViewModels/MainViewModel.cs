@@ -438,7 +438,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         }
         var available = plan.ReferenceVramGb.HasValue && plan.CompleteVramReference
             ? GpuChoices.Where(x => x.VramGb >= plan.ReferenceVramGb.Value).ToArray()
-            : [];
+            : Array.Empty<GpuChoice>();
         if (available.Length > 0)
         {
             foreach (var gpu in GpuChoices) gpu.Enabled = available.Contains(gpu);

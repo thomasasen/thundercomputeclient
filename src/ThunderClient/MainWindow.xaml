@@ -100,6 +100,8 @@
                     <TextBlock Style="{StaticResource OverlineText}" Text="THUNDER / WORKSPACE" />
                     <TextBlock Text="{Binding ElementName=MainTabs, Path=SelectedItem.Header}"
                                FontSize="28" FontWeight="SemiBold" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding WizardNotice}" Style="{StaticResource FieldHint}"
+                               Margin="0,4,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Command="{Binding SyncCommand}" Content="Katalog aktualisieren" />
@@ -157,6 +159,10 @@
                                 <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,0,0,11"
                                            Text="Verbindung und Hardware werden erst nach deiner Aktion geprüft." />
                                 <WrapPanel>
+                                    <Button x:Name="LoadCatalogButton" Click="LoadCatalog_Click"
+                                            Content="1  Katalog laden und Workflows wählen"
+                                            Background="{DynamicResource AccentBrush}"
+                                            Foreground="{DynamicResource OnAccentBrush}" />
                                     <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen" />
                                     <Button Command="{Binding HardwareCommand}" Content="Hardware abrufen" />
                                     <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen" />
@@ -207,10 +213,18 @@
                     </Border>
                     <StackPanel Grid.Row="2" Margin="0,13,0,0">
                         <TextBlock FontWeight="Bold" Text="{Binding SelectionSummary}" />
+                        <TextBlock Style="{StaticResource FieldHint}" Margin="0,6,0,5"
+                                   Text="Schritt 2 von 4 · Workflows in der Auswahlspalte aktivieren. Mehrfachauswahl ist möglich." />
                         <TextBlock Text="{Binding SelectedWorkflow.Description}" Margin="0,5,0,5" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
                                    Text="{Binding SelectedWorkflow.Weights}" MaxHeight="68" />
                         <Button Command="{Binding OpenReadmeCommand}" Content="README auf GitHub öffnen" HorizontalAlignment="Left" />
+                        <Button x:Name="ContinueToHardwareButton" Click="ContinueToHardware_Click"
+                                IsEnabled="{Binding CanContinueToHardware}"
+                                Content="2  Auswahl übernehmen → Hardware prüfen"
+                                Background="{DynamicResource AccentBrush}"
+                                Foreground="{DynamicResource OnAccentBrush}"
+                                HorizontalAlignment="Left" MinHeight="46" />
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -223,9 +237,43 @@
                     <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="0,0,12,12">
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16"
+                                    Background="{DynamicResource FieldBrush}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}"
+                                               Text="SCHRITT 3 VON 4  /  HARDWARE PLANEN" />
+                                    <TextBlock Text="{Binding SelectionSummary}" FontWeight="SemiBold"
+                                               FontSize="16" Margin="0,7,0,8" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Empfehlungen aus privaten Workflow-READMEs und Manifesten. Keine Thunder-Live-Daten." />
+                                    <Button Content="← Workflow-Auswahl ändern"
+                                            Click="BackToWorkflows_Click"
+                                            HorizontalAlignment="Left" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
                             <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource OverlineText}" Text="01  /  GPU-AUSWAHL" />
+                                    <TextBlock Style="{StaticResource OverlineText}"
+                                               Text="HARDWARE-REFERENZEN" />
+                                    <TextBlock Style="{StaticResource SectionHeading}"
+                                               Text="Empfehlungen aus dem Workflow" Margin="0,8,0,5" />
+                                    <TextBlock Text="{Binding HardwareGuide}" TextWrapping="Wrap"
+                                               FontSize="13" Margin="0,6,0,10" />
+                                    <Separator Margin="0,6,0,9" />
+                                    <TextBlock Text="{Binding StorageGuide}" TextWrapping="Wrap"
+                                               FontSize="13" />
+                                    <Button Command="{Binding ApplyHardwareGuidanceCommand}"
+                                            Content="Planungswerte übernehmen"
+                                            HorizontalAlignment="Left"
+                                            Margin="0,13,0,0" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Übernehmen ändert Disk nur nach oben und filtert bei vollständiger Referenz die GPUs nach VRAM. Prüfe anschließend GPU-Typ, vCPUs und Preis selbst."
+                                               Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="GPU-PRIORITÄT  /  MANUELL ANPASSBAR" />
                                     <TextBlock Style="{StaticResource SectionHeading}" Margin="0,8,0,4"
                                                Text="GPU-Priorität" />
                                     <TextBlock Style="{StaticResource LeadText}" FontSize="14" Margin="0,0,0,19"
@@ -302,7 +350,7 @@
                             </Border>
                             <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource OverlineText}" Text="02  /  INSTANZ-KONFIGURATION" />
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="RESSOURCEN  /  MANUELL ANPASSBAR" />
                                     <TextBlock Style="{StaticResource SectionHeading}" Text="Ressourcen"
                                                Margin="0,8,0,16" />
                                     <Grid>
@@ -343,7 +391,7 @@
                             </Border>
                             <Border Style="{StaticResource SurfaceCard}">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource OverlineText}" Text="03  /  VOR DEM START" />
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="KOSTEN UND KONFIGURATION  /  PRÜFEN" />
                                     <TextBlock Style="{StaticResource SectionHeading}" Text="Startvorschau"
                                                Margin="0,8,0,4" />
                                     <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
@@ -373,7 +421,8 @@
                             </StackPanel>
                             <Button x:Name="InstanceCreateButton" Grid.Column="1"
                                     Command="{Binding CreateCommand}"
-                                    Content="Instanz erstellen …"
+                                    IsEnabled="{Binding CanCreatePod}"
+                                    Content="3  Pod erstellen …"
                                     Background="{DynamicResource AccentBrush}"
                                     Foreground="{DynamicResource OnAccentBrush}"
                                     HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -390,9 +439,12 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <StackPanel>
-                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Thunder-Instanzen" />
-                        <TextBlock Text="Status stammt aus tnr status --json --no-wait. Eine Instanz zur Nutzung auswählen."
-                                   Margin="0,7,0,12" />
+                        <TextBlock Style="{StaticResource OverlineText}" Text="SCHRITT 4 VON 4  /  POD BETREIBEN" />
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Pods verwalten" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding InstanceSummary}" FontWeight="SemiBold" FontSize="14"
+                                   Margin="0,8,0,3" />
+                        <TextBlock Text="{Binding LastRefreshed}" Style="{StaticResource FieldHint}"
+                                   Margin="0,0,0,12" />
                     </StackPanel>
                     <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="9">
                         <DataGrid ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
@@ -408,6 +460,8 @@
                     </Border>
                     <StackPanel Grid.Row="2">
                         <WrapPanel Margin="0,10">
+                            <Button x:Name="PodSetupButton" Click="OpenPodSetup_Click"
+                                    Content="4  Installation &amp; Logs" />
                             <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
                             <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
                             <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen (SSH)" />
@@ -415,7 +469,7 @@
                         </WrapPanel>
                         <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
-                                   Text="GPU-Stop ohne Löschen ist nicht als Abrechnungsstopp implementiert. Vor dem Löschen einen fertigen Snapshot prüfen." />
+                                   Text="Pod-Verwaltung: SSH, privates ComfyUI, Downloads, Snapshots und Löschen. Ein GPU-Stopp ohne Löschen ist keine belegte Kostenbremse. Vor Löschen einen fertigen Snapshot prüfen." />
                         <Separator Margin="0,15,0,13" />
                         <TextBlock FontWeight="Bold" Text="Snapshots" />
                         <WrapPanel Margin="0,5">

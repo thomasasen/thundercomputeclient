@@ -24,6 +24,7 @@ public partial class MainWindow : Window, IUserDialogs
         _model = new MainViewModel(this);
         StartupDiagnostics.Trace("MainWindow: ViewModel geladen");
         DataContext = _model;
+        _model.PodCreated += () => MainTabs.SelectedIndex = 3;
         ApplyTheme(_model.Theme);
         StartupDiagnostics.Trace("MainWindow: Theme gesetzt");
     }
@@ -50,6 +51,10 @@ public partial class MainWindow : Window, IUserDialogs
         if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
             CopyStartupLogButton.Content is not "Startdiagnose kopieren")
             throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
+        if (LoadCatalogButton.Content is not "1  Katalog laden und Workflows wählen" ||
+            ContinueToHardwareButton.Content is not "2  Auswahl übernehmen → Hardware prüfen" ||
+            PodSetupButton.Content is not "4  Installation & Logs")
+            throw new InvalidOperationException("Geführter Ablauf ist unvollständig.");
         var initialWidth = Width;
         try
         {
@@ -107,6 +112,38 @@ public partial class MainWindow : Window, IUserDialogs
         };
         if (picker.ShowDialog(this) == true) File.WriteAllText(picker.FileName, text);
     }
+
+    private async void LoadCatalog_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _model.ReloadCatalogAsync();
+            MainTabs.SelectedIndex = 1;
+        }
+        catch (Exception ex)
+        {
+            Notify("Privaten Katalog laden", ex.Message);
+        }
+    }
+
+    private async void ContinueToHardware_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _model.PrepareHardwareStepAsync();
+            MainTabs.SelectedIndex = 2;
+        }
+        catch (Exception ex)
+        {
+            Notify("Workflow-Auswahl", ex.Message);
+        }
+    }
+
+    private void BackToWorkflows_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = 1;
+
+    private void OpenPodSetup_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = 4;
 
     private void CopyLog_Click(object sender, RoutedEventArgs e)
     {
