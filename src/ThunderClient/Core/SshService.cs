@@ -308,6 +308,20 @@ public sealed class SshService(ICommandRunner commands)
             response.Stdout.Contains("THUNDER_COMFY_READY", StringComparison.Ordinal);
     }
 
+    public async Task<RemoteReadinessResult> VerifyDeploymentReadyAsync(
+        SshConnection endpoint, string expectedCommit, string workflows,
+        CancellationToken ct = default)
+    {
+        // Never treat a local HTTP-ready log event as proof of model/node completeness.
+        // A separate authenticated SSH session checks the exact pinned manifest
+        // and the currently running backend, without modifying the pod.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromMinutes(2));
+        var script = RemoteReadinessAudit.BuildScript(expectedCommit, workflows);
+        var outcome = await RunScriptAsync(endpoint, script, ct: deadline.Token);
+        return RemoteReadinessAudit.Parse(outcome);
+    }
+
     public async Task<CommandResult> BootstrapAsync(SshConnection endpoint, string adapter,
         string workflows, string gitToken, string? huggingFace, string? civitai,
         Action<string> onLine, CancellationToken ct = default)
