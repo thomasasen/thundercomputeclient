@@ -13,9 +13,11 @@ public partial class MainWindow : Window, IUserDialogs
 {
     private readonly MainViewModel _model;
     private Point _dragStart;
+    private readonly bool _uiSmokeTest;
 
-    public MainWindow()
+    public MainWindow(bool uiSmokeTest = false)
     {
+        _uiSmokeTest = uiSmokeTest;
         InitializeComponent();
         _model = new MainViewModel(this);
         DataContext = _model;
@@ -24,8 +26,14 @@ public partial class MainWindow : Window, IUserDialogs
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        if (_uiSmokeTest) return; // UI-Test darf weder Netzwerk noch kostenpflichtige Aktionen ausführen.
         try { await _model.InitializeAsync(); }
-        catch (Exception ex) { Notify("Start fehlgeschlagen", ex.Message); }
+        catch (Exception ex)
+        {
+            StartupDiagnostics.Record("Initialisierung", ex);
+            Notify("Initialisierung fehlgeschlagen", ex.Message +
+                "\n\nDie Oberfläche bleibt geöffnet. Diagnose: " + StartupDiagnostics.LogPath);
+        }
     }
 
     private void Window_Closed(object? sender, EventArgs e) => _model.Dispose();

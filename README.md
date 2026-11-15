@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10, WPF) für die ComfyUI-Workflows im **privaten** Repository thomasasen/runpod-ai-workflows. Der Client ruft die offizielle Thunder-CLI (tnr) auf, synchronisiert Manifestdaten mit Git, erstellt Instanzen nach ausdrücklicher Bestätigung und startet den bestehenden Thunder-Bootstrap über eine abgesicherte SSH-Verbindung.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.1, nicht produktionsfreigegeben.** Build und mockbasierte Tests werden in Windows GitHub Actions geprüft. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
+**Status: Alpha-Vorabversion v0.1.0-alpha.2, nicht produktionsfreigegeben.** Build, mockbasierte Tests und ein automatisierter WPF-Fensterstart werden in Windows GitHub Actions geprüft. Fehler beim Start werden in `%LOCALAPPDATA%\\ThunderClient\\logs\\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
 
 ## Voraussetzungen
 

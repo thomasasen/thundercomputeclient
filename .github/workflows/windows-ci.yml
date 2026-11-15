@@ -24,6 +24,20 @@ jobs:
         run: dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=thunderclient-tests.trx" --results-directory artifacts/testresults
       - name: Publish Desktop App
         run: dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish
+      - name: GUI-Starttest auf Windows (ohne Netzwerk/GPU)
+        shell: powershell
+        run: |
+          $exe = (Resolve-Path "artifacts/publish/ThunderClient.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--ui-smoke-test" -PassThru
+          if (-not $p.WaitForExit(30000)) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw "GUI startete nicht oder lieferte kein ContentRendered innerhalb von 30 Sekunden."
+          }
+          if ($p.ExitCode -ne 0) {
+            $log = Join-Path $env:LOCALAPPDATA "ThunderClient\logs\startup.log"
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            throw "GUI-Starttest fehlgeschlagen (Exitcode $($p.ExitCode))."
+          }
       - name: Install Inno Setup
         shell: powershell
         run: |
@@ -55,7 +69,7 @@ jobs:
   release:
     # Einmaliger Alpha-Release nach erfolgreichem Windows-Testlauf.
     # Kein Merge in main und kein automatischer Stable-Release.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/windows-desktop-client' && contains(github.event.head_commit.message, '[publish-alpha-v0.1.0-alpha.1]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/windows-desktop-client' && contains(github.event.head_commit.message, '[publish-alpha-v0.1.0-alpha.2]')
     needs: windows
     runs-on: ubuntu-latest
     permissions:
@@ -69,13 +83,13 @@ jobs:
       - name: Publish reviewed-build alpha prerelease
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0-alpha.1
+          tag_name: v0.1.0-alpha.2
           target_commitish: ${{ github.sha }}
-          name: Thunder Compute Client v0.1.0-alpha.1 (Alpha)
+          name: Thunder Compute Client v0.1.0-alpha.2 (Alpha)
           prerelease: true
           make_latest: false
           draft: false
-          body_path: docs/RELEASE_NOTES_v0.1.0-alpha.1.md
+          body_path: docs/RELEASE_NOTES_v0.1.0-alpha.2.md
           files: |
             artifacts/installer/*.exe
             artifacts/installer/SHA256SUMS.txt

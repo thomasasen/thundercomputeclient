@@ -4,7 +4,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 
 | Bereich | Stand |
 |---|---|
-| .NET 10 WPF, deutsche GUI, MVVM, Dark/Light | Implementiert; Windows-CI erfolgreich; GUI-Smoke-Test ausstehend |
+| .NET 10 WPF, deutsche GUI, MVVM, Dark/Light | Implementiert; Automatisierter WPF-Start-/ContentRendered-Test in CI ergänzt, Endanwender-Smoketest weiterhin offen |
 | Git-Checkout, Startup-Sync, Fast-Forward, Offline-Zustimmung | Implementiert; echte GCM-Anmeldung nicht live getestet |
 | Dynamische Workflow-Manifeste, Canvas, Mehrfachauswahl, Modell-Deduplikation | Implementiert; komplexe Manifest-Metadaten/Hardwareempfehlungen nicht vollständig |
 | GPU-Priorität, Editieren, Kostenbestätigung, sichere Fallback-Regel | Implementiert; Preise nur historische Schätzung, GPU/vCPU live von CLI validiert |
@@ -17,7 +17,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI erfolgreich; Windows Installer und SHA-256 erstellt, Release noch nicht live getestet |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI inklusive WPF-GUI-Starttest, Installer und SHA-256; realer Benutzer-PC weiterhin ungetestet |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
 ## Bewusste Sicherheitsgrenzen
