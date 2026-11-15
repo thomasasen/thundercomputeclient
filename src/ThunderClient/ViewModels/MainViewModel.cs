@@ -707,7 +707,10 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "Ein unbekannter SSH-Fingerprint braucht deine separate Bestätigung.\n\n" +
                 (reuse
                     ? "Ein Pod existiert bereits (ID " + podId + "). KEIN neuer Pod wird erstellt. " +
-                      "Auf diesem kostenpflichtigen Pod fortfahren?"
+                      "Falls der letzte SSH-Schlüssel-API-Aufruf in ein Zeitlimit lief, " +
+                      "könnte er serverseitig dennoch verarbeitet worden sein. " +
+                      "Ein erneuter Verbindungsversuch kann einen weiteren SSH-Schlüssel " +
+                      "registrieren. Auf diesem kostenpflichtigen Pod fortfahren?"
                     : "Jetzt EINEN kostenpflichtigen Thunder-Pod erstellen und anschließend installieren?");
             if (!_dialogs.Confirm(reuse ? "Bestehenden Pod automatisch einrichten"
                     : "Pod automatisch erstellen und Modelle laden", offer))
@@ -805,6 +808,18 @@ public sealed class MainViewModel : Bindable, IDisposable
                     "Unter Instanzen vorhandenen Pod prüfen; nicht neu erstellen.");
             Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
             throw new TimeoutException(timeoutMessage, ex);
+        }
+        catch (ThunderSshKeyApiTimeoutException ex)
+        {
+            AutoDeploymentStatus =
+                "Thunder hat die Registrierung des SSH-Schlüssels nicht beantwortet. " +
+                (podId is null ? "" : "Pod " + podId + " besteht weiter und kann Kosten verursachen. ") +
+                "Die Installation hat nicht begonnen. Keine zweite Instanz und " +
+                "kein automatischer Registrierungsversuch. Unter Instanzen den " +
+                "vorhandenen Pod prüfen und bei Bedarf eine erneute Verbindung bewusst starten.";
+            Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
+            Log("[THUNDER-API] " + RedactKnownSecrets(ex.Message));
+            throw;
         }
         catch (Exception ex)
         {
@@ -1078,6 +1093,29 @@ public sealed class MainViewModel : Bindable, IDisposable
     private void Error(Exception exception)
     {
         var safe = RedactKnownSecrets(exception.Message);
+        if (exception is ThunderSshKeyApiTimeoutException)
+        {
+            var pod = SelectedInstance?.Id;
+            Message = "Thunder konnte den SSH-Schlüssel nicht rechtzeitig einrichten. " +
+                (string.IsNullOrWhiteSpace(pod) ? "Die vorhandene Instanz " :
+                    "Pod " + pod + " ") +
+                "kann weiter Kosten verursachen. Modelle wurden noch nicht heruntergeladen.";
+            Log("[THUNDER-API] " + safe);
+            _dialogs.Notify("Thunder-API: SSH-Zugang noch nicht bereit",
+                Message + "\n\n" +
+                "Die Thunder-API hat bei der Schlüsselregistrierung 30 Sekunden " +
+                "lang nicht geantwortet. Es ist unbekannt, ob die Registrierung " +
+                "serverseitig bereits erfolgte.\n\n" +
+                "1. Unter Instanzen den bereits vorhandenen Pod prüfen.\n" +
+                "2. Den Pod NICHT erneut erstellen. Wenn der Dienst wieder " +
+                "antwortet, die Einrichtung dieses Pods ausdrücklich erneut versuchen. " +
+                "Dabei kann Thunder einen weiteren Schlüssel registrieren.\n" +
+                "3. Bei wiederholtem Fehler den Thunder-Dienststatus prüfen " +
+                "und die bereinigte Diagnose an den Thunder-Support weitergeben.\n\n" +
+                "Falls der Pod nicht gebraucht wird, seine Löschung unter " +
+                "Instanzen separat bestätigen, damit keine weiteren Kosten entstehen.");
+            return;
+        }
         if (safe.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
             safe.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
             safe.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
