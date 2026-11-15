@@ -50,15 +50,39 @@ public partial class MainWindow : Window, IUserDialogs
         if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
             CopyStartupLogButton.Content is not "Startdiagnose kopieren")
             throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
-        for (var index = 0; index < MainTabs.Items.Count; index++)
+        var initialWidth = Width;
+        try
         {
-            MainTabs.SelectedIndex = index;
-            UpdateLayout();
-            if (Navigation.SelectedIndex != index)
-                throw new InvalidOperationException("Sidebar und Inhalt sind nicht synchron: " + index);
+            // Verify the main interactive view also fits the supported minimum width.
+            // No network request or billable action is executed by this check.
+            foreach (var testWidth in new[] { 1320d, MinWidth })
+            {
+                Width = testWidth;
+                UpdateLayout();
+                for (var index = 0; index < MainTabs.Items.Count; index++)
+                {
+                    MainTabs.SelectedIndex = index;
+                    UpdateLayout();
+                    if (Navigation.SelectedIndex != index)
+                        throw new InvalidOperationException("Sidebar und Inhalt sind nicht synchron: " + index);
+                    if (index == 2)
+                    {
+                        if (GpuList.ActualWidth < 450 ||
+                            InstanceCreateButton.ActualWidth < 150 ||
+                            !InstanceCreateButton.IsVisible)
+                            throw new InvalidOperationException(
+                                "Instanzformular oder fester Kosten-Button ist bei " +
+                                testWidth + "px nicht richtig sichtbar.");
+                    }
+                }
+            }
         }
-        MainTabs.SelectedIndex = 0;
-        UpdateLayout();
+        finally
+        {
+            Width = initialWidth;
+            MainTabs.SelectedIndex = 0;
+            UpdateLayout();
+        }
     }
 
     public bool Confirm(string title, string message) =>
