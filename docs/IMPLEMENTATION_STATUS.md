@@ -13,7 +13,7 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert, Remote-Resumption nach Abbruch nicht automatisiert |
 | Privater Loopback-Tunnel, ComfyUI im Browser, SSH-Terminal | Implementiert, End-to-End nicht live getestet |
 | Download-/Installationslogs | Strukturierte pro-Modelldatei-Ereignisse aus vorhandenem download_monitor.py werden beobachtet; Fortschritt nur bei tatsächlicher Logangabe, keine erfundenen Werte. Persistente Reconnect-Historie fehlt |
-| GPU-/CPU-/RAM-/Disk-Auslastung | Hardware-Textdiagnostik über SSH; noch keine kontinuierlichen Echtzeitgrafiken |
+| GPU-/CPU-/RAM-/Disk-Auslastung | Hardware-Textdiagnostik über SSH; Instanzstatus automatisch alle 30 Sekunden, noch keine kontinuierlichen Hardwaregrafiken |
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |

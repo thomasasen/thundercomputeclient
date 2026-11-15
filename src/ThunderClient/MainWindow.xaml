@@ -33,7 +33,8 @@
                         <Border Background="{DynamicResource SurfaceBrush}" Padding="18" CornerRadius="9">
                             <StackPanel>
                                 <TextBlock FontWeight="Bold" Text="Gewählte Instanz" />
-                                <TextBlock Text="{Binding InstanceSummary}" Margin="0,7,0,13" />
+                                <TextBlock Text="{Binding InstanceSummary}" Margin="0,7,0,4" />
+                                <TextBlock Text="{Binding LastRefreshed}" Foreground="{DynamicResource SubtleBrush}" Margin="0,0,0,13" />
                                 <TextBlock FontWeight="Bold" Text="Workflow-Auswahl" />
                                 <TextBlock Text="{Binding SelectionSummary}" Margin="0,7,0,13" />
                                 <TextBlock FontWeight="Bold" Text="Workflow-Repository (main)" />

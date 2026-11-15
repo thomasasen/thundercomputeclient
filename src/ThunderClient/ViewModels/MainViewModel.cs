@@ -36,6 +36,8 @@ public sealed class MainViewModel : Bindable, IDisposable
     private string _downloadStatus = "Bootstrap noch nicht gestartet";
     private string _downloadSummary = "Keine Downloadereignisse empfangen";
     private string _versionStatus = "Nicht geprüft";
+    private string _lastRefreshed = "Instanzstatus nicht geladen";
+    private Task? _monitorTask;
     private string _snapshotName = "comfyui-backup";
     private string _gitTokenStatus = "";
     private string _hfTokenStatus = "";
@@ -125,6 +127,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string DownloadStatus { get => _downloadStatus; private set => Set(ref _downloadStatus, value); }
     public string DownloadSummary { get => _downloadSummary; private set => Set(ref _downloadSummary, value); }
     public string VersionStatus { get => _versionStatus; private set => Set(ref _versionStatus, value); }
+    public string LastRefreshed { get => _lastRefreshed; private set => Set(ref _lastRefreshed, value); }
     public string GitTokenStatus { get => _gitTokenStatus; private set => Set(ref _gitTokenStatus, value); }
     public string HfTokenStatus { get => _hfTokenStatus; private set => Set(ref _hfTokenStatus, value); }
     public string CivitaiTokenStatus { get => _civitaiTokenStatus; private set => Set(ref _civitaiTokenStatus, value); }
@@ -180,7 +183,9 @@ public sealed class MainViewModel : Bindable, IDisposable
                 ? DateTimeOffset.Now - created : (TimeSpan?)null;
             if (gpu is null || !elapsed.HasValue)
                 return "Kosten nicht belastbar berechenbar (Tarif oder Startzeit unbekannt). Guthaben und Snapshotkosten nur in Thunder Console prüfen.";
-            var rate = Estimates.Hourly(gpu, GpuCount, DiskGb);
+            if (SelectedInstance.GpuCount <= 0 || SelectedInstance.StorageGb <= 0)
+                return "Instanzdisk/GPU-Anzahl vom Anbieter nicht verfügbar; keine belastbare Kostenschätzung.";
+            var rate = Estimates.Hourly(gpu, SelectedInstance.GpuCount, SelectedInstance.StorageGb);
             return $"Schätzung: {rate:N3} USD/h · Laufzeit {elapsed.Value.TotalHours:N1} h · ca. {rate * (decimal)Math.Max(0, elapsed.Value.TotalHours):N2} USD. Kein Abrechnungsstopp, keine Live-Preis-/Guthabenabfrage, ohne Snapshotkosten.";
         }
     }
@@ -192,6 +197,22 @@ public sealed class MainViewModel : Bindable, IDisposable
         catch (Exception ex) { Error(ex); }
         try { await RefreshSnapshotsAsync(); }
         catch (Exception ex) { Error(ex); }
+        _monitorTask = MonitorLoopAsync(_shutdown.Token);
+    }
+
+    private async Task MonitorLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                if (Busy) continue;
+                try { await RefreshInstancesAsync(ct); }
+                catch (Exception ex) { Log("Status-Aktualisierung fehlgeschlagen: " + ex.GetType().Name); }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
     }
 
     private void UpdateSecretStatuses()
@@ -313,6 +334,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         Instances.Clear();
         foreach (var item in items) Instances.Add(item);
         SelectedInstance = Instances.FirstOrDefault(x => x.Id == selectedId) ?? Instances.FirstOrDefault();
+        LastRefreshed = $"Letzte Statusprüfung: {DateTime.Now:HH:mm:ss}";
         Message = $"{Instances.Count} Thunder-Instanzen gefunden";
     }
 
