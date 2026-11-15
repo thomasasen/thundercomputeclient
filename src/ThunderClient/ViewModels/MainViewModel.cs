@@ -32,6 +32,12 @@ public sealed class MainViewModel : Bindable, IDisposable
     private bool _busy;
     private bool _autoDeploymentRunning;
     private bool _autoComfyReady;
+    private bool _autoDeploymentVerified;
+    private bool _autoVerificationStarted;
+    private DeploymentReadinessGate? _deploymentGate;
+    private SshConnection? _autoDeploymentSsh;
+    private string _autoDeploymentWorkflows = "";
+    private string _autoDeploymentCommit = "";
     private CancellationTokenSource? _autoDeploymentCancel;
     private string _autoDeploymentStatus = "Noch nicht gestartet · ein Knopfdruck erstellt den Pod und startet den bestehenden parallelen Bootstrap.";
     private string _message = "Noch nicht verbunden";
@@ -606,6 +612,14 @@ public sealed class MainViewModel : Bindable, IDisposable
         void Apply()
         {
             Log(line);
+            var gate = _deploymentGate;
+            gate?.Observe(line);
+            if (gate?.HasBlocker == true)
+            {
+                AutoDeploymentStatus = "Installation nicht vollständig: " + gate.Blocker +
+                    " Pod kann weiter Kosten verursachen; Logs prüfen.";
+                return;
+            }
             if (line.Contains("[DOWNLOAD-STATUS] START:", StringComparison.Ordinal) ||
                 line.Contains("[DOWNLOAD-STATUS] LAEUFT", StringComparison.Ordinal) ||
                 line.Contains("[DOWNLOAD-STATUS] FORTSCHRITT", StringComparison.Ordinal))
@@ -617,17 +631,81 @@ public sealed class MainViewModel : Bindable, IDisposable
                 if (line.Contains("status=ok", StringComparison.Ordinal))
                 {
                     _autoComfyReady = true;
-                    AutoDeploymentStatus = Downloads.Any(x => x.State == "FEHLER")
-                        ? "ComfyUI antwortet auf HTTP, aber mindestens ein Modelldownload ist fehlgeschlagen. Logs prüfen."
-                        : "ComfyUI antwortet auf HTTP · Pod bereit. Unter Instanzen über SSH-Tunnel öffnen.";
+                    AutoDeploymentStatus = "ComfyUI antwortet auf HTTP. " +
+                        "Prüfe jetzt den Abschluss aller Modelle, Nodes und Installationsphasen.";
                     Message = AutoDeploymentStatus;
                 }
                 else if (line.Contains("status=timeout", StringComparison.Ordinal))
                     AutoDeploymentStatus = "ComfyUI ist noch nicht per HTTP bestätigt. Pod-Logs prüfen.";
             }
+            if (gate?.ReadyForAudit == true && !_autoVerificationStarted &&
+                !_autoDeploymentVerified && _autoDeploymentSsh is not null)
+            {
+                _autoVerificationStarted = true;
+                AutoDeploymentStatus = "ComfyUI ist gestartet. Prüfe jetzt alle " +
+                    gate.ExpectedModels + " Modelle und die benötigten Node-Versionen " +
+                    "direkt auf dem Pod.";
+                _ = ConfirmFullReadinessAsync(_autoDeploymentSsh, gate.ExpectedModels,
+                    _autoDeploymentCommit, _autoDeploymentWorkflows,
+                    _autoDeploymentCancel?.Token ?? _shutdown.Token);
+            }
         }
         if (dispatcher.CheckAccess()) Apply();
         else dispatcher.BeginInvoke(Apply);
+    }
+
+    private async Task ConfirmFullReadinessAsync(SshConnection endpoint,
+        int expectedModels, string expectedCommit, string workflows,
+        CancellationToken ct)
+    {
+        try
+        {
+            var audited = await _ssh.VerifyDeploymentReadyAsync(
+                endpoint, expectedCommit, workflows, ct);
+            if (ct.IsCancellationRequested || !AutoDeploymentRunning) return;
+            if (!audited.Ready)
+            {
+                AutoDeploymentStatus =
+                    "ComfyUI antwortet, aber die vollständige Installation ist nicht bestätigt: " +
+                    audited.Reason + ". Unter Downloads & Logs prüfen.";
+                Message = AutoDeploymentStatus;
+                Log("[THUNDER-READINESS] Nicht vollständig: " + audited.Reason);
+                return;
+            }
+            if (audited.Models != expectedModels)
+            {
+                AutoDeploymentStatus = "Vollständigkeit nicht bestätigt: Die installierte " +
+                    "Modellanzahl stimmt nicht mit der ausgewählten GitHub-Revision überein.";
+                Message = AutoDeploymentStatus;
+                Log("[THUNDER-READINESS] Modellanzahl weicht von der Auswahl ab.");
+                return;
+            }
+            _autoDeploymentVerified = true;
+            AutoDeploymentStatus = "ComfyUI vollständig einsatzbereit: " +
+                audited.Models + " Modelle und " + audited.Nodes +
+                " Custom-Node-Pakete geprüft. Unter Instanzen ComfyUI öffnen.";
+            Message = AutoDeploymentStatus;
+            Log("[THUNDER-READINESS] Vollständig geprüft: " +
+                audited.Models + " Modelle, " + audited.Nodes +
+                " Custom-Node-Pakete, ComfyUI-HTTP und Node-Registrierung.");
+            _dialogs.Notify("ComfyUI ist einsatzbereit",
+                "Alle ausgewählten Modelle und benötigten Node-Pakete wurden " +
+                "gegen die geprüfte GitHub-Revision kontrolliert. " +
+                "ComfyUI antwortet und die Node-Klassen sind registriert.\n\n" +
+                "Modelle: " + audited.Models + "\nCustom-Node-Pakete: " + audited.Nodes +
+                "\n\nDu kannst ComfyUI jetzt unter Instanzen über den " +
+                "privaten SSH-Tunnel öffnen. Eine echte Modell-Inferenz wurde " +
+                "dadurch noch nicht durchgeführt.");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (!AutoDeploymentRunning || ct.IsCancellationRequested) return;
+            AutoDeploymentStatus = "ComfyUI antwortet, aber der abschließende " +
+                "Remote-Vollständigkeitscheck ist fehlgeschlagen. Keine Freigabe als vollständig bereit.";
+            Message = AutoDeploymentStatus;
+            Log("[THUNDER-READINESS] Prüfaufruf fehlgeschlagen: " + ex.GetType().Name);
+        }
     }
 
     private async Task AutoDeployAsync()
@@ -658,6 +736,15 @@ public sealed class MainViewModel : Bindable, IDisposable
 
         AutoDeploymentRunning = true;
         _autoComfyReady = false;
+        _autoDeploymentVerified = false;
+        _autoVerificationStarted = false;
+        _autoDeploymentSsh = null;
+        _deploymentGate = new DeploymentReadinessGate(chosen
+            .SelectMany(x => x.Models)
+            .GroupBy(x => x.TargetKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First()), plan.Revision);
+        _autoDeploymentWorkflows = workflowsCsv;
+        _autoDeploymentCommit = plan.Revision;
         _autoDeploymentCancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
         var ct = _autoDeploymentCancel.Token;
         string? podId = null;
@@ -758,6 +845,7 @@ public sealed class MainViewModel : Bindable, IDisposable
                     "SSH-Anmeldung fehlgeschlagen (Exitcode " + probe.ExitCode +
                     "). Im Systemstatus SSH-Key, Netzwerk und bestätigten Hostfingerprint prüfen.");
 
+            _autoDeploymentSsh = ssh;
             if (await _ssh.IsComfyUiReadyAsync(ssh, ct))
             {
                 AutoDeploymentStatus =
@@ -783,7 +871,9 @@ public sealed class MainViewModel : Bindable, IDisposable
                     "Bootstrap-/ComfyUI-Verbindung endete mit Exitcode " + outcome.ExitCode +
                     ". Remote-Zustand und Downloadfehler prüfen; kein automatischer Neustart.");
             AutoDeploymentStatus = _autoComfyReady
-                ? "ComfyUI war HTTP-bereit, der Remote-Prozess ist inzwischen beendet. Pod-Status prüfen."
+                ? (_autoDeploymentVerified
+                    ? "ComfyUI war vollständig geprüft, aber der Remote-Prozess ist inzwischen beendet. Pod-Status prüfen."
+                    : "ComfyUI war HTTP-bereit, die vollständige Installation ist aber nicht bestätigt. Pod-Status und Logs prüfen.")
                 : "SSH-Bootstrap ist beendet, aber HTTP-Bereitschaft nicht bestätigt. Logs prüfen.";
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -848,6 +938,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         {
             Busy = false;
             AutoDeploymentRunning = false;
+            _autoDeploymentSsh = null;
             _autoDeploymentCancel?.Dispose();
             _autoDeploymentCancel = null;
         }
