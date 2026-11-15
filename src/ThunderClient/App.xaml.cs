@@ -5,8 +5,11 @@ namespace ThunderClient;
 
 public partial class App : Application
 {
+    private bool _smokeTest;
     protected override void OnStartup(StartupEventArgs e)
     {
+        _smokeTest = e.Args.Any(x => x.Equals("--ui-smoke-test", StringComparison.OrdinalIgnoreCase));
+        StartupDiagnostics.Trace("OnStartup: gestarteter Prozess, smoke=" + _smokeTest);
         DispatcherUnhandledException += OnUiException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
@@ -22,10 +25,11 @@ public partial class App : Application
         try
         {
             base.OnStartup(e);
-            var smokeTest = e.Args.Any(x => x.Equals("--ui-smoke-test", StringComparison.OrdinalIgnoreCase));
-            var window = new MainWindow(smokeTest);
+            StartupDiagnostics.Trace("OnStartup: beginne MainWindow-Konstruktion");
+            var window = new MainWindow(_smokeTest);
+            StartupDiagnostics.Trace("OnStartup: MainWindow konstruiert");
             MainWindow = window;
-            if (smokeTest)
+            if (_smokeTest)
             {
                 window.ContentRendered += (_, _) =>
                 {
@@ -34,11 +38,14 @@ public partial class App : Application
                     Shutdown(0);
                 };
             }
+            StartupDiagnostics.Trace("OnStartup: vor Show");
             window.Show();
+            StartupDiagnostics.Trace("OnStartup: Show abgeschlossen");
         }
         catch (Exception exception)
         {
             StartupDiagnostics.Record("Fensterstart", exception);
+            if (_smokeTest) { Shutdown(1); return; }
             try
             {
                 MessageBox.Show(
@@ -56,6 +63,7 @@ public partial class App : Application
     private void OnUiException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         StartupDiagnostics.Record("WPF", e.Exception);
+        if (_smokeTest) { e.Handled = true; Shutdown(1); return; }
         try
         {
             MessageBox.Show(

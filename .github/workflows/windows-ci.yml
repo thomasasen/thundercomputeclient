@@ -29,12 +29,13 @@ jobs:
         run: |
           $exe = (Resolve-Path "artifacts/publish/ThunderClient.exe").Path
           $p = Start-Process -FilePath $exe -ArgumentList "--ui-smoke-test" -PassThru
-          if (-not $p.WaitForExit(30000)) {
+          $log = Join-Path $env:LOCALAPPDATA "ThunderClient\logs\startup.log"
+          if (-not $p.WaitForExit(15000)) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            throw "GUI startete nicht oder lieferte kein ContentRendered innerhalb von 30 Sekunden."
+            throw "GUI startete nicht oder lieferte kein ContentRendered innerhalb von 15 Sekunden."
           }
           if ($p.ExitCode -ne 0) {
-            $log = Join-Path $env:LOCALAPPDATA "ThunderClient\logs\startup.log"
             if (Test-Path $log) { Get-Content $log -Tail 80 }
             throw "GUI-Starttest fehlgeschlagen (Exitcode $($p.ExitCode))."
           }

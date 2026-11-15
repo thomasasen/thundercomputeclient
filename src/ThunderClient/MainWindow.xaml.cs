@@ -18,10 +18,14 @@ public partial class MainWindow : Window, IUserDialogs
     public MainWindow(bool uiSmokeTest = false)
     {
         _uiSmokeTest = uiSmokeTest;
+        StartupDiagnostics.Trace("MainWindow: vor InitializeComponent");
         InitializeComponent();
+        StartupDiagnostics.Trace("MainWindow: XAML geladen");
         _model = new MainViewModel(this);
+        StartupDiagnostics.Trace("MainWindow: ViewModel geladen");
         DataContext = _model;
         ApplyTheme(_model.Theme);
+        StartupDiagnostics.Trace("MainWindow: Theme gesetzt");
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
