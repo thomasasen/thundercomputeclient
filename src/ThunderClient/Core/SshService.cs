@@ -151,6 +151,22 @@ public sealed class SshService(ICommandRunner commands)
     public static string QuoteShell(string value)
         => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 
+    public async Task<bool> IsComfyUiReadyAsync(SshConnection endpoint, CancellationToken ct = default)
+    {
+        // Probe the actual remote ComfyUI HTTP API on loopback, never a public port.
+        // Do not confuse a stale open TCP port with a healthy ComfyUI server.
+        var script = "python3 - <<'PY'\n" +
+            "import urllib.request\n" +
+            "try:\n" +
+            "    with urllib.request.urlopen('http://127.0.0.1:8188/system_stats', timeout=3) as r:\n" +
+            "        if r.status == 200: print('THUNDER_COMFY_READY')\n" +
+            "except (OSError, ValueError): pass\n" +
+            "PY\n";
+        var response = await RunScriptAsync(endpoint, script, ct: ct);
+        return response.Success &&
+            response.Stdout.Contains("THUNDER_COMFY_READY", StringComparison.Ordinal);
+    }
+
     public async Task<CommandResult> BootstrapAsync(SshConnection endpoint, string adapter,
         string workflows, string gitToken, string? huggingFace, string? civitai,
         Action<string> onLine, CancellationToken ct = default)
@@ -166,6 +182,9 @@ public sealed class SshService(ICommandRunner commands)
             "export HF_TOKEN=" + QuoteShell(huggingFace ?? "") + "\n" +
             "export CIVITAI_TOKEN=" + QuoteShell(civitai ?? "") + "\n" +
             "export WORKFLOWS=" + QuoteShell(workflows) + "\n" +
+            // The upstream scheduler already defaults to four workers; make
+            // its bounded adaptive parallel-download policy explicit.
+            "export MODEL_DOWNLOAD_WORKERS=4\n" +
             "export REPO_REF=main\n" + adapter + "\n";
         return await RunScriptAsync(endpoint, script, onLine, ct);
     }
