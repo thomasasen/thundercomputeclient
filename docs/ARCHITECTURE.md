@@ -2,33 +2,34 @@
 
 ## Grenzen
 
-- Presentation: App.xaml, MainWindow.xaml und MainWindow.xaml.cs (Dialog-/Drag-and-drop-Adapter).
-- ViewModel: MainViewModel mit bindbaren Properties, ICommand-Aktionen und geschützten Bestätigungsdialogen.
-- Core: GitWorkspace, WorkflowCatalog, ThunderCli, SshService, ProcessRunner, CredentialVault, SettingsStore.
-- Extern: tnr CLI, Git for Windows mit GCM, OpenSSH, privates runpod-ai-workflows Repository und offizieller GitHub-Releases-Endpunkt.
+- **WPF-Oberfläche:** `App.xaml`, `MainWindow.xaml` und `MainWindow.xaml.cs`; sieben Seiten, Desktop-Dialoge und Drag-and-Drop.
+- **MVVM:** `MainViewModel` mit ICommand, Zustands-/Fehlermeldungen, expliziten Kosten- und SSH-Fingerprint-Dialogen.
+- **GitHub-Quelle:** `GitHubWorkflowSource` liest ausschließlich das **private** `thomasasen/runpod-ai-workflows` über authentifizierte GitHub-HTTPS-REST-API. `WorkflowCatalog` parst die geladenen Manifeste im Speicher.
+- **Core:** `ThunderCli` mit offizieller `tnr`-CLI, `SshService`, `ProcessRunner`, `CredentialVault`, `SettingsStore`.
+- **Extern:** `api.github.com`, offizielle Thunder-CLI, OpenSSH, privates Workflow-Repository und öffentliches GitHub-Release-API-Endpunkt.
 
-Keine direkten undokumentierten Thunder-HTTP-Aufrufe. Instanzstatus und Snapshots werden über JSON-Ausgabe der offiziellen tnr-CLI gelesen. Für die tatsächliche Create-Verfügbarkeit ist ausschließlich der Create-Versuch relevant.
+## Commit-fixierte private GitHub-API
 
-## Git/Manifeste
+Ablauf: GET `/repos/thomasasen/runpod-ai-workflows/commits/main` -> HEAD-Commit und Tree-SHA -> GET `/git/trees/{sha}?recursive=1` -> Liste der verfügbaren Workflow-Manifeste, Canvas-Dateinamen, README-Objekte und des Bootstrap-Adapters -> GET `/git/blobs/{blobSha}` für die tatsächlich notwendigen kleinen Textdateien. Die Blob-SHA gehören zur **einen ausgewählten Commit-Revision**.
 
-Workflow-Datenquelle: https://github.com/thomasasen/runpod-ai-workflows (nur lesend). Erster Checkout per git clone in temporäres Verzeichnis, dann atomare Verzeichnisverschiebung. Bei bestehenden Checkouts: Origin prüfen; nur Branch main; git status --porcelain muss leer sein; git fetch origin main; sicherer Fast-Forward nur wenn HEAD Vorgänger von FETCH_HEAD ist. Bei jeder Synchronisierungsstörung ist die Verwendung eines lokalen Standes ausdrücklich zu bestätigen.
+Ausschließlich `workflows/*/model.json`, `workflows/*/README.md` und `thunder/bootstrap.sh` werden inhaltlich geladen. `workflow*.json`-Dateinamen werden aus dem Tree entnommen, die Canvas-Dateien selbst werden nicht heruntergeladen. Ordner `incoming/` mit Windows-ungültigen Dateinamen haben deshalb keinen Einfluss mehr.
 
-Manifest-Schema: workflows/<Ordner>/model.json, Modelle im Feld models, vorhandene workflow*.json-Canvas-Dateien und README.md. Die Modell-Zielidentität wird durch Kategorie/Dateiname bestimmt. Konflikte (gleiches Ziel, unterschiedliche Quelle) werden sichtbar gemeldet und verhindern einen Bootstrap. Unbekannte Größen bleiben unbekannt; keine Schätzwerte für unbekannte Manifestgrößen.
+Authentifizierung: Fine-grained PAT mit **Contents: Read-only** für das eine private Repository aus dem Windows Credential Manager. Token wird pro API-Aufruf als `Authorization: Bearer` über HTTPS gesendet, nicht in URLs oder Logs gespeichert. HTTP-Weiterleitungen und Cookies sind deaktiviert, Dateigrößen und Baumvollständigkeit werden validiert, begrenzte parallele Blob-Requests werden eingesetzt. Die Inhalte bleiben nur im RAM, ohne Checkout oder lokalen Cache.
 
-## Thunder und Kosten
+Bei einem Fehler wird die vorhandene Snapshot-Instanz **nicht** ausgetauscht. Offline-Nutzung ist nach expliziter Zustimmung nur für einen bereits in **derselben Sitzung** erfolgreich geladenen Stand möglich. Ein Start ohne Token kann die Katalogdaten nicht abrufen.
 
-tnr create --json --gpu ... --num-gpus ... --vcpus ... --template ... --disk ... .
-tnr status --json --no-wait für vor/nach dem Versuch; kein automatischer weiterer Versuch nach unklarem Fehler. Über ein exklusives Lockfile wird gleichzeitig nur ein Create aus dem selben Benutzerprofil ausgeführt. Wenn andere Instanzen existieren, ist automatische Erstellung gesperrt, statt eine irrtümliche Duplikatinstanz zu erzeugen.
+## Manifest- und Kostensicherheit
 
-GUI-Preise sind zunächst editierbare historische Listenpreis-Schätzwerte vom 15.11.2026; zusätzliche Disk geschätzt über 0,219 USD/GB/Monat und 730 Stunden. Der Client verfügt nicht über einen serverseitigen Budget-Cutoff, verifizierte Live-Preise oder zuverlässigen Guthabenabruf.
+Manifest-Schema: `workflows/<Ordner>/model.json` mit Feld `models`, vorhandene `workflow*.json`-Canvas-Dateinamen und optional `README.md`. Dateiidentität = Kategorie/Dateiname. Doppelte Modellziele mit unterschiedlicher Quelle blockieren den Bootstrap. Fehlende Größen bleiben unbekannt.
 
-## SSH/Bootstrap
+Der Client verwendet ausschließlich offiziell dokumentierte Thunder-`tnr`-Befehle. Kostenschätzungen sind lokale, historische Schätzwerte. Ein Erstellungsversuch erfordert eine ausdrückliche Zustimmung. Nach uneindeutigen API-/CLI-Fehlern erfolgt **kein** automatischer weiterer Create-Versuch.
 
-tnr connect <id> --json stellt offizielle SSH-Verbindungsparameter und Schlüssel bereit. OpenSSH verbindet mit IdentitiesOnly, BatchMode und StrictHostKeyChecking=yes und einer anwendungseigenen known_hosts-Datei. Neue ED25519-Hostschlüssel brauchen expliziten Fingerprint-Abgleich über unabhängigen vertrauenswürdigen Kanal.
+## SSH und Remote-Bootstrap
 
-Secrets aus Windows Credential Manager werden dem SSH-Prozess als Standard-Eingabestrom bereitgestellt. Der lokale Checkout liefert ausschließlich die vorhandene thunder/bootstrap.sh. Bash übernimmt Token und WORKFLOWS nur als Prozess-Umgebung; keine Secrets auf CLI-Argumentliste, in URLs, in einer Remote-Konfigurationsdatei oder in Git. Die Remote-Adapterlogik startet ihrerseits scripts/pod_entry.py und den bestehenden zentralen Bootstrap. ComfyUI bleibt auf 127.0.0.1:8188; lokaler SSH-Tunnel auf 127.0.0.1:8188.
+`tnr connect <id> --json` stellt SSH-Parameter. OpenSSH verwendet BatchMode, IdentitiesOnly, StrictHostKeyChecking=yes und eigene known_hosts-Datei. Der Benutzer muss neue Fingerprints über eine unabhängige Thunder-Quelle prüfen.
 
-## Qualität/Testgrenzen
+Der `thunder/bootstrap.sh`-Inhalt aus dem authentifizierten GitHub-Blob wird dem bestätigten SSH-Prozess über **stdin** übergeben. Der Lesetoken und optionale HF/Civitai-Token werden nicht in URL oder Prozessargumente geschrieben. Der Remote-Adapter startet weiterhin `scripts/pod_entry.py` aus `main` des privaten Repositories; **dieser Remote-Schritt ist noch nicht auf die lokal angezeigte Commit-SHA fixiert** und bleibt Freigaberisiko. ComfyUI bleibt nur über privaten Tunnel auf `127.0.0.1:8188` erreichbar.
 
-ICommandRunner dient als externe Schnittstelle; automatisierte Tests ersetzen echte tnr/ssh/git-Prozesse durch Fakes. Kein echter kostenpflichtiger Create-, SSH- oder Modelldownload-Livetest. Codeabdeckung ist nicht mit vollständiger Runtime-Validierung gleichzusetzen. Fehlende Funktionen und Sicherheitsrisiken sind in IMPLEMENTATION_STATUS.md und SECURITY_REVIEW.md dokumentiert.
+## Tests / Grenzen
 
+Mocktests prüfen GitHub-API-Autorisierung, Blob-/Commit-Konsistenz, Windows-ungültige Pfade und Negativfälle, den Workflow-Katalog, Thunder-Create-Fallback, Downloadstatus und den Windows-`tnr`-Suchpfad. Die Windows-CI startet die echte WPF-EXE, rendert sieben Ansichten und baut den Installer. Ein echter privater GitHub-API-Test mit auf dem Benutzer-PC gespeichertem Token sowie Live-Thunder-/SSH-Tests sind davon **nicht** abgedeckt.

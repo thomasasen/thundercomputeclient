@@ -1,52 +1,48 @@
 # Thunder Compute Client
 
-Nativer Windows-Desktop-Client (.NET 10, WPF) für die ComfyUI-Workflows im **privaten** Repository thomasasen/runpod-ai-workflows. Der Client ruft die offizielle Thunder-CLI (tnr) auf, synchronisiert Manifestdaten mit Git, erstellt Instanzen nach ausdrücklicher Bestätigung und startet den bestehenden Thunder-Bootstrap über eine abgesicherte SSH-Verbindung.
+Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.6, nicht produktionsfreigegeben.** Build, 18 mockbasierte Regressionstests sowie ein automatisierter Windows-GUI-Test aller sieben Ansichten werden in GitHub Actions geprüft. Fehler beim Start werden unter `%LOCALAPPDATA%\ThunderClient\logs\startup.log` dokumentiert. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
+**Status: Alpha-Vorabversion v0.1.0-alpha.7, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen sieben Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+
+## Privater GitHub-Zugriff: kein Checkout
+
+Der Client verwendet für das Workflow-Repository **ausschließlich die authentifizierte GitHub-REST-API über HTTPS**, keinen `git clone`, keinen Sparse Checkout und keinen lokalen Arbeitsbaum. Beim Start sowie über „Katalog aktualisieren“:
+
+1. Einen **Fine-grained Personal Access Token** im Windows Credential Manager lesen. Der Token muss ausschließlich für `thomasasen/runpod-ai-workflows` die Berechtigung **Contents: Read-only** haben.
+2. Den `main`-Commit und den zugehörigen Git-Tree über die GitHub-API laden. Einträge unter `incoming/` werden nur als Metadaten empfangen und **nie als Dateien auf Windows ausgecheckt**. Die bekannten Windows-ungültigen Dateinamen sind deshalb unkritisch.
+3. Ausschließlich `workflows/*/model.json`, gegebenenfalls die zugehörigen `README.md` und `thunder/bootstrap.sh` über ihre **Blob-SHA** abrufen; die Namen der `workflow*.json`-Dateien stehen im Tree. Workflows und Bootstrap liegen **nur im Arbeitsspeicher**, nicht als Cache auf der Festplatte.
+4. Ein unvollständig/ungültig geladener Katalog wird nicht übernommen. Bei Netzwerkausfall kann nur der zuletzt in **derselben Sitzung** geladene Stand nach ausdrücklicher Zustimmung weiterverwendet werden.
+
+Der Token wird nur in HTTPS-Authorization-Headern benutzt, nie als URL-Abfrageparameter, Git-Prozessargument oder Konfigurationsdatei. Die Anwendung lässt für GitHub-API-Requests keine Weiterleitungen zu anderen Hosts zu. Ein PAT ist **nicht** in der App enthalten und muss lokal vom berechtigten Benutzer hinterlegt werden. Die GitHub-Repository-Berechtigungen werden nicht geändert. Die Ausführung des vorhandenen Remote-Bootstraps über SSH braucht denselben Lesetoken.
 
 ## Voraussetzungen
 
-- Windows 11 x64, .NET selbstenthaltenes Installationspaket; Windows 10 nicht getestet.
-- Offizielle Thunder Compute CLI (`tnr`), angemeldet über `tnr login`. `Get-Command tnr` muss sie in PowerShell finden. Da die GUI einen veralteten PATH erben kann, wird die CLI zusätzlich am Windows-Standardinstallationsort `Program Files (x86)\\tnr\\tnr.exe` erkannt. CLI-Aufruffehler zeigen die native Windows-Fehlernummer und den gewählten Pfad.
-- Git for Windows inklusive Git Credential Manager, für das private Workflow-Repository mit Lesezugriff angemeldet.
-- OpenSSH-Client, ssh-keygen und ssh-keyscan unter Windows.
-- GitHub fine-grained PAT mit Contents: Read-only nur auf runpod-ai-workflows, separat für den **Remote-Bootstrap** im Windows Credential Manager gespeichert. Hugging Face und Civitai bei Bedarf ebenfalls.
-- Vertrauenswürdiger ED25519-SSH-Hostfingerprint aus einer unabhängigen Thunder-Quelle zum Abgleich vor dem ersten SSH-Zugriff.
+- Windows 11 x64 (Windows 10 nicht validiert).
+- Offizielle Thunder-Compute-CLI `tnr` mit `tnr login`. Die GUI findet `tnr.exe` über PATH bzw. die Standardverzeichnisse unter Program Files.
+- OpenSSH-Client, `ssh-keygen` und `ssh-keyscan`.
+- GitHub-Fine-grained-PAT mit **Contents: Read-only** für das private Workflow-Repository, im Tab **Zugangsdaten** in WinCred hinterlegt. Optional HF-/Civitai-Token.
+- Vertrauenswürdige, externe Quelle zum Abgleich des SSH-ED25519-Hostfingerprints vor dem ersten Verbindungsaufbau.
 
-## Kompilieren
+**Git for Windows/Git Credential Manager sind für den GUI-Workflow-Katalog nicht mehr erforderlich.** Für andere Projekte können sie natürlich weiterhin installiert bleiben.
 
-Auf Windows mit .NET 10 SDK:
+## Bedienung
 
-    dotnet restore tests/ThunderClient.Tests/ThunderClient.Tests.csproj
-    dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj -c Release
-    dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/publish
+1. App starten und unter **Zugangsdaten** den privaten GitHub-Lesetoken speichern, dann **Katalog aktualisieren**. Ohne Token bleibt die GUI offen und zeigt eine aussagekräftige Fehlermeldung.
+2. Unter **Workflows** Einträge wählen. Einmalig geladene Metadaten werden in der laufenden Sitzung gehalten; eine neue Sitzung lädt die Daten erneut.
+3. Unter **Neue Instanz** GPU-Reihenfolge, vCPUs, Disk, Template und geschätzte Stundengrenze prüfen. Die erste kostenpflichtige Erstellung braucht immer eine ausdrückliche Bestätigung.
+4. Unter **Instanzen** Status/Snapshots abrufen, SSH-Fingerprint unabhängig verifizieren und dann über **Downloads & Logs** den Bootstrap starten.
+5. ComfyUI über den **privaten SSH-Loopback-Tunnel** öffnen; vor dem Löschen fertiggestellte Sicherungen prüfen.
 
-Der GitHub-Actions-Workflow erzeugt aus dem Publish-Ordner ein per-user Inno-Setup-Installationspaket, SHA256SUMS und Testberichte. Der erste GitHub-Release ist ausdrücklich als Alpha-Vorabversion gekennzeichnet; stabile Releases bleiben bis zum Sicherheitsreview und Windows-Smoke-Test gesperrt. Die App installiert Updates **nicht** selbst.
+In **Downloads & Logs** ist das Protokoll schreibgeschützt, markierbar und mit Strg+C kopierbar. „Log kopieren“ und „Startdiagnose kopieren“ verwenden die Windows-Zwischenablage; private Informationen vor dem Teilen prüfen.
 
-## Oberfläche
+## Lokaler Build
 
-Die Anwendung verwendet eine feste Seitenleiste, großzügig gegliederte Inhaltskarten, konsistente Formulare, sichtbare Fokuszustände, ein helles und dunkles Farbschema sowie eine persistente Statusleiste. Das Gestaltungskonzept ist an den Prinzipien des [Apple-Design-Skills](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md) orientiert und an Windows WPF angepasst. Alle sieben Ansichten werden in der Windows-CI ohne Netzwerk- oder GPU-Aktionen geöffnet.
+```powershell
+dotnet restore tests/ThunderClient.Tests/ThunderClient.Tests.csproj
+dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj -c Release
+dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/publish
+```
 
-Auf Windows klont die App das private Workflow-Repository über **Git Sparse Checkout** (`workflows/`, `thunder/`, `scripts/`, `docs/` und Root-Dateien). Dadurch werden die unter `incoming/` vorhandenen Windows-ungültigen Dateinamen nicht ausgecheckt. Das Upstream-Repository bleibt unverändert. Bei fehlgeschlagenem Git-Klon bleibt die Oberfläche nutzbar und zeigt den Git-Synchronisierungsstatus an. Git Credential Manager und der im Windows Credential Manager hinterlegte Remote-Bootstrap-PAT sind **zwei getrennte Anmeldewege**. Hinweise zur Fehlersuche: [Troubleshooting](docs/TROUBLESHOOTING.md).
+Der Windows-Installer wird in GitHub Actions erstellt; er ist noch nicht codesigniert. Die App installiert Releases nicht automatisch. **Preise sind unverifizierte Schätzungen und keine serverseitigen Kostenlimits.** Der Benutzer ist selbst für die Kontrolle kostenpflichtiger Ressourcen verantwortlich.
 
-## Kopierbare Protokolle
-
-Unter **Downloads & Logs** sind die Protokollzeilen als mehrzeiliger, schreibgeschützter Text markierbar (`Strg+A`, `Strg+C`).
-`Log kopieren` kopiert das gesamte bereinigte Sitzungslog, `Startdiagnose kopieren` das verfügbare
-Startprotokoll aus `%LOCALAPPDATA%\ThunderClient\logs\startup.log`. Eine Rückmeldung erscheint in
-der unteren Statuszeile; leere oder fehlende Logs werden nicht als erfolgreicher Kopiervorgang ausgegeben.
-Zugangstokens werden soweit bekannt maskiert; **vor Weitergabe immer auf private Pfade und unbekannte Secretformate prüfen**.
-
-## Nutzung
-
-1. tnr installieren und anmelden; Git/GCM für das private Repository authentifizieren.
-2. Client starten. Er klont beim ersten Start das Workflow-Repository und prüft danach bei jedem Start main; lokale Änderungen werden nicht überschrieben.
-3. Unter Workflows einen oder mehrere Einträge auswählen und unter Neue Instanz GPU-Prioritäten, vCPU-Zahlen, Anzahl GPUs, Disk, Template und Preisgrenze prüfen.
-4. Vor dem kostenpflichtigen Erstellen wird eine Zusammenfassung mit geschätzten Tarifen angezeigt. Die Zustimmung ist zwingend.
-5. Unter Instanzen die laufende Instanz wählen, den SSH-Hostfingerprint mit Thunder abgleichen, dann unter Downloads & Logs den vorhandenen Bootstrap starten.
-6. ComfyUI ausschließlich über den privaten SSH-Loopback-Tunnel öffnen. Vor dem Löschen eine abgeschlossene Datensicherung/Snapshot verifizieren.
-
-Weder Workflows noch Modelldateien werden in dieses Repository kopiert. Die Bootstrap-/Modelldownloadlogik verbleibt ausschließlich in runpod-ai-workflows.
-
-Weitere Details: docs/USER_GUIDE.md, docs/ARCHITECTURE.md, docs/UI_DESIGN.md, docs/TROUBLESHOOTING.md, docs/SECURITY_REVIEW.md und docs/IMPLEMENTATION_STATUS.md.
-
+Siehe [Benutzerhandbuch](docs/USER_GUIDE.md), [Architektur](docs/ARCHITECTURE.md), [Sicherheitsgrenzen](docs/SECURITY_REVIEW.md), [Fehlerdiagnose](docs/TROUBLESHOOTING.md) und [Implementierungsstand](docs/IMPLEMENTATION_STATUS.md).

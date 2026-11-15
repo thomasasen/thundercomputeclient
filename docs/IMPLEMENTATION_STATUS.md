@@ -5,19 +5,19 @@ Dies ist ein initialer, zusammenhängender Windows-Client-Codebestand, **keine a
 | Bereich | Stand |
 |---|---|
 | .NET 10 WPF, deutsche GUI, MVVM, Dark/Light | Designsystem mit Sidebar, Cards, Fokus-/Hoverzuständen, Light/Dark; Windows-CI öffnet alle sieben Ansichten, Endanwender-Smoketest weiterhin offen |
-| Git-Checkout, Startup-Sync, Fast-Forward, Offline-Zustimmung | Klon-Fehlerbehandlung und exklusiver Sync-Lock abgesichert, zwei Regressionstests; echte GCM-Anmeldung nicht live getestet |
+| Privater GitHub-Katalog, API-Synchronisierung, Offline-Zustimmung | **Kein Checkout**: API-Abfrage mit Fine-grained PAT aus WinCred; Commit-/Blob-SHA, nur benötigte Dateien im RAM, Offline nur innerhalb laufender Sitzung. Echter PAT-Zugriff am Benutzer-PC noch nicht validiert |
 | Dynamische Workflow-Manifeste, Canvas, Mehrfachauswahl, Modell-Deduplikation | Implementiert; komplexe Manifest-Metadaten/Hardwareempfehlungen nicht vollständig |
 | GPU-Priorität, Editieren, Kostenbestätigung, sichere Fallback-Regel | Implementiert; Preise nur historische Schätzung, GPU/vCPU live von CLI validiert |
 | Thunder Status, Create, Delete, Snapshot Create/List, Snapshot-Template | Implementiert mit dokumentierten tnr-JSON-Befehlen; nicht live getestet |
-| Windows Credential Manager, Git GCM / Thunder CLI Auth | Implementiert; tnr.exe-Erkennung aus GUI-PATH und Windows-Standardinstallationsort sowie native Win32-Fehlerdiagnose; echte Kontoverbindungen nicht live getestet |
-| Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert, Remote-Resumption nach Abbruch nicht automatisiert |
+| Windows Credential Manager, GitHub-API-PAT / Thunder CLI Auth | Implementiert; Git GCM nicht mehr nötig. tnr.exe-Pfaderkennung, Windows-Fehlerdiagnose. Echte Kontoverbindungen nicht live getestet |
+| Remote SSH Host-Fingerprint-Zustimmung, Bootstrap via Standard-Eingabe | Implementiert; lokaler Adapter aus Commit-gepinntem GitHub-Blob im Speicher. Remote-Entrypoint lädt weiterhin main; Resume nach Abbruch nicht automatisiert |
 | Privater Loopback-Tunnel, ComfyUI im Browser, SSH-Terminal | Implementiert, End-to-End nicht live getestet |
 | Download-/Installationslogs | Strukturierte pro-Modelldatei-Ereignisse aus vorhandenem download_monitor.py werden beobachtet; Fortschritt nur bei tatsächlicher Logangabe, keine erfundenen Werte. Persistente Reconnect-Historie fehlt |
 | GPU-/CPU-/RAM-/Disk-Auslastung | Hardware-Textdiagnostik über SSH; Instanzstatus automatisch alle 30 Sekunden, noch keine kontinuierlichen Hardwaregrafiken |
 | Kostenüberwachung | Lokale Schätzung, kein Guthaben-/Livepreisabruf, keine echte Kostensperre |
 | Zusätzliche Bootstrap-Umgebungsvariablen, Konfigurationsprofile | Noch nicht umgesetzt |
 | GitHub Release-Versionsprüfung | Implementiert; keine automatische Updateinstallation |
-| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit 23 Tests (einschließlich Sparse-Checkout- und tnr-Pfad-Regressionsfällen), sieben GUI-Ansichten, kopierbarem Log, Installer und SHA-256; Live-Checkout am Benutzergerät noch nicht bestätigt |
+| GitHub Actions Windows-Build, Tests, Inno Installer, SHA-256 | Windows-CI mit privaten GitHub-API-Mocktests, tnr-Pfad-Regressionen und sieben GUI-Ansichten; Windows-Installer und SHA-256. Echte GitHub-API-Anmeldung am Benutzergerät noch nicht bestätigt |
 | Unabhängiges Red-Team-Review / echter Windows-/GPU-Test | Noch ausstehend; Merge nicht vor abgeschlossener QS |
 
 ## Bewusste Sicherheitsgrenzen
