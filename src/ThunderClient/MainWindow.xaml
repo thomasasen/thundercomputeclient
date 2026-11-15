@@ -1,69 +1,178 @@
 <Window x:Class="ThunderClient.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Thunder Compute Client" Width="1240" Height="850"
-        MinWidth="920" MinHeight="650"
+        Title="Thunder Compute Client" Width="1320" Height="850"
+        MinWidth="1080" MinHeight="680" WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded" Closed="Window_Closed">
-    <DockPanel Margin="20">
-        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}"
-                CornerRadius="12" Padding="18" Margin="0,0,0,12">
-            <Grid>
+    <Grid Background="{DynamicResource WindowBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="248" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="18,24,16,18">
+                <StackPanel DockPanel.Dock="Top" Margin="5,3,0,36">
+                    <Border Width="42" Height="42" HorizontalAlignment="Left" CornerRadius="13"
+                            Background="{DynamicResource AccentBrush}" Margin="0,0,0,15">
+                        <TextBlock Text="T" FontSize="23" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock FontSize="20" FontWeight="Bold" Text="Thunder Compute" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource SubtleBrush}"
+                               Text="ComfyUI Workspace" Margin="0,4,0,0" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="5,16,4,0">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12"
+                            Padding="13" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Privater Workspace" />
+                            <TextBlock FontSize="11" Foreground="{DynamicResource SubtleBrush}" Margin="0,6,0,0"
+                                       Text="Workflow-Katalog nur aus dem autorisierten Git-Repository" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Margin="4,13,0,0" FontSize="11" Foreground="{DynamicResource SubtleBrush}"
+                               Text="ALPHA · Windows Desktop" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource OverlineText}" Margin="12,0,0,10" Text="NAVIGATION" />
+                    <ListBox x:Name="Navigation" Style="{StaticResource SidebarList}"
+                             ItemContainerStyle="{StaticResource SidebarItem}"
+                             SelectedIndex="{Binding ElementName=MainTabs, Path=SelectedIndex, Mode=TwoWay}">
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="01" />
+                                <TextBlock Text="Übersicht" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="02" />
+                                <TextBlock Text="Workflows" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="03" />
+                                <TextBlock Text="Neue Instanz" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="04" />
+                                <TextBlock Text="Instanzen" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="05" />
+                                <TextBlock Text="Downloads &amp; Logs" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="06" />
+                                <TextBlock Text="Zugangsdaten" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="07" />
+                                <TextBlock Text="Einstellungen" />
+                            </StackPanel>
+                        </ListBoxItem>
+                    </ListBox>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="108" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="48" />
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" Margin="28,19,26,13">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock FontSize="25" FontWeight="Bold" Text="Thunder Compute" />
-                    <TextBlock Foreground="{DynamicResource SubtleBrush}"
-                               Text="ComfyUI · Windows Desktop · privater Workflow-Checkout" />
-                    <TextBlock Foreground="{DynamicResource AccentBrush}"
-                               Text="{Binding Message}" Margin="0,7,0,0" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource OverlineText}" Text="THUNDER / WORKSPACE" />
+                    <TextBlock Text="{Binding ElementName=MainTabs, Path=SelectedItem.Header}"
+                               FontSize="28" FontWeight="SemiBold" Margin="0,4,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Command="{Binding SyncCommand}" Content="Jetzt aktualisieren" />
-                    <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen" />
+                    <Button Command="{Binding SyncCommand}" Content="Git synchronisieren" />
+                    <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen"
+                            Background="{DynamicResource AccentBrush}" Foreground="White" />
                 </StackPanel>
             </Grid>
-        </Border>
-        <TabControl x:Name="MainTabs" Background="{DynamicResource WindowBrush}">
+            <TabControl x:Name="MainTabs" Grid.Row="1" SelectedIndex="0"
+                        Style="{StaticResource ContentOnlyTabs}"
+                        Margin="28,0,24,6">
             <TabItem Header="Dashboard">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="18">
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="Überblick" Margin="0,0,0,14" />
-                        <Border Background="{DynamicResource SurfaceBrush}" Padding="18" CornerRadius="9">
+                    <StackPanel Margin="4,6,18,28">
+                        <TextBlock Style="{StaticResource OverlineText}" Text="ÜBERSICHT" />
+                        <TextBlock Style="{StaticResource LeadText}" Text="Alles Wichtige, ohne Umwege." Margin="0,7,0,20" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="THUNDER COMPUTE" />
+                                    <TextBlock FontSize="23" FontWeight="SemiBold" Margin="0,13,0,7" Text="{Binding InstanceSummary}" />
+                                    <TextBlock Foreground="{DynamicResource SubtleBrush}" Text="{Binding LastRefreshed}" />
+                                    <Separator Margin="0,18,0,14" />
+                                    <TextBlock FontWeight="SemiBold" Text="Geschätzte Kosten" />
+                                    <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,6,0,0" Text="{Binding CostSummary}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="WORKFLOW-BIBLIOTHEK" />
+                                    <TextBlock FontSize="23" FontWeight="SemiBold" Margin="0,13,0,7" Text="{Binding SelectionSummary}" />
+                                    <TextBlock Text="Quelle: privates GitHub-Repository" Foreground="{DynamicResource SubtleBrush}" />
+                                    <Separator Margin="0,18,0,14" />
+                                    <TextBlock FontWeight="SemiBold" Text="Git-Revision" />
+                                    <TextBlock FontFamily="Consolas" FontSize="11" Margin="0,6,0,0" Foreground="{DynamicResource SubtleBrush}" Text="{Binding Commit}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <TextBlock Style="{StaticResource SectionHeading}" Text="Schnellaktionen" Margin="0,27,0,10" />
+                        <Border Style="{StaticResource SurfaceCard}">
                             <StackPanel>
-                                <TextBlock FontWeight="Bold" Text="Gewählte Instanz" />
-                                <TextBlock Text="{Binding InstanceSummary}" Margin="0,7,0,4" />
-                                <TextBlock Text="{Binding LastRefreshed}" Foreground="{DynamicResource SubtleBrush}" Margin="0,0,0,13" />
-                                <TextBlock FontWeight="Bold" Text="Workflow-Auswahl" />
-                                <TextBlock Text="{Binding SelectionSummary}" Margin="0,7,0,13" />
-                                <TextBlock FontWeight="Bold" Text="Workflow-Repository (main)" />
-                                <TextBlock Text="{Binding Commit}" TextWrapping="Wrap" Margin="0,7,0,13" />
-                                <TextBlock FontWeight="Bold" Text="Kosten (Schätzung)" />
-                                <TextBlock Text="{Binding CostSummary}" Margin="0,7,0,0" />
+                                <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,0,0,11"
+                                           Text="Verbindung und Hardware werden erst nach deiner Aktion geprüft." />
+                                <WrapPanel>
+                                    <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen" />
+                                    <Button Command="{Binding HardwareCommand}" Content="Hardware abrufen" />
+                                    <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen" />
+                                    <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
-                        <TextBlock FontSize="17" FontWeight="SemiBold" Text="Schnellaktionen" Margin="0,20,0,5" />
-                        <WrapPanel>
-                            <Button Command="{Binding HardwareCommand}" Content="Hardware abrufen" />
-                            <Button Command="{Binding TunnelCommand}" Content="ComfyUI im Browser" />
-                            <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
-                        </WrapPanel>
-                        <TextBlock FontSize="17" FontWeight="SemiBold" Text="Hardware" Margin="0,18,0,8" />
-                        <TextBox Text="{Binding Hardware, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
-                                 TextWrapping="Wrap" MinHeight="110" VerticalScrollBarVisibility="Auto" />
+                        <TextBlock Style="{StaticResource SectionHeading}" Text="Hardwarediagnose" Margin="0,25,0,10" />
+                        <Border Style="{StaticResource SurfaceCard}">
+                            <TextBox Text="{Binding Hardware, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                                     TextWrapping="Wrap" MinHeight="140" VerticalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas" FontSize="12" />
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Workflows">
-                <Grid Margin="18">
+                <Grid Margin="4,6,18,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <StackPanel>
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="Workflow-Bibliothek" />
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Workflow-Bibliothek" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
                                    Text="Automatisch erkannt aus workflows/*/model.json und vorhandenen Canvas-Dateien. Mehrfachauswahl aktivieren." Margin="0,7,0,10" />
                     </StackPanel>
@@ -96,8 +205,8 @@
             </TabItem>
             <TabItem Header="Neue Instanz">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="18">
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="GPU und Ressourcen konfigurieren" />
+                    <StackPanel Margin="4,6,18,24">
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="GPU und Ressourcen konfigurieren" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,7,0,9"
                                    Text="GPU-Priorität per Drag-and-drop oder Pfeilschaltflächen ändern. vCPU und Schätzpreis je GPU editierbar. Thunder validiert die tatsächlichen GPU-/vCPU-Kombinationen." />
                         <ListBox x:Name="GpuList" ItemsSource="{Binding GpuChoices}" SelectedItem="{Binding SelectedGpu}"
@@ -145,20 +254,20 @@
                         <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
                                  AcceptsReturn="True" MinHeight="245" VerticalScrollBarVisibility="Auto" />
                         <Button Command="{Binding CreateCommand}"
-                                Content="Kostenpflichtige Instanz erstellen …" FontWeight="Bold"
-                                Background="#076FA5" HorizontalAlignment="Left" />
+                                Content="Instanz erstellen und Kosten bestätigen …" FontWeight="SemiBold"
+                                Background="{DynamicResource AccentBrush}" Foreground="White" HorizontalAlignment="Left" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Instanzen">
-                <Grid Margin="18">
+                <Grid Margin="4,6,18,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <StackPanel>
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="Thunder-Instanzen" />
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Thunder-Instanzen" />
                         <TextBlock Text="Status stammt aus tnr status --json --no-wait. Eine Instanz zur Nutzung auswählen."
                                    Margin="0,7,0,12" />
                     </StackPanel>
@@ -177,7 +286,7 @@
                             <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
                             <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
                             <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen (SSH)" />
-                            <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="#863944" />
+                            <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="{DynamicResource DangerBrush}" Foreground="White" />
                         </WrapPanel>
                         <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
@@ -197,19 +306,19 @@
                 </Grid>
             </TabItem>
             <TabItem Header="Downloads &amp; Logs">
-                <Grid Margin="18">
+                <Grid Margin="4,6,18,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="205" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <StackPanel>
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="Bootstrap und Diagnostik" />
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Bootstrap und Diagnostik" />
                         <TextBlock Margin="0,7,0,3" Text="{Binding DownloadStatus}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
                                    Text="Logs aus dem zentralen Thunder-Bootstrap. Fortschritt nur, wenn die Quelle ihn liefert. Kein automatischer Neustart nach Verbindungsabbruch." />
                         <WrapPanel>
-                            <Button Command="{Binding BootstrapCommand}" Content="Bootstrap über SSH starten …" Background="#076FA5" />
+                            <Button Command="{Binding BootstrapCommand}" Content="Bootstrap über SSH starten …" Background="{DynamicResource AccentBrush}" Foreground="White" />
                             <Button Command="{Binding ExportLogsCommand}" Content="Bereinigte Logs exportieren" />
                         </WrapPanel>
                     </StackPanel>
@@ -232,8 +341,8 @@
             </TabItem>
             <TabItem Header="Zugangsdaten">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="18" Width="700" HorizontalAlignment="Left">
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="Zugangsdatenmanager" />
+                    <StackPanel Margin="4,6,18,24" Width="700" HorizontalAlignment="Left">
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Zugangsdatenmanager" />
                         <TextBlock Margin="0,8,0,15" Foreground="{DynamicResource SubtleBrush}"
                                    Text="Tokens liegen ausschließlich im Windows Credential Manager. Thunder verwendet die bestehende tnr-Anmeldung, Git für den privaten Checkout den Git Credential Manager. Ein separates GitHub-PAT wird nur für den Remote-Bootstrap gebraucht." />
                         <TextBlock FontWeight="Bold" Text="Thunder Compute" />
@@ -270,8 +379,8 @@
             </TabItem>
             <TabItem Header="Einstellungen">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="18" HorizontalAlignment="Left" Width="750">
-                        <TextBlock FontSize="19" FontWeight="SemiBold" Text="Einstellungen und Updates" />
+                    <StackPanel Margin="4,6,18,24" HorizontalAlignment="Left" Width="750">
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Einstellungen und Updates" />
                         <TextBlock Text="Lokaler Workflow-Checkout" Margin="0,18,0,2" />
                         <TextBox Text="{Binding WorkflowsDirectory, Mode=TwoWay}" Width="650" HorizontalAlignment="Left" />
                         <TextBlock Text="Bei jedem Start wird main per Fast-Forward synchronisiert. Bei fehlgeschlagener Authentifizierung oder Offline-Betrieb wird nachgefragt. Lokale Änderungen werden nicht überschrieben."
@@ -293,7 +402,22 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-        </TabControl>
-    </DockPanel>
+            </TabControl>
+            <Border Grid.Row="2" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrush}"
+                    Background="{DynamicResource SurfaceBrush}" Padding="28,9">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" FontSize="12" Foreground="{DynamicResource SubtleBrush}"
+                               Margin="10,0,8,0" VerticalAlignment="Center" Text="{Binding Message}" />
+                    <TextBlock Grid.Column="2" FontSize="11" Foreground="{DynamicResource SubtleBrush}"
+                               VerticalAlignment="Center" Text="KOSTEN NUR ALS SCHÄTZUNG" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
 </Window>
-
