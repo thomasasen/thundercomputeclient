@@ -1,3 +1,9 @@
+## SSH-Schlüsselregistrierung bei Thunder antwortet nicht (Alpha.16)
+
+Der Client kann den Pod bereits erfolgreich erstellt haben, obwohl Thunder anschließend den SSH-Schlüssel innerhalb von 30 Sekunden **nicht** registrieren bzw. die Antwort nicht liefern kann. In der GUI erscheint jetzt **„Thunder-API: SSH-Zugang noch nicht bereit“** und eine verständliche Erklärung. **Nicht erneut eine VM erstellen.** Unter **Instanzen** Pod-Status und mögliche Kosten prüfen. Unter **Downloads & Logs** die Schaltflächen **Thunder-Dienststatus** oder **Thunder-Konsole** nutzen und ggf. das bereinigte Protokoll an den Anbieter schicken.
+
+**Ein Wiederholungsversuch ist möglich, aber nur bewusst mit dem vorhandenen Pod:** Wenn die vorherige Anfrage beim Server angekommen ist, kann ein neuer `tnr connect`-Versuch einen **weiteren** SSH-Schlüssel registrieren. Das ist kein Grund, unkontrolliert mehrfach zu klicken. Ein gültiger Thunder-Schlüssel ist noch kein bestätigter Hostfingerprint: Die unabhängige SSH-Hostprüfung bleibt erforderlich.
+
 ## Ein-Klick-Start: SSH-Zeitlimit richtig erkennen (Alpha.15)
 
 Wenn nach erfolgreicher Pod-Erstellung „A task was canceled“ angezeigt wurde, handelt es sich **nicht automatisch um einen Nutzerabbruch**. In der neuesten Alpha stehen für die SSH-Vorbereitung konkrete Schritte im Protokoll und interne Zeitlimits werden mit dem Programmnamen und den Sekunden gemeldet. **Denselben laufenden Pod verwenden, keinen zweiten Pod anlegen.** Unter **Instanzen** den vorhandenen Pod überprüfen und mit „Bestehenden Pod automatisch einrichten“ nach Bestätigung erneut versuchen. Der Hostfingerprint muss weiterhin unabhängig geprüft werden. Bei erneuten Problemen das kopierbare Log (ohne Geheimnisse) verwenden. Die kostenpflichtige Instanz läuft möglicherweise bis zur ausdrücklichen Löschung weiter.

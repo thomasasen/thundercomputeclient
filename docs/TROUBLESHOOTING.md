@@ -1,3 +1,14 @@
+## Thunder-API-Timeout beim Einrichten des SSH-Schlüssels (Alpha.16)
+
+Wenn der Pod bereits `RUNNING` ist, `tnr connect --json` aber mit `failed to add SSH key ... POST /v1/instances/<id>/add_key: context deadline exceeded` endet, ist **nicht der SSH-Port** gescheitert, sondern die Anfrage an den Thunder-API-Endpunkt. Die offizielle CLI verwendet für HTTP-Anfragen ein **30-Sekunden-Limit**; das Ergebnis einer erfolglos beantworteten POST-Anfrage ist **unklar**. Sie könnte serverseitig bereits bearbeitet worden sein, auch wenn die lokale private SSH-Key-Datei noch nicht gespeichert wurde.
+
+Ab `v0.1.0-alpha.16` erkennt der Client dieses Fehlerbild ausdrücklich, beendet den Automatismus **ohne stillschweigende Wiederholung von `add_key` oder Pod-Erstellung** und informiert über die weiterhin kostenpflichtige Instanz. Ein weiterer Versuch mit dem bestehenden Pod ist **nur nach erneuter ausdrücklicher Bestätigung** möglich; dabei könnte die offizielle CLI einen weiteren SSH-Schlüssel registrieren. Eine beliebige Erhöhung des HTTP-Timeouts löst keine bekannte serverseitige Störung und keinen unklaren POST-Zustand zuverlässig.
+
+In **Downloads & Logs** stehen direkte Buttons zur offiziellen [Thunder-Konsole](https://console.thundercompute.com/) und zum [Dienststatus](https://status.thundercompute.com/). Bei anhaltendem Fehler den Pod unter **Instanzen** bewusst prüfen oder (nach Backup-/Snapshot-Prüfung) löschen und das kopierbare, bereinigte Protokoll an den [Thunder-Support](https://www.thundercompute.com/contact) geben. Ist der allgemeine Dienststatus grün, kann dennoch der einzelne `add_key`-Endpunkt langsam oder gestört sein. **Modelldownloads starten erst nach erfolgreichem SSH-Login.**
+
+
+**Optionaler Netzwerkcheck (kein Nachweis für einen gesunden `add_key`-Endpunkt):** `Test-NetConnection api.thundercompute.com -Port 8443` in PowerShell. Da im gemeldeten Fall `tnr status` und `tnr create` funktioniert haben, ist ein generelles TCP-Portproblem **nicht** die naheliegendste Erklärung; ein serverseitiges Problem dieses einen API-Aufrufs bleibt möglich.
+
 # SSH-Verbindung: „A task was canceled“ nach der Pod-Erstellung
 
 **Beispiel aus der Nutzersitzung:** Die Thunder-CLI hat erfolgreich die L40-Instanz `0` angelegt, Pod `QUEUED → STARTING → RUNNING` und SSH-IP/Port gemeldet. Danach blieb die automatische Einrichtung bei **„authentifiziere Schlüssel und prüfe den Hostfingerprint“** stehen und meldete ca. 52 Sekunden später nur **„A task was canceled“**. Das ist **kein Beweis**, dass die VM oder der SSH-Port defekt sind. Die Modelldownloads und der Bootstrap wurden **nicht gestartet**. Ein bestehender Pod kann dennoch Kosten verursachen.
