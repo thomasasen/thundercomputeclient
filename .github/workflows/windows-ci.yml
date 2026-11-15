@@ -53,20 +53,30 @@ jobs:
           if-no-files-found: warn
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Einmaliger Alpha-Release nach erfolgreichem Windows-Testlauf.
+    # Kein Merge in main und kein automatischer Stable-Release.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/windows-desktop-client' && contains(github.event.head_commit.message, '[publish-alpha-v0.1.0-alpha.1]')
     needs: windows
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: thunder-client-windows
           path: artifacts
-      - name: Release verified Windows installer
+      - name: Publish reviewed-build alpha prerelease
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v0.1.0-alpha.1
+          target_commitish: ${{ github.sha }}
+          name: Thunder Compute Client v0.1.0-alpha.1 (Alpha)
+          prerelease: true
+          make_latest: false
+          draft: false
+          body_path: docs/RELEASE_NOTES_v0.1.0-alpha.1.md
           files: |
             artifacts/installer/*.exe
             artifacts/installer/SHA256SUMS.txt
-          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10, WPF) für die ComfyUI-Workflows im **privaten** Repository thomasasen/runpod-ai-workflows. Der Client ruft die offizielle Thunder-CLI (tnr) auf, synchronisiert Manifestdaten mit Git, erstellt Instanzen nach ausdrücklicher Bestätigung und startet den bestehenden Thunder-Bootstrap über eine abgesicherte SSH-Verbindung.
 
-**Status: Vorabversion 0.1.0.** Build und mockbasierte Tests werden in Windows GitHub Actions geprüft. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
+**Status: Alpha-Vorabversion v0.1.0-alpha.1, nicht produktionsfreigegeben.** Build und mockbasierte Tests werden in Windows GitHub Actions geprüft. Es gibt keine bestätigten Thunder-GPU- oder Modelldownload-Livetests. Die Anwendung ist nicht als produktiv validiert oder vollumfänglich fertig zu verstehen; siehe docs/IMPLEMENTATION_STATUS.md.
 
 ## Voraussetzungen
 
@@ -21,7 +21,7 @@ Auf Windows mit .NET 10 SDK:
     dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj -c Release
     dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/publish
 
-Der GitHub-Actions-Workflow erzeugt aus dem Publish-Ordner ein per-user Inno-Setup-Installationspaket, SHA256SUMS und Testberichte. Ein GitHub Release wird erst bei einem expliziten, geprüften Versionstag erzeugt. Die App installiert Updates **nicht** selbst.
+Der GitHub-Actions-Workflow erzeugt aus dem Publish-Ordner ein per-user Inno-Setup-Installationspaket, SHA256SUMS und Testberichte. Der erste GitHub-Release ist ausdrücklich als Alpha-Vorabversion gekennzeichnet; stabile Releases bleiben bis zum Sicherheitsreview und Windows-Smoke-Test gesperrt. Die App installiert Updates **nicht** selbst.
 
 ## Nutzung
 
