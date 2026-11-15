@@ -63,3 +63,10 @@ SSH-Port und ComfyUI-Port sind getrennt: der von Thunder gemeldete SSH-Port verb
 - Statische Analyse ohne High-Severity-Funde, Tests der Race-/Fehlerfälle.
 - Keine GPU-Livetests im Rahmen dieses Auftrags. Runtime-Risiken müssen verbleibend benannt werden.
 
+
+
+## Windows `ssh-keyscan` KEX-Bug: hostvertrauensneutraler Fallback (Alpha.14)
+
+Bei exakt dem dokumentierten Fehler `choose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com` wechselt die App nur zur öffentlichen **Erfassung** des ED25519-Hostschlüssels mittels `ssh.exe`. Dabei wird `StrictHostKeyChecking=accept-new` **nur für eine zufällige, isolierte temporäre known_hosts-Datei** genutzt. Um ungewollte Anmeldung zu verhindern: kein `-i`, keine privaten Schlüssel, `PreferredAuthentications=none`, `PubkeyAuthentication=no`, `PasswordAuthentication=no`, `KbdInteractiveAuthentication=no`, `HostbasedAuthentication=no`, `GSSAPIAuthentication=no`, `-N` ohne Remote-Command, `-F none` ohne bestehende SSH-Config. `HostKeyAlgorithms=ssh-ed25519` erzwingt denselben Public-Key-Algorithmus; der vom SSH-Server bekannte Fingerprint ist **weiterhin nicht unabhängig authentifiziert**, da die Erfassung selbst kein Vertrauen beweist.
+
+Die temporäre Datei wird auch im Fehlerfall gelöscht und **nicht** als dauerhafte Vertrauensdatei genutzt. `ParseEd25519HostKey` validiert Host/IP+Port und den formalen SHA-256-Fingerprint. **Ausschließlich nach unabhängiger Benutzerprüfung und explizitem „Ja“** wird der Public-Key in die eigene `known_hosts` übernommen; reguläre SSH-Sessions bleiben bei `StrictHostKeyChecking=yes`. Keine Absenkung des Hosttrust-Schutzes in der eigentlichen Verbindung. Kein Live-End-to-End-Test bei einem echten Anbieter-Pod, kein unabhängiger Red-Team-Signoff.

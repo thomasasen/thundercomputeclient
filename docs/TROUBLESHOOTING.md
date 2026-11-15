@@ -1,4 +1,22 @@
-# Fehlerdiagnose
+# Windows-SSH-Hostschlüssel: `choose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com`
+
+**Betroffen:** Windows-OpenSSH-`ssh-keyscan.exe` (bekannter Upstream-Fehler [PowerShell/Win32-OpenSSH #2140](https://github.com/PowerShell/Win32-OpenSSH/issues/2140)); er tritt bei modernen Linux-OpenSSH-Servern auf. **Dies ist kein Beweis für einen falschen SSH-Port oder fehlenden ED25519-Hostkey.** In einem reproduzierten Nutzerlauf war der Pod bereits `RUNNING`, IP und Port vorhanden, jedoch brach die Hostschlüsselabfrage ab, bevor ein Bootstrap/Modelldownload begann.
+
+**Ab `v0.1.0-alpha.14`:** Nach dem konkreten `choose_kex`-Fehler greift die GUI ohne Neu-Erstellung der VM auf einen isolierten `ssh.exe`-Handshake zurück. Kein SSH-Privatkey, keine Anmeldung und kein Remote-Kommando in der Abfrage. `ssh.exe` speichert den **unbestätigten öffentlichen** ED25519-Key ausschließlich in einer zufällig benannten Datei unter TEMP. Der Client prüft die Zeile und den SHA-256-Fingerprint für exakt die erwartete IP und den SSH-Port, löscht die Datei und zeigt weiterhin den **verpflichtenden Fingerprint-Vergleich** an. Erst nach ausdrücklicher Benutzerbestätigung wird der Key in `ThunderClient/known_hosts` übernommen. Spätere Sessions bleiben bei `StrictHostKeyChecking=yes`. Wenn auch der Fallback keine Hostkey-Zeile liefert, stoppt die Bereitstellung mit einer konkreten Fehlermeldung und **ohne** automatischen zweiten Pod.
+
+**Für einen schon erstellten Pod:** Den Client aktualisieren; unter **Instanzen** prüfen, ob der Pod noch läuft und Kosten verursacht. Bei genau einer Instanz **„Bestehenden Pod automatisch einrichten“** benutzen. Es wird nach bestätigter Wiederverwendung kein zweiter Pod angelegt. Falls du den Pod nicht benötigst, nach Prüfung von Outputs/Snapshot unter **Instanzen** ausdrücklich löschen. Der Client löscht GPU-Kosten nicht stillschweigend.
+
+**Nur zur optionalen, read-only Diagnose in PowerShell:**
+
+```powershell
+Get-Command ssh, ssh-keyscan
+ssh -V
+tnr status --json --no-wait
+```
+
+`ssh-keyscan` kann den beschriebenen Bug weiterhin anzeigen; die neue GUI umgeht ihn. Bitte keine `StrictHostKeyChecking=no`-Option setzen und keinen unbekannten Fingerprint ungeprüft bestätigen. Die offizielle Fehlerquelle ist [PowerShell/Win32-OpenSSH #2140](https://github.com/PowerShell/Win32-OpenSSH/issues/2140); ein [Git-for-Windows-`ssh-keyscan`](https://github.com/actions/runner-images/issues/13072) ist ein dokumentierter manueller Ersatz, **nicht** für die GUI erforderlich.
+
+---
 
 ## Git-Fehler `invalid path incoming/Krea 2 + FLUX.2: ...`
 

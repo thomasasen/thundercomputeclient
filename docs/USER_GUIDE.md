@@ -1,3 +1,7 @@
+## Bekannter Windows-SSH-Fehler automatisch abgefangen
+
+Wenn ein Thunder-Pod schon erstellt wurde, die Verbindung aber mit `choose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com` abbricht, **keinen zweiten Pod anlegen**. Das ist ein Windows-`ssh-keyscan`-Problem. Ab **alpha.14** übernimmt die App die Hostkey-Abfrage über den normalen SSH-Client. Sie verlangt weiterhin deinen Vergleich und die ausdrückliche Bestätigung des Fingerprints aus einer unabhängigen vertrauenswürdigen Quelle. Ist ein Pod vorhanden, kann dieser während der Fehlersuche weiter Kosten verursachen. Unter **Instanzen** den bestehenden Pod auswählen und seine Kosten bzw. seine bewusste Löschung prüfen. Für die erneute Installation **„Bestehenden Pod automatisch einrichten“** verwenden, nicht „Nur Pod erstellen“.
+
 # Benutzerhandbuch
 
 ## Automatische VM-Erstellung und Modelldownloads

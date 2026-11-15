@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.13, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.14, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 ## Ein-Klick-Bereitstellung
 
@@ -51,6 +51,12 @@ Der offizielle Thunder-Befehl `tnr connect 0 --json` liefert erfolgreiche SSH-Ve
 **Wichtig:** `tnr connect --json` ist **nicht garantiert rein lesend**: Die CLI kann einen noch fehlenden SSH-Schlüssel auf dem Thunder-Konto erzeugen und lokal speichern. Die Systemstatus-Ansicht prüft deshalb SSH-Key-Existenz nun **ohne** `tnr connect`; für einen Live-SSH-Test ist ein zuvor verifizierter Hostfingerprint nötig.
 
 Der Remote-SSH-Port wird von Thunder vorgegeben und nicht mit `--disk`/`--gpu` beim Erstellen gewählt. Für ComfyUI verwendet der Client einen privaten Tunnel `127.0.0.1:8188 → Pod:127.0.0.1:8188` über die SSH-Verbindung. Eine öffentliche HTTP-Portfreigabe wird dafür **nicht** benötigt. HTTP-Freigaben, soweit aktiv, können gesondert **lesend** mit `tnr ports list --json` geprüft werden. Keine Portfreigabe erfolgt automatisch.
+
+## Windows-SSH-Hostschlüssel: `choose_kex: unsupported KEX method`
+
+Ab **v0.1.0-alpha.14** wird der bekannte Fehler in **Windows `ssh-keyscan.exe`** mit `sntrup761x25519-sha512@openssh.com` (Win32-OpenSSH [#2140](https://github.com/PowerShell/Win32-OpenSSH/issues/2140)) automatisch behandelt: `ssh.exe` holt den *öffentlichen ED25519-Hostschlüssel* über einen einmaligen, **nicht authentifizierten** Handshake in eine **isolierte, direkt danach gelöschte Datei**. Der eigene, dauerhaft vertrauenswürdige `known_hosts`-Speicher wird **nicht** geändert, bevor der Benutzer den Fingerprint mit einer unabhängigen vertrauenswürdigen Quelle verglichen und ausdrücklich bestätigt hat. Es werden keine privaten Schlüssel oder Remote-Kommandos für diese temporäre Abfrage verwendet. Alle späteren SSH-Aktionen behalten `StrictHostKeyChecking=yes`.
+
+Bei Abbruch bleibt der bereits erstellte Thunder-Pod bestehen und kann Kosten verursachen. Kein automatischer zweiter Create-Versuch. Unter **Instanzen** den bestehenden Pod verwalten; beim nächsten bestätigten Ein-Klick-Start bietet der Client die Wiederverwendung der einzigen vorhandenen Instanz an. **Nicht** wegen dieses Fehlers einen neuen Pod erstellen. ComfyUI-Downloads starten erst *nach* erfolgreicher SSH-Hostvertrauensprüfung.
 
 ## SSH-Hostschlüssel und Verbindungsdiagnose
 
