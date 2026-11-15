@@ -20,12 +20,13 @@
             <Setter Property="Background" Value="{DynamicResource WindowBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI" />
-            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
+        <!-- Do not force Foreground on every TextBlock: Button.Content must
+             inherit Button.Foreground, otherwise primary CTA text is dark on blue. -->
         <Style TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="OverlineText" TargetType="{x:Type TextBlock}">
@@ -33,6 +34,15 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="TextWrapping" Value="NoWrap" />
+        </Style>
+        <Style x:Key="FormLabel" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource SubtleBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style x:Key="FieldHint" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource SubtleBrush}" />
+            <Setter Property="FontSize" Value="13" />
         </Style>
         <Style x:Key="LeadText" TargetType="{x:Type TextBlock}">
             <Setter Property="FontSize" Value="16" />
@@ -114,7 +124,7 @@
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Padding" Value="16,11" />
             <Setter Property="Margin" Value="0,4,9,4" />
             <Setter Property="Cursor" Value="Hand" />
@@ -157,7 +167,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="11,10" />
             <Setter Property="Margin" Value="0,4,0,9" />
-            <Setter Property="MinHeight" Value="39" />
+            <Setter Property="MinHeight" Value="43" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TextBox}">
@@ -254,6 +264,41 @@
                     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 </Trigger>
             </Style.Triggers>
+        </Style>
+        <!-- GPU entries are full-width cards, with clear hover/selection states. -->
+        <Style x:Key="GpuItemStyle" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border x:Name="Frame" Background="{TemplateBinding Background}"
+                                CornerRadius="12" Padding="2"
+                                BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="Background"
+                                        Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Frame" Property="Background"
+                                        Value="{DynamicResource SelectedBrush}" />
+                                <Setter TargetName="Frame" Property="BorderBrush"
+                                        Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush"
+                                        Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="{x:Type ListBox}">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
