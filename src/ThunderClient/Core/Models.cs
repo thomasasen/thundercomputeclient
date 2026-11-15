@@ -61,7 +61,7 @@ public sealed class ClientSettings
     public int GpuCount { get; set; } = 1;
     public decimal MaximumHourlyUsd { get; set; } = 0.85m;
     public string Template { get; set; } = "base";
-    public string Theme { get; set; } = "Dunkel";
+    public string Theme { get; set; } = "Hell";
     public bool OfflineApproved { get; set; }
     public string LocalGitRef { get; set; } = "main";
     public List<string> SelectedWorkflows { get; set; } = [];

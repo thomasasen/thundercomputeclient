@@ -35,12 +35,28 @@ public partial class MainWindow : Window, IUserDialogs
         catch (Exception ex)
         {
             StartupDiagnostics.Record("Initialisierung", ex);
-            Notify("Initialisierung fehlgeschlagen", ex.Message +
-                "\n\nDie Oberfläche bleibt geöffnet. Diagnose: " + StartupDiagnostics.LogPath);
+            _model.ReportStartupFailure(ex);
         }
     }
 
     private void Window_Closed(object? sender, EventArgs e) => _model.Dispose();
+
+    // CI exercise: every real page is constructed, displayed and bound without external calls.
+    // The app-level ContentRendered callback invokes this only with --ui-smoke-test.
+    public void VerifyPagesForSmokeTest()
+    {
+        if (Navigation.Items.Count != 7 || MainTabs.Items.Count != 7)
+            throw new InvalidOperationException("Navigation und Inhalte sind nicht vollständig.");
+        for (var index = 0; index < MainTabs.Items.Count; index++)
+        {
+            MainTabs.SelectedIndex = index;
+            UpdateLayout();
+            if (Navigation.SelectedIndex != index)
+                throw new InvalidOperationException("Sidebar und Inhalt sind nicht synchron: " + index);
+        }
+        MainTabs.SelectedIndex = 0;
+        UpdateLayout();
+    }
 
     public bool Confirm(string title, string message) =>
         MessageBox.Show(this, message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning,
@@ -112,22 +128,31 @@ public partial class MainWindow : Window, IUserDialogs
             Application.Current.Resources[key] = new SolidColorBrush(Color.FromRgb(r, g, b));
         if (light)
         {
-            SetBrush("WindowBrush", 244, 248, 253);
+            SetBrush("WindowBrush", 246, 247, 249);
+            SetBrush("SidebarBrush", 238, 241, 245);
             SetBrush("SurfaceBrush", 255, 255, 255);
-            SetBrush("FieldBrush", 231, 238, 246);
-            SetBrush("TextBrush", 23, 37, 56);
-            SetBrush("SubtleBrush", 74, 92, 112);
-            SetBrush("AccentBrush", 0, 99, 166);
+            SetBrush("FieldBrush", 244, 246, 249);
+            SetBrush("TextBrush", 24, 34, 48);
+            SetBrush("SubtleBrush", 89, 103, 121);
+            SetBrush("AccentBrush", 33, 101, 202);
+            SetBrush("BorderBrush", 221, 227, 235);
+            SetBrush("HoverBrush", 229, 235, 243);
+            SetBrush("SelectedBrush", 220, 233, 252);
+            SetBrush("DangerBrush", 184, 74, 89);
         }
         else
         {
-            SetBrush("WindowBrush", 16, 24, 39);
-            SetBrush("SurfaceBrush", 25, 38, 56);
-            SetBrush("FieldBrush", 35, 52, 73);
-            SetBrush("TextBrush", 243, 246, 250);
-            SetBrush("SubtleBrush", 170, 192, 214);
-            SetBrush("AccentBrush", 56, 189, 248);
+            SetBrush("WindowBrush", 15, 21, 30);
+            SetBrush("SidebarBrush", 22, 31, 43);
+            SetBrush("SurfaceBrush", 28, 39, 53);
+            SetBrush("FieldBrush", 36, 49, 65);
+            SetBrush("TextBrush", 240, 244, 249);
+            SetBrush("SubtleBrush", 171, 185, 202);
+            SetBrush("AccentBrush", 82, 157, 255);
+            SetBrush("BorderBrush", 56, 70, 88);
+            SetBrush("HoverBrush", 42, 57, 75);
+            SetBrush("SelectedBrush", 44, 77, 112);
+            SetBrush("DangerBrush", 156, 57, 72);
         }
     }
 }
-

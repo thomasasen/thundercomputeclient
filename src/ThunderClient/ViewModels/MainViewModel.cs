@@ -190,6 +190,14 @@ public sealed class MainViewModel : Bindable, IDisposable
         }
     }
 
+    public void ReportStartupFailure(Exception exception)
+    {
+        var safe = RedactKnownSecrets(exception.Message);
+        Message = "Workflow-Synchronisierung nicht möglich: " + safe +
+            " · Git-Zugriff prüfen oder Workflow-Synchronisierung erneut starten. " +
+            "Diagnose: " + StartupDiagnostics.LogPath;
+    }
+
     public async Task InitializeAsync()
     {
         await SyncAsync();

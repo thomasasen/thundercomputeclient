@@ -20,12 +20,16 @@ public sealed class GitWorkspace(ICommandRunner commands)
     public async Task<SyncResult> SynchronizeAsync(string destination, CancellationToken ct = default)
     {
         var full = Path.GetFullPath(destination);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+
+        // Prevent two running clients from cloning/fetching the same checkout simultaneously.
+        // The lock lives next to the checkout; it does not dirty the Git worktree.
+        using var workspaceLock = AcquireWorkspaceLock(full);
         if (Directory.Exists(full) && !Directory.Exists(Path.Combine(full, ".git")))
             throw new InvalidOperationException("Workflow-Verzeichnis existiert, enthält aber keinen Git-Checkout. Keine Daten werden überschrieben.");
 
         if (!Directory.Exists(full))
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             var temp = full + ".clone-" + Guid.NewGuid().ToString("N");
             try
             {
@@ -33,7 +37,16 @@ public sealed class GitWorkspace(ICommandRunner commands)
                     TimeSpan.FromMinutes(10), ct);
                 Directory.Move(temp, full);
             }
-            finally { if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true); }
+            catch
+            {
+                // Windows/antivirus can lock or mark an index/pack file read-only.
+                // Cleanup must NEVER replace the original Git error with
+                // 'Access to the path pack-*.idx is denied'.
+                try { if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+                throw;
+            }
         }
         else
         {
@@ -56,6 +69,21 @@ public sealed class GitWorkspace(ICommandRunner commands)
             await CheckedAsync(Args("merge", "--ff-only", "FETCH_HEAD"), ct: ct);
         }
         return new SyncResult(await CurrentCommitAsync(full, ct), false, "GitHub main synchronisiert");
+    }
+
+    private static FileStream AcquireWorkspaceLock(string checkout)
+    {
+        try
+        {
+            return new FileStream(checkout + ".sync.lock", FileMode.OpenOrCreate,
+                FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (IOException ex)
+        {
+            throw new IOException(
+                "Die Workflow-Synchronisierung läuft möglicherweise bereits in einem anderen Client-Fenster. " +
+                "Bitte nur eine Instanz gleichzeitig aktualisieren.", ex);
+        }
     }
 
     public async Task<string> CurrentCommitAsync(string folder, CancellationToken ct = default)
