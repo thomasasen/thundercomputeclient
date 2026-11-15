@@ -25,6 +25,7 @@ public partial class MainWindow : Window, IUserDialogs
         StartupDiagnostics.Trace("MainWindow: ViewModel geladen");
         DataContext = _model;
         _model.PodCreated += () => MainTabs.SelectedIndex = 3;
+        _model.DeploymentLogsRequested += () => MainTabs.SelectedIndex = 4;
         ApplyTheme(_model.Theme);
         StartupDiagnostics.Trace("MainWindow: Theme gesetzt");
     }
@@ -54,6 +55,8 @@ public partial class MainWindow : Window, IUserDialogs
         if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
             CopyStartupLogButton.Content is not "Startdiagnose kopieren")
             throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
+        if (AutomaticDeployButton.Content is not "Pod + Modelle automatisch starten …")
+            throw new InvalidOperationException("Automatische Bereitstellung ist nicht erreichbar.");
         if (LoadCatalogButton.Content is not "1  Katalog laden und Workflows wählen" ||
             ContinueToHardwareButton.Content is not "2  Auswahl übernehmen → Hardware prüfen" ||
             PodSetupButton.Content is not "4  Installation & Logs")
