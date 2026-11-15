@@ -3,6 +3,19 @@ using System.Text.RegularExpressions;
 
 namespace ThunderClient.Core;
 
+public sealed class ThunderSshKeyApiTimeoutException : InvalidOperationException
+{
+    public ThunderSshKeyApiTimeoutException(int exitCode)
+        : base("Thunder hat die Registrierung des SSH-Schlüssels nicht innerhalb des " +
+            "API-Zeitlimits beantwortet (tnr connect, Exitcode " + exitCode +
+            ", POST /v1/instances/{id}/add_key). " +
+            "Der Zustand dieser Anfrage ist unbekannt: Der Schlüssel könnte " +
+            "serverseitig schon registriert worden sein, wurde von der CLI " +
+            "aber nicht lokal gespeichert. Kein neuer Pod ist nötig. " +
+            "Die Registrierung wird NICHT automatisch wiederholt.")
+    { }
+}
+
 public sealed record SnapshotItem(string Id, string Name, string Status, int MinimumDiskGb)
 {
     public string Display => $"{Name} · {Status} · mindestens {MinimumDiskGb} GB";
@@ -136,7 +149,11 @@ public sealed class ThunderCli(ICommandRunner commands)
         {
             var response = await CallAsync(["connect", instance.Id, "--json"], ct: ct);
             if (!response.Success)
+            {
+                if (IsSshKeyRegistrationTimeout(response))
+                    throw new ThunderSshKeyApiTimeoutException(response.ExitCode);
                 throw new InvalidOperationException(ExplainSshConnectionFailure(response));
+            }
 
             using var doc = JsonDocument.Parse(response.Stdout.Trim());
             var data = doc.RootElement;
@@ -161,8 +178,28 @@ public sealed class ThunderCli(ICommandRunner commands)
     /// A CLI usage page can also appear on stderr; it is not the root cause.
     /// Never display raw structured output which may contain sensitive fields.
     /// </summary>
+    public static bool IsSshKeyRegistrationTimeout(CommandResult output)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(output.Stdout.Trim());
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("error", out var err) ||
+                err.ValueKind != JsonValueKind.String)
+                return false;
+            var reason = err.GetString() ?? "";
+            return reason.Contains("failed to add SSH key", StringComparison.OrdinalIgnoreCase) &&
+                reason.Contains("/add_key", StringComparison.OrdinalIgnoreCase) &&
+                (reason.Contains("context deadline exceeded", StringComparison.OrdinalIgnoreCase) ||
+                 reason.Contains("Client.Timeout exceeded", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (JsonException) { return false; }
+    }
+
     public static string ExplainSshConnectionFailure(CommandResult output)
     {
+        if (IsSshKeyRegistrationTimeout(output))
+            return new ThunderSshKeyApiTimeoutException(output.ExitCode).Message;
         string? reason = null;
         try
         {
