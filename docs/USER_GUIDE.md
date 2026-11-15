@@ -1,5 +1,17 @@
 # Benutzerhandbuch
 
+## Automatische VM-Erstellung und Modelldownloads
+
+1. Unter **Systemstatus** GitHub-/Thunder-/OpenSSH-Einrichtung prüfen und bei Bedarf Civitai/HF-Tokens unter **Zugangsdaten** hinterlegen.
+2. **Workflows** öffnen, gewünschte Ordner markieren und **„Automatisch bereitstellen: Pod + ComfyUI + Modelle …“** anklicken. Die Hardware wird aus dem Manifestbudget und den RunPod-README-Hardwareklassen geplant, aber nicht als Thunder-Kompatibilität ausgegeben. Alternativ vor dem Klick unter **Neue Instanz** GPU und Disk anpassen.
+3. Das Dialogfenster mit deduplizierter Modellgröße, GPU-Fallback, vCPUs, Gesamtdisk, Preisschätzung und Warnungen kontrollieren. **Erst nach Ja** erfolgt der kostenpflichtige Start; die Preisgrenze ist eine lokale Schätzung, keine Thunder-Abrechnungssperre. Existiert ein Pod, wird er nach Zustimmung verwendet. Es wird **kein zweiter Pod** angelegt.
+4. Der Client wartet automatisch auf `RUNNING` und einen gültigen SSH-Endpunkt. `tnr connect --json` kann einen fehlenden SSH-Schlüssel erzeugen. **Neue Hostfingerprints unbedingt mit einer unabhängigen Thunder-Quelle vergleichen** und nur bei Übereinstimmung bestätigen.
+5. Nach erfolgreichem SSH-Login startet automatisch das vorhandene `thunder/bootstrap.sh`. Modell-/Node-Transfers laufen bereits während der ComfyUI-Einrichtung an. Das Upstream-Verfahren nutzt maximal **vier adaptive parallele Datei-Jobs**; die Echtzeitereignisse erscheinen unter **Downloads & Logs**. Der Upstream meldet HTTP-Bereitschaft an `127.0.0.1:8188/system_stats`. Zum Browserzugriff **Instanzen → ComfyUI öffnen (SSH)** nutzen.
+
+**Die Desktop-Anwendung während dieser ersten Ein-Klick-Installation geöffnet lassen.** Das Remote-ComfyUI läuft nach erfolgreichem Bootstrap im SSH-Prozess; ein unterbrochener SSH-Stream ist keine verlässliche Erfolgsmeldung. Das Programm erzeugt nach Abbruch oder SSH-Fehler **keinen** weiteren Pod und startet die Installation nicht blind erneut. **Automatik abbrechen** unterbricht nur die laufende Verbindung; ein vorhandener Pod verursacht möglicherweise weiterhin GPU-Kosten. Bestehende Outputs vor Löschung per Snapshot sichern. Der Modus erkennt ein bereits laufendes ComfyUI und überspringt dann einen zweiten Bootstrap, bestätigt aber **nicht**, dass alle neu ausgewählten Workflows installiert sind.
+
+Bei Civitai-Modellen verlangt der automatische Modus vorab einen gespeicherten Civitai-API-Key. Fehlen Größenangaben, eine aktive GPU innerhalb der Preisgrenze oder explizite Manifestautorisierungen, wird vor dem kostenpflichtigen Start abgebrochen.
+
 ## SSH-Ports und Schlüsselkontrolle
 
 In **Instanzen** zeigt die Liste jetzt den tatsächlichen, von Thunder gemeldeten SSH-Port. Der Port kann vor Fertigstellung des Pod-Starts noch fehlen. Die numerische Instanz-ID `0` ist normal.

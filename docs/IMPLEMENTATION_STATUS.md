@@ -34,3 +34,10 @@ Es werden keine undokumentierten Thunder-API-Endpunkte, Live-Verfügbarkeiten, t
 - Belastbare lokale Historie / Reconnect-Statusautomaten und fortlaufendes Hardwaremonitoring.
 - Durchgängige Windows-UI-Tests, statische Security-Tools und unabhängiger Sicherheitsreview vor einem Merge.
 
+
+
+## Ein-Klick-Bereitstellung (Alpha 0.1.0-alpha.13)
+
+- **Umgesetzt:** ausgewählte Workflowordner → manifestbasierte GPU-/Diskplanung → ausdrückliche Kostenfreigabe → genau ein neuer Pod oder bestätigte Wiederverwendung → begrenztes RUNNING/SSH-Port-Warten → SSH-Schlüsselerstellung durch die offizielle CLI und unabhängige Hostfingerprint-Bestätigung → bestehender Thunder-Bootstrap mit bis zu vier adaptiven parallelen Modelldownloads und parallel laufenden Nodes → Liveprotokoll und ComfyUI-HTTP-Bereitschaft.
+- **Sicherheitsgrenzen:** keine stillschweigende Preisobergrenzenerhöhung, bei unklaren Create-/SSH-/Downloadfehlern kein weiterer Pod, keine Auto-Löschung, bei erforderlicher zusätzlicher Manifestautorisierung keine automatische Bereitstellung.
+- **Noch offen:** belastbarer Live-End-to-End-Test mit bestehendem Nutzer-Pod, persistenter Remote-Supervisor/Resume bei App-Abbruch, gepinnter Remote-Entrypoint statt beweglichem `main`, Live-Hardware-/Preise, unabhängige Red-Team-Prüfung und codesignierter Installer. GUI während des ersten automatischen Bootstrap geöffnet lassen.

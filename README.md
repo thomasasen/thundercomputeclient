@@ -2,7 +2,21 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Alpha-Vorabversion v0.1.0-alpha.12, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Alpha-Vorabversion v0.1.0-alpha.13, keine Produktionsfreigabe.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+
+## Ein-Klick-Bereitstellung
+
+Nach dem automatischen Laden des privaten Katalogs auf **Workflows** einen oder mehrere Workflows auswählen und **„Automatisch bereitstellen: Pod + ComfyUI + Modelle …“** anklicken. Alternativ unter **Neue Instanz** die Hardware vorher anpassen und **„Pod + Modelle automatisch starten …“** wählen.
+
+1. Der Client berechnet die deduplizierte Modellgröße aus den authentifizierten `model.json`-Manifesten sowie eine Gesamtdisk mit der dokumentierten pauschalen Reserve. README-VRAM-Angaben sind **RunPod-Referenzen, keine Thunder-Messungen**. Er berücksichtigt nur bereits aktivierte GPUs und erhöht **niemals automatisch die Preisgrenze**. Fehlende Größen, widersprüchliche Modelldateien und gesondert zu bestätigende Manifestautorisierungen blockieren den automatischen Start.
+2. **Vor der kostenpflichtigen Erstellung** erscheinen die konkrete GPU-Reihenfolge, vCPUs, Disk, geschätzte Kosten für 1/4/12 Stunden und die aktuellen Grenzen. Erst nach dem bestätigenden Klick auf **Ja** wird ein Pod angelegt. **Existiert bereits genau ein Pod, wird dieser nach eigener Zustimmung wiederverwendet.** Bei mehreren Pods wird aus Sicherheitsgründen abgebrochen, statt versehentlich den falschen Pod zu wählen.
+3. Der Client wartet auf den vom Anbieter gemeldeten Status `RUNNING` mit gültiger SSH-IP und Port, bereitet den SSH-Schlüssel über die offizielle `tnr`-CLI vor und verlangt bei einem neuen Host die **unabhängige ED25519-Fingerprint-Bestätigung**. Ist SSH nicht bereit, wird **kein neuer GPU-Pod** erzeugt.
+4. Anschließend startet der Client den vorhandenen `thunder/bootstrap.sh` aus der privaten GitHub-API im per SSH geöffneten Pod. Der Upstream-Bootstrap installiert ComfyUI, seine Nodes und die ausgewählten Workflows. Er startet die **bestehenden parallelen Modell-/Node-Downloads** mit adaptivem, auf **maximal vier gleichzeitige Datei-Jobs** begrenztem Download-Scheduler. `Downloads & Logs` zeigt die Echtzeitprotokolle, Modellfortschritte und die vom Upstream gemeldete ComfyUI-HTTP-Bereitschaft. Ein bereits antwortender ComfyUI-Dienst wird nicht ungefragt durch einen zweiten Bootstrap überlagert.
+5. Unter **Instanzen** kann ComfyUI wie bisher über den privaten SSH-Tunnel geöffnet werden. Für diesen Modus wird **kein öffentlicher ComfyUI-Port** eingerichtet.
+
+**Betriebshinweise:** Der erste Ein-Klick-Modus hält die SSH-/Bootstrap-Verbindung zur laufenden ComfyUI-Sitzung offen. **Die Desktop-App muss dabei geöffnet bleiben.** Bei App-Abbruch, Netzwerkunterbrechung oder unklarem SSH-/Download-Fehler erfolgt **kein blinder automatischer Neustart**. Der bestehende Pod kann weiterhin Kosten verursachen; der Benutzer muss den Remote-Zustand vor erneuter Einrichtung prüfen. **„Automatik abbrechen“ löscht keine Instanz**. Die VM wird auch bei fehlgeschlagenen Downloads nicht automatisch gelöscht.
+
+Für Civitai-Modelle ist ein hinterlegter Civitai-API-Key Voraussetzung für den automatischen Vollinstallationsmodus. Gated-Modelle und zusätzliche Anbieterfreigaben sind damit nicht garantiert. Tokens werden aus Windows Credential Manager über den bestehenden SSH-Standard-Eingabekanal übergeben, nicht als Kommandozeilenargumente. Das private Workflow-Repository wird nicht verändert.
 
 ## Systemstatus und Einrichtungsassistent
 

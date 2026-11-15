@@ -54,3 +54,11 @@ Als achte Seite ist **Systemstatus** neben den bestehenden Arbeitsbereichen perm
 Jede der sieben Prüfungen hat einen klaren Titel, einen erklärenden Status, ein kurzes Einrichtungsverfahren, einen offiziellen Link zum jeweiligen Konto-/Dokumentationsbereich sowie die Navigation zum passenden GUI-Tab. Die Übersicht trennt erfolgreich **getestete** Verbindungen von lediglich **vorhandenen** Dateien und nicht prüfbaren Bedingungen; optional fehlende Provider-Tokens sind nicht mit zwingenden Voraussetzungen gleichgesetzt.
 
 Keine automatischen Ressourcenoperationen, kein automatisches SSH-Hostvertrauen. Die GUI-Smoke-Prüfung deckt alle acht Ansichten inklusive Systemstatus ohne Netzwerkzugriff ab.
+
+## Ein-Klick-Bereitstellung (Alpha v0.1.0-alpha.13)
+
+Nach Auswahl der gewünschten Workflows ist ein großer Button **„Automatisch bereitstellen: Pod + ComfyUI + Modelle …“** direkt in der Workflow-Bibliothek sichtbar. Auf der Hardwareseite wird **„Pod + Modelle automatisch starten …“** als primäre Aktion angezeigt, während der bisherige reine Pod-Create als sekundäre Option erhalten bleibt. Im Pod-Bereich kann ein bestehender Pod nach ausdrücklicher Freigabe automatisch eingerichtet werden.
+
+Die Kostenfreigabe zeigt vor jedem kostenpflichtigen Start die deduplizierten Modellgrößen, hardwarebasierte Planung, GPU-Fallback, CPU/Disk, 1/4/12-Stunden-Schätzung und Einschränkungen. Der Client navigiert zum Downloadprotokoll, sobald der Pod bereit ist und die SSH-Vorbereitung beginnt. Der Status wird während der gestreamten Ausgabe anhand von `DOWNLOAD-STATUS` und dem Upstream-`comfyui_http_ready`-Signal aktualisiert. **Automatik abbrechen** ist bewusst mit **„Pod bleibt!“** beschriftet.
+
+Keine kostenpflichtige Aktion ohne Nutzerbestätigung, keine automatische SSH-Fingerprint-Zustimmung und keine stillschweigende Löschung. App-Schließung und Wiederanlauf sind vorerst kein vollautomatischer Supervisor-Fall und werden deutlich erklärt.

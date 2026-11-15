@@ -1,5 +1,17 @@
 # Architektur
 
+## Automatischer Ein-Klick-Deploy
+
+`AutoProvisioning.Plan` berechnet aus dem tatsächlich ausgewählten und GitHub-Commit-identifizierten Workflow-Katalog die deduplizierte Modellgröße, den Diskbedarf (Modellgrößen + 40 GB pauschale Reserve bzw. die höhere RunPod-Referenz) und die Kandidaten aus der vom Benutzer aktivierten GPU-Reihenfolge. Kandidaten unter der dokumentierten VRAM-Orientierung oder über der benutzerseitig freigegebenen **historischen** Preisgrenze werden ausgeschlossen. Fehlende Modellgrößen, kollidierende Modelldateien sowie deklarierte `required_authorization_env`-Pflichten blockieren diese automatische Aktion. Eine fehlende Civitai-Anmeldung bei gewählten Civitai-Modellen blockiert ebenfalls den Vollinstallationsmodus. Keine Live-GPU-/Preis-/CUDA-Kompatibilität wird behauptet.
+
+`MainViewModel.AutoDeployAsync` friert Plan, gewählte Workflows, Commit und Bootstrap-Skript vor dem ersten Anbieteraufruf ein. Die Kosten-/Wiederverwendungsbestätigung ist der letzte Schritt vor dem kostenpflichtigen `tnr create`. Existiert genau ein Pod, wird er mit erneuter Bestätigung wiederverwendet; mehrere Pods verhindern automatische Zuordnung. Die bisherige `ThunderCli.CreateWithFallbackAsync`-Sperre gegen Doppelstarts bleibt unverändert. `AutoProvisioning.WaitForRunningSshAsync` wartet begrenzt auf `RUNNING` mit IPv4/IPv6 und valide angegebenem Port. Bei Fehlern erfolgt **niemals ein weiterer Create-Versuch**.
+
+`TrustedSshAsync` ruft die offizielle `tnr connect --json` zur Schlüsselvorbereitung auf, scannt ED25519 und fragt im unveränderten Fingerprint-Dialog nach unabhängiger Bestätigung. Danach wird eine echte SSH-Anmeldung mit zeitbegrenztem `true` getestet. Ein vorhandenes, bereits HTTP-antwortendes ComfyUI auf Pod-Loopback wird nicht ungefragt durch parallele Bootstrap-Prozesse gestört.
+
+Anschließend übergibt `SshService.BootstrapAsync` den vorhandenen `thunder/bootstrap.sh` mit `WORKFLOWS` und `MODEL_DOWNLOAD_WORKERS=4` über SSH-stdin. Der Upstream startet `early_workers.py` (Modelle und Nodes parallel) sowie `download_scheduler.py` (providerabhängig adaptiv, höchstens vier Datei-Jobs) und geht schließlich per `exec` direkt in ComfyUI über. **Deshalb ist das Bootstrap-Task langfristig aktiv und nicht beim Start von ComfyUI abgeschlossen.** Der Client wertet `[DOWNLOAD-STATUS]`-Logereignisse und `phase=comfyui_http_ready status=ok` als Fortschritts-/Bereitschaftssignale aus; der echte Remote-Prozess bleibt über die SSH-Verbindung gebunden.
+
+Kein automatischer Neustart nach Verbindungsverlust, kein unbedingtes Entfernen kostenpflichtiger Ressourcen und **noch kein persistenter Hintergrund-Supervisor**. Für diesen ersten Modus muss die GUI geöffnet bleiben; Abbruch und unklarer Remote-Zustand erfordern eine bewusste Prüfung. Der Remote-Adapter ruft weiter den Entrypoint von beweglichem `main` ab; die lokal angezeigte GitHub-Commit-SHA ist deshalb **kein vollständiger Remote-Deployment-Pin**.
+
 ## Lokale Voraussetzungen und Statusprüfungen
 
 `SystemReadinessService` stellt die Einrichtungsprüfung bereit. `SetupCheck` hält pro Bereich Status, Zeitstempel, verständliche Erklärung, offizielle URL und GUI-Navigationsziel; `MainViewModel` startet Prüfungen nur auf ausdrücklichen Klick, ohne Secret-Text in Log oder Status zu spiegeln. `MainWindow.xaml` zeigt die achte Seite und navigiert über ausschließlich freigegebene HTTPS-Hosts zu offiziellen Hilfeseiten. Jede Prüfung ist unabhängig und ihre Ergebnisse sind klar von bloßer Dateiexistenz getrennt.

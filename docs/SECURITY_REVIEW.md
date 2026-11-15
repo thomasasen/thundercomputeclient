@@ -16,6 +16,16 @@ Schutzgüter: GitHub-PAT, HF/Civitai-API-Tokens, SSH-Schlüssel, lokal eingelese
 8. Snapshot/Deletion mit ausdrücklichen Bestätigungen, Backup-Hinweisen; keine automatische Wiederholung eines abgebrochenen Bootstrap.
 9. Tests mocken alle externen Aufrufe, sodass keine Kosten und Downloads ausgelöst werden.
 
+## Ein-Klick-Bereitstellung: Kosten und SSH-Vertrauen
+
+- Planung nur aus ausgewählten, authentifizierten Workflow-Manifesten, bei unbekannten Modelldateigrößen, Kollisionen oder expliziten Manifest-Autorisierungsflags kein automatischer Start. GPU-/VRAM-Referenzen aus RunPod-READMEs begründen keine sichere Thunder-Laufzeitkompatibilität.
+- Für einen **neuen** Pod ist die ausdrückliche Kostenfreigabe mit GPU-Reihenfolge, Disk und historischer 1/4/12-Stunden-Schätzung zwingend. `CreateWithFallbackAsync` prüft vor und nach Create-Versuchen, erlaubt nur belegte Kapazitätsfehler als Fallback und verhindert Doppelstarts via Lock. Vorhandene einzelne Pods werden nur nach erneutem Bestätigen eingerichtet; bei mehreren Pods wird abgebrochen.
+- Der SSH-Hostschlüssel wird nie automatisch angenommen; ein neuer Fingerprint muss unabhängig verifiziert werden. Der Client nutzt `tnr connect --json` ausdrücklich erst nach Nutzerfreigabe, weil der Befehl ggf. einen neuen Schlüssel anlegt.
+- Bei unklarem Verbindungs-/Downloadfehler keine wiederholten Provisionierungen, keine automatisch ausgelösten Löschungen oder Snapshots. Der Button **Automatik abbrechen** unterbricht die Verbindung, nicht die kostenpflichtige Instanz.
+- Vor der kostenpflichtigen Vollinstallation wird bei Civitai-Modellen ein Civitai-Key verlangt. Das ersetzt weder Lizenz-/Gated-Freigaben noch das Upstream-Autorisierungs-Preflight.
+- Der bestehende SSH-stdin-Bootstrap überträgt die Tokens im Prozesskontext, ohne sie in CLI-Argumenten, Git-URLs oder Logmeldungen abzulegen. Andere Prozesse desselben Linux-Benutzers können unter Umständen Umgebungsvariablen lesen.
+- Upstream-Prozess geht per `exec` in ComfyUI über. **Kein langlebiger Supervisor, kein sicheres Auto-Resume nach GUI-Abbruch**. Der Remote-Entrypoint wird weiter dynamisch von `main` geladen: zwischen lokaler Katalogprüfung und Remote-Start kann der GitHub-Stand wechseln. Beides bleibt vor Stable-Release zu beheben.
+
 ## SSH-CLI-Schlüsselprovisionierung und Porttrennung
 
 Thunder `tnr connect <id> --json` liest nicht nur Daten: Wenn kein lokaler Key existiert, kann die CLI einen SSH-Schlüssel serverseitig registrieren und lokal speichern. Daher verwendet die neue Systemstatus-Prüfung **keinen** `tnr connect`-Aufruf mehr; sie prüft den erwarteten lokalen Schlüsselpfad per `File.Exists` und versucht nur bei bereits bestätigtem known_hosts einen zeitbegrenzten, nicht schreibenden SSH-`true`-Befehl.
