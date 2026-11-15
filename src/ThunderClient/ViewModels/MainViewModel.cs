@@ -219,13 +219,13 @@ public sealed class MainViewModel : Bindable, IDisposable
         catch (Exception ex)
         {
             StartupDiagnostics.Record("Thunder-Instanzen", ex);
-            Log("Thunder-Status beim Start nicht verfügbar: " + ex.GetType().Name);
+            Log("Thunder-Status beim Start nicht verfügbar: " + RedactKnownSecrets(ex.Message));
         }
         try { await RefreshSnapshotsAsync(); }
         catch (Exception ex)
         {
             StartupDiagnostics.Record("Thunder-Snapshots", ex);
-            Log("Snapshot-Liste beim Start nicht verfügbar: " + ex.GetType().Name);
+            Log("Snapshot-Liste beim Start nicht verfügbar: " + RedactKnownSecrets(ex.Message));
         }
         _monitorTask = MonitorLoopAsync(_shutdown.Token);
     }
@@ -239,7 +239,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             {
                 if (Busy) continue;
                 try { await RefreshInstancesAsync(ct); }
-                catch (Exception ex) { Log("Status-Aktualisierung fehlgeschlagen: " + ex.GetType().Name); }
+                catch (Exception ex) { Log("Status-Aktualisierung fehlgeschlagen: " + RedactKnownSecrets(ex.Message)); }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

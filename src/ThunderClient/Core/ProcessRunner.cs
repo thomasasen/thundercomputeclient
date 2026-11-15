@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Text;
 
 namespace ThunderClient.Core;
@@ -41,7 +42,26 @@ public sealed class ProcessRunner : ICommandRunner
         start.Environment["GIT_TERMINAL_PROMPT"] = "0";
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         using var process = new Process { StartInfo = start };
-        if (!process.Start()) throw new InvalidOperationException($"Prozessstart fehlgeschlagen: {executable}");
+        try
+        {
+            if (!process.Start())
+                throw new InvalidOperationException($"Prozessstart fehlgeschlagen: {executable}");
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
+        {
+            var description = executable.ToLowerInvariant() switch
+            {
+                "tnr" => "Die offizielle Thunder-CLI 'tnr' wurde nicht gefunden. " +
+                    "Bitte installieren, im Terminal mit 'Get-Command tnr' prüfen " +
+                    "und den Client nach einer PATH-Änderung neu starten.",
+                "git" => "Git for Windows wurde nicht gefunden. " +
+                    "Bitte installieren und im Terminal mit 'Get-Command git' prüfen.",
+                "ssh" or "ssh-keygen" or "ssh-keyscan" =>
+                    "OpenSSH fehlt im Windows-PATH. Bitte den Windows-OpenSSH-Client installieren.",
+                _ => $"Programm '{executable}' wurde nicht gefunden."
+            };
+            throw new InvalidOperationException(description, ex);
+        }
 
         try
         {

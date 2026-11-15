@@ -5,6 +5,13 @@ public sealed class GitWorkspace(ICommandRunner commands)
 {
     public const string Repository = "https://github.com/thomasasen/runpod-ai-workflows.git";
 
+    // The private upstream has Windows-incompatible names under incoming/.
+    // The GUI needs only workflow manifests and the Thunder bootstrap adapter.
+    // Keep the root README/start.sh via cone-mode sparse checkout, while
+    // deliberately never materializing the incoming/ tree on Windows.
+    public static IReadOnlyList<string> SparseDirectories { get; } =
+        ["workflows", "thunder", "scripts", "docs"];
+
     private Task<CommandResult> GitAsync(IEnumerable<string> args, TimeSpan? timeout = null,
         CancellationToken ct = default)
         => commands.RunAsync("git", args, timeout ?? TimeSpan.FromMinutes(3), cancellationToken: ct);
@@ -33,8 +40,13 @@ public sealed class GitWorkspace(ICommandRunner commands)
             var temp = full + ".clone-" + Guid.NewGuid().ToString("N");
             try
             {
-                await CheckedAsync(["clone", "--single-branch", "--branch", "main", Repository, temp],
+                await CheckedAsync(["clone", "--no-checkout", "--single-branch", "--branch", "main", Repository, temp],
                     TimeSpan.FromMinutes(10), ct);
+                await CheckedAsync(["-C", temp, "sparse-checkout", "set", "--cone", .. SparseDirectories],
+                    TimeSpan.FromMinutes(3), ct);
+                await CheckedAsync(["-C", temp, "checkout", "main"],
+                    TimeSpan.FromMinutes(3), ct);
+                ValidateRequiredFiles(temp);
                 Directory.Move(temp, full);
             }
             catch
@@ -62,13 +74,27 @@ public sealed class GitWorkspace(ICommandRunner commands)
             var changed = await CheckedAsync(Args("status", "--porcelain", "--untracked-files=normal"), ct: ct);
             if (!string.IsNullOrWhiteSpace(changed))
                 throw new InvalidOperationException("Lokale Änderungen vorhanden. Kein Überschreiben oder automatischer Merge.");
+            // Migrate any pre-existing full checkout safely after ensuring that
+            // there are no local changes; future fetch/merge stays sparse.
+            await CheckedAsync(Args(["sparse-checkout", "set", "--cone", .. SparseDirectories]),
+                TimeSpan.FromMinutes(3), ct);
             await CheckedAsync(Args("fetch", "--no-tags", "origin", "main"), TimeSpan.FromMinutes(5), ct);
             var ancestor = await GitAsync(Args("merge-base", "--is-ancestor", "HEAD", "FETCH_HEAD"), ct: ct);
             if (ancestor.ExitCode != 0)
                 throw new InvalidOperationException("Lokaler Git-Stand ist nicht per Fast-Forward aktualisierbar.");
             await CheckedAsync(Args("merge", "--ff-only", "FETCH_HEAD"), ct: ct);
+            ValidateRequiredFiles(full);
         }
         return new SyncResult(await CurrentCommitAsync(full, ct), false, "GitHub main synchronisiert");
+    }
+
+    private static void ValidateRequiredFiles(string checkout)
+    {
+        if (!Directory.Exists(Path.Combine(checkout, "workflows")) ||
+            !File.Exists(Path.Combine(checkout, "thunder", "bootstrap.sh")))
+            throw new InvalidDataException(
+                "Workflow-Checkout unvollständig: workflows/ oder thunder/bootstrap.sh fehlt. " +
+                "Kein unvollständiger Git-Stand wird übernommen.");
     }
 
     private static FileStream AcquireWorkspaceLock(string checkout)

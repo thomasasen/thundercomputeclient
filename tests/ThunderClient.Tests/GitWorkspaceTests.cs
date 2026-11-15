@@ -66,6 +66,73 @@ public sealed class GitWorkspaceTests
         finally { DeleteTestTree(root); }
     }
 
+    [Fact]
+    public void SparseCheckoutNeverIncludesWindowsInvalidIncomingTree()
+    {
+        Assert.Contains("workflows", GitWorkspace.SparseDirectories);
+        Assert.Contains("thunder", GitWorkspace.SparseDirectories);
+        Assert.Contains("scripts", GitWorkspace.SparseDirectories);
+        Assert.DoesNotContain("incoming", GitWorkspace.SparseDirectories);
+    }
+
+    private sealed class SparseCloneRunner : ICommandRunner
+    {
+        public List<string[]> Calls { get; } = [];
+
+        public Task<CommandResult> RunAsync(string executable, IEnumerable<string> arguments,
+            TimeSpan timeout, string? standardInput = null, Action<string>? onLine = null,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.Equal("git", executable);
+            var args = arguments.ToArray();
+            Calls.Add(args);
+            if (args[0] == "clone")
+            {
+                Assert.Contains("--no-checkout", args);
+                var folder = args[^1];
+                Directory.CreateDirectory(Path.Combine(folder, ".git"));
+            }
+            else if (args.Contains("sparse-checkout"))
+            {
+                Assert.Equal(["-C", args[1], "sparse-checkout", "set", "--cone",
+                    "workflows", "thunder", "scripts", "docs"], args);
+            }
+            else if (args.Contains("checkout"))
+            {
+                var folder = args[1];
+                Directory.CreateDirectory(Path.Combine(folder, "workflows"));
+                Directory.CreateDirectory(Path.Combine(folder, "thunder"));
+                File.WriteAllText(Path.Combine(folder, "thunder", "bootstrap.sh"), "#!/bin/bash");
+            }
+            else if (args.Contains("rev-parse"))
+            {
+                return Task.FromResult(new CommandResult(0, new string('a', 40), ""));
+            }
+            else throw new InvalidOperationException("Unexpected git call");
+            return Task.FromResult(new CommandResult(0, "", ""));
+        }
+    }
+
+    [Fact]
+    public async Task FreshCloneUsesSparseCheckoutBeforeAnyMaterialization()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "thunder-git-" + Guid.NewGuid().ToString("N"));
+        var destination = Path.Combine(root, "workspace");
+        var runner = new SparseCloneRunner();
+        try
+        {
+            var sync = await new GitWorkspace(runner).SynchronizeAsync(destination);
+            Assert.StartsWith("aaaaaaaa", sync.Commit);
+            Assert.True(File.Exists(Path.Combine(destination, "thunder", "bootstrap.sh")));
+            Assert.Equal(4, runner.Calls.Count);
+            Assert.Equal("clone", runner.Calls[0][0]);
+            Assert.Contains("sparse-checkout", runner.Calls[1]);
+            Assert.Contains("checkout", runner.Calls[2]);
+            Assert.Contains("rev-parse", runner.Calls[3]);
+        }
+        finally { DeleteTestTree(root); }
+    }
+
     private static void DeleteTestTree(string root)
     {
         if (!Directory.Exists(root)) return;
