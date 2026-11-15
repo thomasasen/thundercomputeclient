@@ -790,6 +790,22 @@ public sealed class MainViewModel : Bindable, IDisposable
                     : "Pod " + podId + " kann weiter Kosten verursachen. Remote-Status vor Neustart prüfen.");
             Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
         }
+        catch (OperationCanceledException ex)
+        {
+            // Some platform/CLI implementations throw TaskCanceledException
+            // for their own internal deadline without cancelling our deploy
+            // token. It is not a user-initiated stop. Preserve the stage.
+            var lastStep = AutoDeploymentStatus;
+            var timeoutMessage = "Ein interner Befehl hat während '" +
+                lastStep + "' das Zeitlimit überschritten. " +
+                "Es wurde kein weiterer Pod erstellt.";
+            AutoDeploymentStatus = timeoutMessage +
+                (podId is null ? "" :
+                    " Pod " + podId + " kann weiter Kosten verursachen. " +
+                    "Unter Instanzen vorhandenen Pod prüfen; nicht neu erstellen.");
+            Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
+            throw new TimeoutException(timeoutMessage, ex);
+        }
         catch (Exception ex)
         {
             var reason = ex is TimeoutException timeout
