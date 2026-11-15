@@ -15,6 +15,8 @@
         <SolidColorBrush x:Key="HoverBrush" Color="#E5EBF3" />
         <SolidColorBrush x:Key="SelectedBrush" Color="#DCE9FC" />
         <SolidColorBrush x:Key="DangerBrush" Color="#B84A59" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="#18734B" />
+        <SolidColorBrush x:Key="CautionBrush" Color="#8B6118" />
 
         <Style TargetType="{x:Type Window}">
             <Setter Property="Background" Value="{DynamicResource WindowBrush}" />

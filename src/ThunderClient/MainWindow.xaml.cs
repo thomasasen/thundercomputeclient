@@ -290,6 +290,8 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("HoverBrush", 229, 235, 243);
             SetBrush("SelectedBrush", 220, 233, 252);
             SetBrush("DangerBrush", 184, 74, 89);
+            SetBrush("SuccessBrush", 24, 115, 75);
+            SetBrush("CautionBrush", 139, 97, 24);
         }
         else
         {
@@ -304,7 +306,9 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("BorderBrush", 56, 70, 88);
             SetBrush("HoverBrush", 42, 57, 75);
             SetBrush("SelectedBrush", 44, 77, 112);
-            SetBrush("DangerBrush", 156, 57, 72);
+            SetBrush("DangerBrush", 250, 128, 142);
+            SetBrush("SuccessBrush", 107, 220, 160);
+            SetBrush("CautionBrush", 250, 194, 103);
         }
     }
 }

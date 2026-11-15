@@ -9,6 +9,7 @@ public sealed class SetupCheck : Bindable
 {
     private string _status = "Nicht geprüft";
     private string _detail = "Über „Jetzt prüfen“ einen lesenden Test starten.";
+    private string _testedAt = "Noch kein Test durchgeführt";
     public required string Id { get; init; }
     public required string Title { get; init; }
     public required string Guide { get; init; }
@@ -18,7 +19,15 @@ public sealed class SetupCheck : Bindable
     public bool Optional { get; init; }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string Detail { get => _detail; private set => Set(ref _detail, value); }
-    public void Update(string status, string detail) { Status = status; Detail = detail; }
+    public string TestedAt { get => _testedAt; private set => Set(ref _testedAt, value); }
+    public void Update(string status, string detail)
+    {
+        Status = status;
+        Detail = detail;
+        TestedAt = status is "Nicht geprüft" or "Prüfe …"
+            ? "Noch kein abgeschlossener Test"
+            : "Zuletzt geprüft: " + DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss");
+    }
 }
 
 public sealed class SystemReadinessService : IDisposable
