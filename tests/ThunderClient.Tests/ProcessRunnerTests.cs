@@ -41,6 +41,32 @@ public sealed class ProcessRunnerTests
     }
 
     [Fact]
+    public async Task InternalProcessTimeoutReportsDeadlineRatherThanUserCancellation()
+    {
+        var runner = new ProcessRunner();
+        var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
+            runner.RunAsync("cmd.exe",
+                ["/d", "/c", "ping -n 6 127.0.0.1 >NUL"],
+                TimeSpan.FromMilliseconds(350)));
+        Assert.Contains("cmd.exe", ex.Message);
+        Assert.Contains("Zeitlimit", ex.Message);
+        Assert.DoesNotContain("A task was canceled", ex.Message);
+    }
+
+    [Fact]
+    public async Task UserCancellationIsNotMisreportedAsAProcessDeadline()
+    {
+        var runner = new ProcessRunner();
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(TimeSpan.FromMilliseconds(250));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            runner.RunAsync("cmd.exe",
+                ["/d", "/c", "ping -n 6 127.0.0.1 >NUL"],
+                TimeSpan.FromSeconds(12),
+                cancellationToken: cts.Token));
+    }
+
+    [Fact]
     public void UnresolvableThunderCliFallsBackToSystemError()
     {
         var temp = Path.Combine(Path.GetTempPath(), "thunder-no-cli-" + Guid.NewGuid().ToString("N"));

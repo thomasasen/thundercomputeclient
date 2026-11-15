@@ -111,7 +111,8 @@ public sealed class SshHostKeyTests
             "choose_kex: unsupported KEX method unknown-algorithm"));
     }
 
-    private sealed class KexFailureThenSshRunner(bool produceValidKey) : ICommandRunner
+    private sealed class KexFailureThenSshRunner(
+        bool produceValidKey, bool timeoutAfterCapture = false) : ICommandRunner
     {
         public int Calls { get; private set; }
         public string? TemporaryFile { get; private set; }
@@ -152,6 +153,10 @@ public sealed class SshHostKeyTests
             if (produceValidKey)
                 File.WriteAllText(TemporaryFile,
                     $"[{Host}]:{Port} ssh-ed25519 {TestEd25519Base64()}\n");
+            // Timeout after key capture is possible for -N (no remote command).
+            // The temporary public-key file must still be verified and cleaned.
+            if (timeoutAfterCapture)
+                throw new TimeoutException("Programm 'ssh' hat 18s nicht geantwortet.");
             // SSH exits nonzero after anonymous handshake because authentication
             // is intentionally disabled. The collected public host key is still valid.
             return Task.FromResult(new CommandResult(255, "",
@@ -172,6 +177,20 @@ public sealed class SshHostKeyTests
         Assert.False(runner.UnsafeOptionsObserved);
         Assert.False(File.Exists(runner.TemporaryFile));
         Assert.False(Directory.Exists(Path.GetDirectoryName(runner.TemporaryFile!)));
+    }
+
+    [Fact]
+    public async Task IsolatedKeyCaptureStillValidWhenSshSessionTimesOut()
+    {
+        var runner = new KexFailureThenSshRunner(
+            produceValidKey: true, timeoutAfterCapture: true);
+        var progress = new List<string>();
+        var ssh = new SshService(runner);
+        var result = await ssh.ScanHostKeyAsync(Endpoint(), progress: progress.Add);
+        Assert.StartsWith("SHA256:", result.Fingerprint);
+        Assert.Equal(2, runner.Calls);
+        Assert.Contains(progress, x => x.Contains("SSH-Handshake-Zeitlimit"));
+        Assert.False(File.Exists(runner.TemporaryFile));
     }
 
     [Fact]
