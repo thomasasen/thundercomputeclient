@@ -170,7 +170,7 @@ public partial class MainWindow : Window, IUserDialogs
         // Allowlisted official setup destinations only, never a URL from a remote manifest.
         if (!Uri.TryCreate(setup.HelpUrl, UriKind.Absolute, out var target) ||
             target.Scheme != Uri.UriSchemeHttps ||
-            target.Host is not ("github.com" or "huggingface.co" or "learn.microsoft.com" or "developer.civitai.com"))
+            target.Host is not ("github.com" or "huggingface.co" or "learn.microsoft.com" or "developer.civitai.com" or "civitai.com"))
         {
             Notify("Einrichtungshilfe", "Der externe Hilfelink ist nicht vertrauenswürdig.");
             return;

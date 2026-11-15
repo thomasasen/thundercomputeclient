@@ -129,7 +129,7 @@ public sealed class SystemReadinessTests
     public void ReadinessHelpUrlsAreHttpsAndHaveFixedTrustedHosts()
     {
         var hosts = new[] { "github.com", "huggingface.co",
-            "learn.microsoft.com", "developer.civitai.com" };
+            "learn.microsoft.com", "developer.civitai.com", "civitai.com" };
         var checks = SystemReadinessService.CreateChecks();
         Assert.Equal(7, checks.Count);
         foreach (var item in checks)
