@@ -792,11 +792,21 @@ public sealed class MainViewModel : Bindable, IDisposable
         }
         catch (Exception ex)
         {
-            AutoDeploymentStatus = "Bereitstellung gestoppt: " +
-                RedactKnownSecrets(ex.Message) +
-                (podId is null ? "" :
-                    " · Pod " + podId + " kann weiter Kosten verursachen; kein automatischer zweiter Create-Versuch.");
+            var reason = RedactKnownSecrets(ex.Message);
+            var isHostKeyIssue =
+                reason.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
+                reason.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase);
+            AutoDeploymentStatus = isHostKeyIssue
+                ? "SSH-Hostschlüssel noch nicht bestätigt. " +
+                  (podId is null ? "Keine Pod-ID bestätigt. " :
+                      "Pod " + podId + " besteht weiterhin und kann Kosten verursachen. ") +
+                  "Es wird kein weiterer Pod erstellt. Unter Instanzen den Status prüfen; " +
+                  "technische Details stehen im kopierbaren Protokoll."
+                : "Bereitstellung gestoppt: " + reason +
+                  (podId is null ? "" :
+                      " · Pod " + podId + " kann weiter Kosten verursachen; kein automatischer zweiter Create-Versuch.");
             Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
+            if (isHostKeyIssue) Log("[SSH-DIAGNOSE] " + reason);
             throw;
         }
         finally
@@ -1043,6 +1053,27 @@ public sealed class MainViewModel : Bindable, IDisposable
     private void Error(Exception exception)
     {
         var safe = RedactKnownSecrets(exception.Message);
+        if (safe.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
+            safe.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase))
+        {
+            var pod = SelectedInstance?.Id;
+            Message = "SSH-Verbindung noch nicht möglich. " +
+                (string.IsNullOrWhiteSpace(pod) ? "Eine bestehende Instanz " :
+                    "Pod " + pod + " ") +
+                "kann weiterhin Kosten verursachen. Kein neuer Pod wurde durch den " +
+                "fehlgeschlagenen Verbindungsversuch erstellt.";
+            Log("[SSH-DIAGNOSE] " + safe);
+            _dialogs.Notify("SSH-Hostschlüssel nicht bestätigt",
+                Message + "\n\n" +
+                "Die Einrichtung wurde vor den Modelldownloads gestoppt. " +
+                "Die SSH-Hostprüfung bleibt aktiv.\n\n" +
+                "1. Unter Instanzen den Pod-Status prüfen.\n" +
+                "2. Unter Systemstatus Windows OpenSSH prüfen.\n" +
+                "3. Bei anhaltendem Fehler unter Downloads & Logs das Protokoll kopieren.\n\n" +
+                "Falls der Pod nicht weiter benötigt wird, unter Instanzen " +
+                "die kostenpflichtige Instanz nach Prüfung bewusst löschen.");
+            return;
+        }
         Message = "Fehler: " + safe;
         Log(Message);
         _dialogs.Notify("Thunder Client", safe);
