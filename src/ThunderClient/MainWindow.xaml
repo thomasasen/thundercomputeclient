@@ -50,7 +50,7 @@
                             <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
                         </WrapPanel>
                         <TextBlock FontSize="17" FontWeight="SemiBold" Text="Hardware" Margin="0,18,0,8" />
-                        <TextBox Text="{Binding Hardware}" IsReadOnly="True" AcceptsReturn="True"
+                        <TextBox Text="{Binding Hardware, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
                                  TextWrapping="Wrap" MinHeight="110" VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
                 </ScrollViewer>
@@ -142,7 +142,7 @@
                             </StackPanel>
                         </WrapPanel>
                         <TextBlock FontWeight="Bold" Text="Startvorschau (nicht live bepreist)" Margin="0,15,0,8" />
-                        <TextBox Text="{Binding Preview}" IsReadOnly="True" TextWrapping="Wrap"
+                        <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
                                  AcceptsReturn="True" MinHeight="245" VerticalScrollBarVisibility="Auto" />
                         <Button Command="{Binding CreateCommand}"
                                 Content="Kostenpflichtige Instanz erstellen …" FontWeight="Bold"
