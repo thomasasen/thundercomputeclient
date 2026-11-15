@@ -126,6 +126,29 @@ public sealed class SystemReadinessTests
     }
 
     [Fact]
+    public async Task ReadinessDoesNotProvisionSshKeysViaTnrConnect()
+    {
+        // A listed RUNNING pod must not cause a stateful tnr connect call.
+        // The CLI's connect --json can register a new SSH key on the backend.
+        const string json = """
+            [{"id":"0","uuid":"11111111-2222-3333-4444-555555555555",
+              "name":"demo","status":"RUNNING","gpuType":"l40",
+              "ip":"203.0.113.11","port":22022}]
+            """;
+        var runner = new FakeThunderRunner(json);
+        var selected = new InstanceItem("0", "11111111-2222-3333-4444-555555555555",
+            "demo", "RUNNING", "l40", "203.0.113.11", 22022, null);
+        using var service = new SystemReadinessService(runner, _ => null,
+            (_, _) => Task.FromResult(Snapshot()), () => selected,
+            new SshService(runner));
+        var checks = SystemReadinessService.CreateChecks();
+        await service.CheckAllAsync(checks);
+        Assert.Equal(1, runner.Calls); // tnr status only, no connect or key creation.
+        Assert.NotEqual("Erfolgreich getestet",
+            checks.Single(x => x.Id == "ssh-auth").Status);
+    }
+
+    [Fact]
     public void ReadinessHelpUrlsAreHttpsAndHaveFixedTrustedHosts()
     {
         var hosts = new[] { "github.com", "huggingface.co",
