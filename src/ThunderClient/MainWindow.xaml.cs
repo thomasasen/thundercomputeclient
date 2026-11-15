@@ -191,6 +191,28 @@ public partial class MainWindow : Window, IUserDialogs
         }
     }
 
+    private void OpenThunderStatus_Click(object sender, RoutedEventArgs e) =>
+        OpenTrustedThunderPage("https://status.thundercompute.com/");
+
+    private void OpenThunderConsole_Click(object sender, RoutedEventArgs e) =>
+        OpenTrustedThunderPage("https://console.thundercompute.com/");
+
+    private void OpenTrustedThunderPage(string url)
+    {
+        // Fixed, official vendor URLs only; never derive from remote manifests.
+        if (url is not ("https://status.thundercompute.com/" or
+                        "https://console.thundercompute.com/")) return;
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Notify("Thunder-Hilfe", "Der Browser konnte nicht geöffnet werden.");
+        }
+    }
+
     private void CopyLog_Click(object sender, RoutedEventArgs e)
     {
         CopyTextToClipboard(_model.LogText, "Das Protokoll ist noch leer.", "Log in die Zwischenablage kopiert.");

@@ -534,6 +534,8 @@
                             <Button x:Name="CopyLogButton" Click="CopyLog_Click" Content="Log kopieren" />
                             <Button x:Name="CopyStartupLogButton" Click="CopyStartupLog_Click" Content="Startdiagnose kopieren" />
                             <Button Command="{Binding ExportLogsCommand}" Content="Bereinigte Logs exportieren" />
+                            <Button Click="OpenThunderStatus_Click" Content="Thunder-Dienststatus" />
+                            <Button Click="OpenThunderConsole_Click" Content="Thunder-Konsole" />
                         </WrapPanel>
                     </StackPanel>
                     <StackPanel Grid.Row="1">
