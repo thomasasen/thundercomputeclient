@@ -120,7 +120,7 @@ public sealed class ThunderCli(ICommandRunner commands)
         var host = Text(data, "ip");
         var keyFile = Text(data, "key_file");
         var port = Int(data, "port");
-        if (string.IsNullOrEmpty(host) || host.ContainsAny([' ', '\r', '\n', '/', '\\']) ||
+        if (string.IsNullOrEmpty(host) || host.IndexOfAny([' ', '\r', '\n', '/', '\\']) >= 0 ||
             port is < 1 or > 65535 || !Path.IsPathFullyQualified(keyFile) || !File.Exists(keyFile))
             throw new FormatException("Thunder lieferte keine vollständigen vertrauenswürdigen SSH-Verbindungsparameter.");
         return new SshConnection(instance.Id, host, port, keyFile);
