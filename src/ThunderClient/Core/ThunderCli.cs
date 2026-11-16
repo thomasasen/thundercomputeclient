@@ -177,6 +177,60 @@ public sealed class ThunderCli(ICommandRunner commands)
     }
 
     /// <summary>
+    /// Read-only discovery of already present private keys. Does not call tnr,
+    /// create or register a key, or modify any remote Thunder resource.
+    /// Explicit BYO-key configuration takes precedence and MUST NOT fall back
+    /// to stateful CLI provisioning if the configured file is unavailable.
+    /// The actual SSH host fingerprint and private-key authentication are
+    /// checked separately by SshService.
+    /// </summary>
+    public static SshConnection? TryExistingSshKey(InstanceItem instance,
+        string? configuredKeyPath, string? thunderHome)
+    {
+        if (instance.Status != "RUNNING")
+            throw new InvalidOperationException("SSH nur für RUNNING-Instanzen.");
+        if (string.IsNullOrWhiteSpace(instance.Id) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(instance.Id,
+                @"\A[A-Za-z0-9_-]{1,64}\z") ||
+            !System.Net.IPAddress.TryParse(instance.Ip, out _) ||
+            instance.Port is < 1 or > 65535)
+            throw new InvalidOperationException(
+                "Thunder-Status enthält keinen gültigen SSH-Endpunkt (ID, IP, Port).");
+
+        if (!string.IsNullOrWhiteSpace(configuredKeyPath))
+        {
+            var path = configuredKeyPath.Trim();
+            if (!Path.IsPathFullyQualified(path) || path.EndsWith(".pub",
+                StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
+                throw new InvalidOperationException(
+                    "THUNDERCLIENT_SSH_KEY muss auf eine vorhandene, absolute " +
+                    "PRIVATE SSH-Schlüsseldatei zeigen. " +
+                    "Keine Thunder-Key-Registrierung wird als Ersatz ausgelöst.");
+            return new SshConnection(instance.Id, instance.Ip, instance.Port, path);
+        }
+
+        if (string.IsNullOrWhiteSpace(instance.Uuid) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(instance.Uuid,
+                @"\A[A-Za-z0-9_-]{8,128}\z"))
+            return null;
+
+        var home = string.IsNullOrWhiteSpace(thunderHome)
+            ? Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.UserProfile), ".thunder")
+            : thunderHome;
+        if (!Path.IsPathFullyQualified(home)) return null;
+        var key = Path.Combine(home, "keys", instance.Uuid);
+        return File.Exists(key)
+            ? new SshConnection(instance.Id, instance.Ip, instance.Port, key)
+            : null;
+    }
+
+    public SshConnection? GetExistingSsh(InstanceItem instance) =>
+        TryExistingSshKey(instance,
+            Environment.GetEnvironmentVariable("THUNDERCLIENT_SSH_KEY"),
+            Environment.GetEnvironmentVariable("TNR_HOME"));
+
+    /// <summary>
     /// The official CLI may create and persist a private SSH key if none exists.
     /// Call only after an explicit user action, never as a read-only readiness probe.
     /// </summary>
@@ -187,9 +241,18 @@ public sealed class ThunderCli(ICommandRunner commands)
         if (string.IsNullOrWhiteSpace(instance.Id))
             throw new InvalidOperationException("Keine gültige Thunder-Instanz-ID vorhanden.");
 
+        // A private key already present on this PC is sufficient to use
+        // standard SSH; tnr connect can issue a NON-IDEMPOTENT POST add_key.
+        // Never make that Thunder API request when a key is already available.
+        var existing = GetExistingSsh(instance);
+        if (existing is not null) return existing;
+
         await _connectGate.WaitAsync(ct);
         try
         {
+            // Another concurrent caller may have just created a local key.
+            existing = GetExistingSsh(instance);
+            if (existing is not null) return existing;
             var response = await CallAsync(["connect", instance.Id, "--json"], ct: ct);
             if (!response.Success)
             {
