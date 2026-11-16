@@ -80,12 +80,9 @@ public sealed class ThunderIdempotentSshAccessTests
             Guid.NewGuid().ToString("N"));
         try
         {
-            var identity = await access.PrepareIdentityAsync(path, CancellationToken.None);
-            // A custom key must already exist, never automatically created.
-            Assert.NotNull(identity);
-        }
-        catch (InvalidOperationException)
-        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                access.PrepareIdentityAsync(path, CancellationToken.None));
+            // A custom key must already exist; never overwrite or auto-create it.
             Assert.Empty(runner.Calls);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -107,8 +104,9 @@ public sealed class ThunderIdempotentSshAccessTests
             Assert.Equal(PublicKey, identity.PublicKey);
             var ssh = await access.AuthorizeAsync(Pod(), identity,
                 "secret-api-token");
-            Assert.Equal("0", ssh.InstanceId);
-            Assert.Equal(path, ssh.KeyFile);
+            Assert.True(ssh.ProviderConfirmed);
+            Assert.Equal("0", ssh.Endpoint.InstanceId);
+            Assert.Equal(path, ssh.Endpoint.KeyFile);
             Assert.Single(net.Requests);
             var request = net.Requests[0];
             Assert.Equal(HttpMethod.Post, request.Method);
@@ -181,6 +179,26 @@ public sealed class ThunderIdempotentSshAccessTests
                 Assert.Equal("/v1/instances/0/add_key", req.Path);
                 Assert.Contains(PublicKey, req.Body);
             });
+            Assert.Equal(net.Requests[0].Body, net.Requests[1].Body);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task AmbiguousServerFailureTriggersReadOnlySshProofRatherThanMoreKeyCreation()
+    {
+        var net = new FakeHttp();
+        net.StatusCodes.Enqueue(HttpStatusCode.ServiceUnavailable);
+        net.StatusCodes.Enqueue(HttpStatusCode.ServiceUnavailable);
+        using var http = new HttpClient(net);
+        var path = Path.GetTempFileName();
+        try
+        {
+            var result = await new ThunderIdempotentSshAccess(http, new FakeKeys())
+                .AuthorizeAsync(Pod(), new(path, PublicKey), "secret-api-token");
+            Assert.False(result.ProviderConfirmed);
+            Assert.Equal(path, result.Endpoint.KeyFile);
+            Assert.Equal(2, net.Requests.Count);
             Assert.Equal(net.Requests[0].Body, net.Requests[1].Body);
         }
         finally { File.Delete(path); }
