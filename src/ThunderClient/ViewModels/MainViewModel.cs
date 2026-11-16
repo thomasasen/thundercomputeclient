@@ -796,7 +796,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             if (!string.IsNullOrWhiteSpace(thunderApiToken))
             {
                 SetAutoDeploymentStage("Prüfe Thunder-Token und SSH-Schlüssel VOR jedem Pod-Create.");
-                await _thunderSshApi.ValidateTokenAsync(thunderApiToken, ct);
+                await _thunderSshApi.ValidateTokenAsync(thunderApiToken, ct, existing);
                 preparedIdentity = await _thunderSshApi.PrepareIdentityAsync(
                     Environment.GetEnvironmentVariable("THUNDERCLIENT_SSH_KEY"), ct);
                 SetAutoDeploymentStage("Thunder-API geprüft; privater SSH-Schlüssel liegt lokal. " +
