@@ -293,6 +293,55 @@ public sealed class SshService(ICommandRunner commands)
     public static string QuoteShell(string value)
         => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 
+    public async Task<string> CheckGpuAndFreeDiskAsync(SshConnection endpoint,
+        int expectedGpus, int requiredVramGb, double modelGb,
+        CancellationToken ct = default)
+    {
+        if (expectedGpus < 1 || requiredVramGb < 0 ||
+            !double.IsFinite(modelGb) || modelGb < 0)
+            throw new ArgumentOutOfRangeException(nameof(modelGb),
+                "Ungültige VRAM-/GPU-/Modellkapazitätsanforderung.");
+        // Must run before large model transfers. Conservative requirement:
+        // enough free disk for every selected model plus operational headroom.
+        // No untrusted workflow string is inserted into the remote shell.
+        var expectedFreeGb = (int)Math.Ceiling(modelGb + 20);
+        var script = "python3 - <<'PY'\n" +
+            "import pathlib, shutil, subprocess, sys\n" +
+            "free_gb = shutil.disk_usage(pathlib.Path.home()).free / 1e9\n" +
+            "required = " + expectedFreeGb + "\n" +
+            "expected = " + expectedGpus + "\n" +
+            "vram_required = " + requiredVramGb + "\n" +
+            "try:\n" +
+            "    gpu = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', " +
+                "'--format=csv,noheader,nounits'], capture_output=True, " +
+                "text=True, timeout=15, check=True)\n" +
+            "    vram = [int(line.strip()) / 1024 for line in gpu.stdout.splitlines() " +
+                "if line.strip()]\n" +
+            "except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):\n" +
+            "    print('[THUNDER-PREFLIGHT] blocked reason=gpu-unavailable', flush=True)\n" +
+            "    sys.exit(45)\n" +
+            "print(f'[THUNDER-PREFLIGHT] free_gb={free_gb:.1f} " +
+                "required_gb={required} gpu_count={len(vram)} " +
+                "vram_gb={min(vram) if vram else 0:.1f}', flush=True)\n" +
+            "if len(vram) < expected or any(value < vram_required for value in vram[:expected]):\n" +
+            "    print('[THUNDER-PREFLIGHT] blocked reason=gpu-vram-insufficient', flush=True)\n" +
+            "    sys.exit(46)\n" +
+            "if free_gb < required:\n" +
+            "    print('[THUNDER-PREFLIGHT] blocked reason=free-disk-insufficient', flush=True)\n" +
+            "    sys.exit(47)\n" +
+            "PY\n";
+        var result = await RunScriptAsync(endpoint, script, ct: ct);
+        if (!result.Success)
+            throw new InvalidOperationException(
+                "Remote-GPU-/Disk-Vorprüfung fehlgeschlagen: " +
+                (result.Stdout.Contains("reason=", StringComparison.Ordinal)
+                    ? result.Stdout.Split('\n').FirstOrDefault(line =>
+                        line.Contains("[THUNDER-PREFLIGHT] blocked", StringComparison.Ordinal))
+                    : "SSH/CUDA/Festplatte nicht prüfbar") +
+                ". Keine großen Modelldownloads gestartet.");
+        return result.Stdout.Trim();
+    }
+
     public async Task<bool> IsComfyUiReadyAsync(SshConnection endpoint, CancellationToken ct = default)
     {
         // Probe the actual remote ComfyUI HTTP API on loopback, never a public port.
