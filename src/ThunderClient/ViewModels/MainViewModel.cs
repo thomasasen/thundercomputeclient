@@ -1086,8 +1086,14 @@ public sealed class MainViewModel : Bindable, IDisposable
                 Environment.GetEnvironmentVariable("THUNDERCLIENT_SSH_KEY"), token);
             progress?.Invoke("Ordne nur den festen öffentlichen SSH-Schlüssel dem Pod zu " +
                 "(idempotenter /add_key-Modus, keine serverseitige Schlüsselerzeugung).");
-            endpoint = await _thunderSshApi.AuthorizeAsync(item, identity, apiToken, token);
-            progress?.Invoke("Thunder bestätigt den Public-Key; prüfe unabhängig den Hostfingerprint.");
+            var registration = await _thunderSshApi.AuthorizeAsync(
+                item, identity, apiToken, token);
+            endpoint = registration.Endpoint;
+            progress?.Invoke(registration.ProviderConfirmed
+                ? "Thunder bestätigt den Public-Key; prüfe unabhängig den Hostfingerprint."
+                : "Thunder-API-Antwort unklar; prüfe nach Hostfingerprint-Bestätigung, " +
+                  "ob derselbe feste Schlüssel bereits per SSH funktioniert. " +
+                  "Kein tnr connect und keine erneute VM-Erstellung.");
         }
         else
         {
