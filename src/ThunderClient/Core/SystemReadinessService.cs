@@ -59,7 +59,7 @@ public sealed class SystemReadinessService : IDisposable
         new SetupCheck {
             Id="thunder-api", Title="Thunder Compute · eigener API-Token (SSH-Erstzugang)",
             Guide="In der Thunder Console unter Authentication → API Tokens einen eigenen benannten API-Token anlegen und unter Zugangsdaten speichern. Die Prüfung sendet nur GET /v1/instances/list und erstellt weder einen Pod noch einen SSH-Key. Der Ein-Klick-Start verlangt diesen Zugriff vor der kostenpflichtigen Pod-Erstellung, wenn noch kein lokaler SSH-Zugang besteht.",
-            HelpUrl="https://console.thundercompute.com/settings/tokens",
+            HelpUrl="https://console.thundercompute.com/",
             HelpLabel="Thunder-API-Token verwalten", SetupTabIndex=5
         },
         new SetupCheck {

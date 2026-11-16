@@ -9,6 +9,7 @@ public sealed class SystemReadinessTests
     private const string FakeGitHubToken = "github_pat_fake_unit_only";
     private const string FakeHfToken = "hf_fake_unit_only";
     private const string FakeCivitaiToken = "civitai_fake_unit_only";
+    private const string FakeThunderToken = "thunder_api_fake_unit_only";
 
     private sealed class FakeThunderRunner(string json = "[]", int exit = 0) : ICommandRunner
     {
@@ -35,6 +36,9 @@ public sealed class SystemReadinessTests
             RequestedUrls.Add(url);
             Auth[url] = request.Headers.Authorization?.Parameter;
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+            if (url == "https://api.thundercompute.com:8443/v1/instances/list")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                { Content = new StringContent("{}") });
             if (url == "https://huggingface.co/api/whoami-v2")
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
             if (url == "https://civitai.com/api/v1/me")
@@ -56,6 +60,7 @@ public sealed class SystemReadinessTests
         await source.CheckAllAsync(checks);
         Assert.Equal("Fehlt", checks.Single(x => x.Id == "github").Status);
         Assert.Equal("Erfolgreich getestet", checks.Single(x => x.Id == "thunder").Status);
+        Assert.Equal("Fehlt", checks.Single(x => x.Id == "thunder-api").Status);
         Assert.Equal("Nicht prüfbar", checks.Single(x => x.Id == "ssh-key").Status);
         Assert.Equal("Nicht prüfbar", checks.Single(x => x.Id == "ssh-auth").Status);
         Assert.Equal("Optional · fehlt", checks.Single(x => x.Id == "huggingface").Status);
@@ -74,6 +79,7 @@ public sealed class SystemReadinessTests
             "github" => FakeGitHubToken,
             "huggingface" => FakeHfToken,
             "civitai" => FakeCivitaiToken,
+            "thunder-api" => FakeThunderToken,
             _ => null
         };
         var githubChecked = false;
@@ -87,15 +93,18 @@ public sealed class SystemReadinessTests
         await service.CheckAllAsync(checks);
         Assert.True(githubChecked);
         Assert.Equal("Erfolgreich getestet", checks.Single(x => x.Id == "github").Status);
+        Assert.Equal("Erfolgreich getestet", checks.Single(x => x.Id == "thunder-api").Status);
         Assert.Equal("Erfolgreich getestet", checks.Single(x => x.Id == "huggingface").Status);
         Assert.Equal("Fehler", checks.Single(x => x.Id == "civitai").Status);
+        Assert.Equal(FakeThunderToken, transport.Auth[
+            "https://api.thundercompute.com:8443/v1/instances/list"]);
         Assert.Equal(FakeHfToken, transport.Auth["https://huggingface.co/api/whoami-v2"]);
         Assert.Equal(FakeCivitaiToken, transport.Auth["https://civitai.com/api/v1/me"]);
         Assert.DoesNotContain(FakeHfToken,
             string.Join(" ", checks.Select(x => x.Detail)));
         Assert.DoesNotContain(FakeCivitaiToken,
             string.Join(" ", checks.Select(x => x.Detail)));
-        Assert.Equal(2, transport.RequestedUrls.Count);
+        Assert.Equal(3, transport.RequestedUrls.Count);
     }
 
     [Fact]
@@ -152,9 +161,10 @@ public sealed class SystemReadinessTests
     public void ReadinessHelpUrlsAreHttpsAndHaveFixedTrustedHosts()
     {
         var hosts = new[] { "github.com", "huggingface.co",
-            "learn.microsoft.com", "developer.civitai.com", "civitai.com" };
+            "learn.microsoft.com", "developer.civitai.com", "civitai.com",
+            "console.thundercompute.com" };
         var checks = SystemReadinessService.CreateChecks();
-        Assert.Equal(7, checks.Count);
+        Assert.Equal(8, checks.Count);
         foreach (var item in checks)
         {
             var url = new Uri(item.HelpUrl);
