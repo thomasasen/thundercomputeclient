@@ -100,6 +100,52 @@ public class ThunderTests
         Assert.False(ThunderCli.IsCertainCapacityFailure(message));
 
     [Fact]
+    public void CreateSuccessKeepsExactIdentityWhenStatusIsEventuallyConsistent()
+    {
+        var identity = ThunderCli.ParseCreateIdentity(
+            """{"identifier":123,"uuid":"uuid-123","key":"SECRET-DO-NOT-LOG"}""");
+        Assert.Equal("123", identity.Id);
+        Assert.Equal("uuid-123", identity.Uuid);
+        Assert.Throws<FormatException>(() =>
+            ThunderCli.ParseCreateIdentity("""{"key":"SECRET-DO-NOT-LOG"}"""));
+    }
+
+    [Fact]
+    public async Task CreateSuccessReturnsPinnedIdentityWhenStatusIsEmpty()
+    {
+        var fake = new FakeRunner();
+        fake.Responses.Enqueue(Ok("[]"));  // before create
+        fake.Responses.Enqueue(Ok("""{"identifier":123,"uuid":"uuid-123","key":"PRIVATE"}"""));
+        fake.Responses.Enqueue(Ok("[]"));  // status cache has not caught up yet
+        var client = new ThunderCli(fake);
+        var folder = LockFolder();
+        var logs = new List<string>();
+        try
+        {
+            var instance = await client.CreateWithFallbackAsync(
+                [new GpuChoice("a6000","RTX A6000",48,6,.35m)],
+                1, 149, "base", .85m, folder, logs.Add);
+            Assert.Equal("123", instance.Id);
+            Assert.Equal("uuid-123", instance.Uuid);
+            Assert.Equal("CREATING", instance.Status);
+            Assert.DoesNotContain("PRIVATE", string.Join("\n", logs));
+            Assert.Single(fake.Calls.Where(x => x[0] == "create"));
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
+
+    [Fact]
+    public void BudgetIncludesExtraVcpusAndDoesNotTrustEditedPriceBelowPublishedMinimum()
+    {
+        var l40 = new GpuChoice("l40", "L40", 48, 12, .10m);
+        var rate = Estimates.Hourly(l40, 1, 149);
+        Assert.InRange(rate, 1.04m, 1.05m);
+        Assert.True(rate > .85m);
+        Assert.Throws<InvalidOperationException>(() =>
+            Estimates.Hourly(new GpuChoice("unknown", "Unknown", 48, 6, .01m), 1, 100));
+    }
+
+    [Fact]
     public void BudgetIncludesExtraDiskAndIsOnlyAnEstimate()
     {
         var a6000 = new GpuChoice("a6000", "RTX", 48, 6, .35m);

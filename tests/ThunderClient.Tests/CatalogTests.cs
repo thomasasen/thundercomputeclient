@@ -52,6 +52,39 @@ public class CatalogTests
     }
 
     [Fact]
+    public void DistinctHuggingFaceRevisionsAndSnapshotFilesCannotAlias()
+    {
+        static WorkflowItem Parse(string name, string manifest)
+        {
+            var result = WorkflowCatalog.LoadFromDocuments(
+                [new WorkflowDocument(name, manifest, "# Test\n", ["workflow.json"])],
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            return Assert.Single(result);
+        }
+
+        var a = Parse("T2I_RevA", """
+            {"models":[{"source":"hf","repo":"org/model","file":"weights.safetensors",
+            "revision":"first","category":"checkpoints","filename":"shared.safetensors","size_gb":2}]}
+            """);
+        var b = Parse("T2I_RevB", """
+            {"models":[{"source":"hf","repo":"org/model","file":"weights.safetensors",
+            "revision":"second","category":"checkpoints","filename":"shared.safetensors","size_gb":2}]}
+            """);
+        Assert.Equal(1, WorkflowCatalog.Estimate([a, b]).Collisions);
+        var c = Parse("T2I_SnapA", """
+            {"models":[{"source":"hf_snapshot","repo":"org/snapshot",
+            "revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","files":["model.safetensors","config.json"],
+            "category":"checkpoints","filename":"snapshot","size_gb":3}]}
+            """);
+        var d = Parse("T2I_SnapB", """
+            {"models":[{"source":"hf_snapshot","repo":"org/snapshot",
+            "revision":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","files":["model.safetensors","config.json"],
+            "category":"checkpoints","filename":"snapshot","size_gb":3}]}
+            """);
+        Assert.Equal(1, WorkflowCatalog.Estimate([c, d]).Collisions);
+    }
+
+    [Fact]
     public void UnknownSizeIsNotInvented()
     {
         var workflow = new WorkflowItem

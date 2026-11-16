@@ -71,6 +71,16 @@ public sealed class AutoProvisioningTests
     }
 
     [Fact]
+    public void PreventsL40WithExtraVcpusFromPassingStalePriceCeiling()
+    {
+        var l40 = new GpuChoice("l40", "L40", 48, 12, .79m);
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            AutoProvisioning.Plan([Item("demo", 12)], Commit,
+                [l40], 1, 149, "base", .85m));
+        Assert.Contains("Schätzpreisgrenze", exception.Message);
+    }
+
+    [Fact]
     public void RefusesUnknownModelSizeBeforeCostlyPodCreation()
     {
         var err = Assert.Throws<InvalidOperationException>(() =>
