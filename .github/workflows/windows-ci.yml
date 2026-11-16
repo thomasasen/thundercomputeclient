@@ -72,11 +72,23 @@ jobs:
             artifacts/testresults/
           if-no-files-found: warn
 
+  remote-supervisor-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Detached remote bootstrap, reattach, complete stdout and secret-free persisted script
+        run: bash tests/RemoteSupervisorHarness/smoke.sh
+
   release:
     # Einmaliger Alpha-Release nach erfolgreichem Windows-Testlauf.
     # Kein Merge in main und kein automatischer Stable-Release.
     if: github.event_name == 'push' && github.ref == 'refs/heads/feature/windows-desktop-client' && contains(github.event.head_commit.message, '[publish-alpha-v0.1.0-alpha.16]')
-    needs: windows
+    needs: [windows, remote-supervisor-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
