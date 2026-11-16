@@ -110,6 +110,13 @@
 **Abhilfe:** strukturierte, redigierte Erfassung der Create-Antwort, genaue Instanz-ID/UUID, anschließende reconciliation ohne Rohlogging möglicher privater Schlüsselfelder.  
 **Ticket:** [#10](https://github.com/thomasasen/thundercomputeclient/issues/10).
 
+### P1-11: Der lokale Katalog erkennt bestimmte Modellquellen-Konflikte nicht
+
+**Code:** `WorkflowCatalog.cs:33–51,108–125` gegen private `scripts/manifest.py:266–295`.  
+**Nachweis:** Bei HF-Downloads vergleicht der Client als Modellidentität nur `repo/file` und übersieht abweichende `revision`-Pins. Bei `hf_snapshot` entstehen ohne `version_id`/`sha256` identische `SourceId`-Werte `hf_snapshot::` selbst bei völlig verschiedenen `repo`, `revision` und `files`. Der Upstream-`manifest.resolve` vergleicht dagegen die vollständigen Provenienzattribute. Zwei ausgewählte Workflows können deshalb clientseitig `Collisions == 0` melden und erst **nach** bezahltem Create vom Remote-Bootstrap als `Modellkonflikt` abgelehnt werden. Der Desktop prüft auch nicht alle vom Upstream verpflichtenden README-/Graph-/Node-/Setup-Konsistenzen vor Create.  
+**Abhilfe:** manifestidentische, quellgetreue Katalogprüfung vor kostenpflichtigem Start; Fixture-Tests für unterschiedliche Pins, HF-Snapshot-Dateilisten, fehlendes README und abweichende Node-Commits. Kein Duplizieren divergender Installationslogik.  
+**Ticket:** [#13](https://github.com/thomasasen/thundercomputeclient/issues/13), [#9](https://github.com/thomasasen/thundercomputeclient/issues/9).
+
 ## 4. Explizite adversariale Abnahmetests
 
 | ID | Gegenprobe | Erwartetes Verhalten | Aktueller Nachweis |
@@ -136,6 +143,8 @@
 | RT-20 | Zwei GUI-Prozesse und verlorene Verbindung | Ein Pod, ein Remote-Job, keine zweite Installation | Lokaler Create-Lock vorhanden; globaler Deploy-/Reattach-Nachweis fehlt |
 | RT-21 | ComfyUI-`/object_info` gibt 404/Timeout | Keine Fertigmeldung, späterer Retry möglich | Fail-Closed-Logik vorhanden; Retry/Reattach fehlt |
 | RT-22 | GitHub-/Civitai-/HF-Token in Prozess-/Fehlerdaten | Kein Token in Log, Clipboard, URLs, CLI-Argumenten | Statische Sanitisierung vorhanden; kein kompletter adversarial Leak-Test |
+| RT-23 | Zwei HF-Snapshots am gleichen Ziel mit unterschiedlichen GitHub/HF-Revisions | Konflikt vor kostenpflichtigem Create erkennen | **Desktop-Identität ignoriert Snapshot-Revision/Dateiliste** |
+| RT-24 | HF-Quellen mit identischem Repo/Dateipfad, aber verschiedener Revision | Konflikt vor kostenpflichtigem Create erkennen | **Desktop-Identität ignoriert HF-Revision** |
 
 ## 5. Windows-CI und Testabdeckung
 
@@ -150,7 +159,7 @@ Ein grüner Mocklauf ist ein notwendiges, aber kein hinreichendes E2E-Freigabekr
 
 1. **Sofortige P0-Gates:** vollständige Preis-/vCPU-Kalkulation, SSH-Key-Vorregistrierung bzw. dokumentiert sichere API-Zuordnung, exakte Create-ID-Reconciliation; vor diesen Punkten kein nutzerseitig unbeaufsichtigtes Create.
 2. **Robuster Deployment-Lebenszyklus:** revision-gepinnte Quelle **vor** Kostenstart, Remote-Supervisor, Run-ID und Restart-/Reattach-Verhalten, persistente Status-/Logdateien ohne stdout-Abbruch.
-3. **Readiness funktionsfähig machen:** Remote-Audit auch bei bereits laufendem ComfyUI; integrierte Python-Fixture-Tests; modell-/nodegenauer Logvertrag; vollständige Runtime-Manifest-/Backend-Abgleiche.
+3. **Katalog- und Readiness-Prüfung funktionsfähig machen:** Vollständige Manifest-Identität und Quellkonsistenz **vor** kostenpflichtigem Create nachweisen; Remote-Audit auch bei bereits laufendem ComfyUI; integrierte Python-Fixture-Tests; modell-/nodegenauer Logvertrag; vollständige Runtime-Manifest-/Backend-Abgleiche.
 4. **Praktische Ende-zu-Ende-Freigabe:** kontrollierter echter Thunder-Pod-Test **nur nach gesonderter kostenpflichtiger Freigabe**, inklusive bestätigter GPU-Specs, Modell-/Node-Installation, ComfyUI-Tunnel, Abbruch/Reattach und repräsentativem Inferenz-Smoketest.
 5. **Erst danach** unabhängiges Security-Review, PR-Merge und Release.
 
