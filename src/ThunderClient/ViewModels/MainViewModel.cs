@@ -601,9 +601,10 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         if (!AutoDeploymentRunning || _autoDeploymentCancel is null) return;
         if (!_dialogs.Confirm("Automatische Bereitstellung unterbrechen",
-            "Die laufende SSH-/Downloadverbindung wird unterbrochen. " +
-            "Der Pod wird NICHT gelöscht und kann weiter Kosten verursachen. " +
-            "Remote-Prozess und Modelldateien müssen vor einem erneuten Start geprüft werden. Abbrechen?"))
+            "Nur die lokale Log-/SSH-Verbindung wird getrennt. " +
+            "Der eigenständig gestartete Remote-Bootstrap läuft auf dem Pod weiter und " +
+            "kann weiter GPU-Kosten verursachen. Später mit derselben Workflow-Auswahl " +
+            "wieder verbinden; kein neuer Pod wird erstellt. Jetzt Verbindung trennen?"))
             return;
         _autoDeploymentCancel.Cancel();
     }
@@ -818,7 +819,8 @@ public sealed class MainViewModel : Bindable, IDisposable
                 plan.Warning + "\n\n" +
                 "Danach startet der Client automatisch den bestehenden Thunder-Bootstrap " +
                 "(bis zu 4 parallele Downloads), sobald SSH verifiziert ist. " +
-                "Die GUI muss für diese erste Version geöffnet bleiben. " +
+                "Der Remote-Bootstrap läuft nach Schließen der GUI weiter; " +
+                "bei erneutem Start wird sein Log wieder eingelesen. " +
                 "Ein unbekannter SSH-Fingerprint braucht deine separate Bestätigung.\n\n" +
                 (reuse
                     ? "Ein Pod existiert bereits (ID " + podId + "). KEIN neuer Pod wird erstellt. " +
@@ -909,9 +911,10 @@ public sealed class MainViewModel : Bindable, IDisposable
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            AutoDeploymentStatus = "Bereitstellung unterbrochen. " +
+            AutoDeploymentStatus = "Lokale SSH-/Logverbindung unterbrochen. " +
                 (podId is null ? "Es wurde noch kein Pod bestätigt."
-                    : "Pod " + podId + " kann weiter Kosten verursachen. Remote-Status vor Neustart prüfen.");
+                    : "Pod " + podId + " läuft möglicherweise weiter und verursacht Kosten. " +
+                      "Remote-Job beim nächsten Verbindungsaufbau prüfen und wieder anhängen.");
             Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
         }
         catch (OperationCanceledException ex)
