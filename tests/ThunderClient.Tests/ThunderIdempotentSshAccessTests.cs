@@ -89,6 +89,45 @@ public sealed class ThunderIdempotentSshAccessTests
     }
 
     [Fact]
+    public async Task DifferentThunderCliAndApiAccountsAreBlockedBeforeCreate()
+    {
+        using var http = new HttpClient(new FakeHttp());
+        var access = new ThunderIdempotentSshAccess(http, new FakeKeys());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            access.ValidateTokenAsync("secret-api-token", default, [Pod()]));
+        Assert.Contains("unterschiedliche Instanzzahlen", error.Message);
+        Assert.DoesNotContain("secret-api-token", error.Message);
+    }
+
+    [Fact]
+    public async Task SamePodIdButWrongUuidIsBlockedBeforeAnySshPost()
+    {
+        var net = new FakeHttp {
+            ForceResponse = """{"0":{"uuid":"other-user-pod","status":"RUNNING"}}"""
+        };
+        using var http = new HttpClient(net);
+        var access = new ThunderIdempotentSshAccess(http, new FakeKeys());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            access.ValidateTokenAsync("secret-api-token", default, [Pod()]));
+        Assert.Contains("Pod-ID/UUID", error.Message);
+        Assert.Single(net.Requests);
+        Assert.Equal(HttpMethod.Get, net.Requests[0].Method);
+    }
+
+    [Fact]
+    public async Task MatchingThunderCliAndApiPodProvenancePasses()
+    {
+        var net = new FakeHttp {
+            ForceResponse = """{"0":{"uuid":"uuid-pod-01","status":"RUNNING"}}"""
+        };
+        using var http = new HttpClient(net);
+        await new ThunderIdempotentSshAccess(http, new FakeKeys())
+            .ValidateTokenAsync("secret-api-token", default, [Pod()]);
+        Assert.Single(net.Requests);
+        Assert.Equal(HttpMethod.Get, net.Requests[0].Method);
+    }
+
+    [Fact]
     public async Task ExistingKeyIsSentOnlyAsPublicKeyNoKeyPairGeneration()
     {
         var runner = new FakeKeys();
