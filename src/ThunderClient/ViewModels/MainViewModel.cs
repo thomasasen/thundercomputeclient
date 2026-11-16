@@ -744,6 +744,9 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "Civitai-Token ist hinterlegt. Für die automatische Vollinstallation " +
                 "erst unter Zugangsdaten einen Civitai-API-Key speichern und im Systemstatus prüfen.");
         var adapter = _snapshot.BootstrapScript;
+        // Validate the reviewed adapter's SHA-pinning contract BEFORE any
+        // billable create, not after SSH access has been charged.
+        _ = SshService.PinBootstrapAdapter(adapter, plan.Revision);
         // A selected set and its adapter are frozen before the first awaited
         // provider call; editing checkboxes during a running deploy cannot change it.
         var workflowsCsv = string.Join(",", plan.WorkflowNames);
