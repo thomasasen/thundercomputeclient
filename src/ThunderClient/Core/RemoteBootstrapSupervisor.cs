@@ -100,7 +100,7 @@ printf '%s' "$pid" > "$job/pid"
 chmod 600 "$job/pid"
 flock -u 8
 printf '[THUNDER-CLIENT] Remote-Job gestartet: %s\n' '{{nextRun}}'
-""";
+""".Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 
     public static string BuildFollowScript() => """
@@ -122,5 +122,5 @@ if [[ -r "/proc/$pid/environ" ]] &&
 else
     cat "$job/output.log"
 fi
-""";
+""".Replace("\r\n", "\n", StringComparison.Ordinal);
 }
