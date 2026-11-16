@@ -72,6 +72,11 @@ public sealed class MainViewModel : Bindable, IDisposable
     public ObservableCollection<InstanceItem> Instances { get; } = [];
     public ObservableCollection<SnapshotItem> Snapshots { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
+    // The GUI renders only a small sliding window. Keep a separate, sanitized,
+    // much larger session history for manual export and incident diagnosis.
+    private readonly List<string> _redactedLogHistory = [];
+    private bool _logHistoryTruncated;
+    private const int MaximumExportLogLines = 100_000;
     public ObservableCollection<DownloadItem> Downloads { get; } = [];
     public ObservableCollection<SetupCheck> SystemChecks { get; } = SystemReadinessService.CreateChecks();
 
@@ -142,7 +147,11 @@ public sealed class MainViewModel : Bindable, IDisposable
         OpenReadmeCommand = new RelayCommand(OpenReadme);
         ApplyHardwareGuidanceCommand = new RelayCommand(ApplyHardwareGuidance);
         ExportLogsCommand = new RelayCommand(() =>
-            _dialogs.ExportText("thunderclient-diagnose.txt", string.Join(Environment.NewLine, LogLines)));
+            _dialogs.ExportText("thunderclient-diagnose.txt",
+                (_logHistoryTruncated
+                    ? "[THUNDER-CLIENT] Hinweis: Die lokale Export-Historie ist auf 100.000 Zeilen begrenzt; das vollständige Remote-Bootstrap-Log bleibt auf dem Pod.\n"
+                    : "") +
+                string.Join(Environment.NewLine, _redactedLogHistory)));
         ThunderLoginCommand = new RelayCommand(() =>
             _dialogs.Notify("Thunder-Anmeldung", "Bitte im Windows Terminal 'tnr login' ausführen. Der Client verwendet anschließend dieselbe Thunder-CLI-Anmeldung; keine Tokens in diese Oberfläche kopieren."));
         UpdateSecretStatuses();
@@ -1198,7 +1207,14 @@ public sealed class MainViewModel : Bindable, IDisposable
         var safe = RedactKnownSecrets(line);
         void Apply()
         {
-            LogLines.Add(DateTime.Now.ToString("HH:mm:ss") + "  " + safe);
+            var dated = DateTime.Now.ToString("HH:mm:ss") + "  " + safe;
+            _redactedLogHistory.Add(dated);
+            if (_redactedLogHistory.Count > MaximumExportLogLines)
+            {
+                _redactedLogHistory.RemoveRange(0, 1000);
+                _logHistoryTruncated = true;
+            }
+            LogLines.Add(dated);
             while (LogLines.Count > 600) LogLines.RemoveAt(0);
             OnPropertyChanged(nameof(LogText));
             if (safe.Contains("[DOWNLOAD-STATUS]", StringComparison.Ordinal)) DownloadStatus = safe;
