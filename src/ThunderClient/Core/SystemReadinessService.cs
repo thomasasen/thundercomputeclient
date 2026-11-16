@@ -57,6 +57,12 @@ public sealed class SystemReadinessService : IDisposable
             HelpLabel="Offizielle CLI herunterladen", SetupTabIndex=5
         },
         new SetupCheck {
+            Id="thunder-api", Title="Thunder Compute · eigener API-Token (SSH-Erstzugang)",
+            Guide="In der Thunder Console unter Authentication → API Tokens einen eigenen benannten API-Token anlegen und unter Zugangsdaten speichern. Die Prüfung sendet nur GET /v1/instances/list und erstellt weder einen Pod noch einen SSH-Key. Der Ein-Klick-Start verlangt diesen Zugriff vor der kostenpflichtigen Pod-Erstellung, wenn noch kein lokaler SSH-Zugang besteht.",
+            HelpUrl="https://console.thundercompute.com/settings/tokens",
+            HelpLabel="Thunder-API-Token verwalten", SetupTabIndex=5
+        },
+        new SetupCheck {
             Id="openssh", Title="Windows OpenSSH · Client-Werkzeuge",
             Guide="In Windows → Einstellungen → System → Optionale Features den OpenSSH-Client installieren. Benötigt werden ssh.exe, ssh-keyscan.exe und ssh-keygen.exe. Kein SSH-Server auf deinem PC erforderlich.",
             HelpUrl="https://learn.microsoft.com/de-de/windows-server/administration/openssh/openssh_install_firstuse",
@@ -64,7 +70,7 @@ public sealed class SystemReadinessService : IDisposable
         },
         new SetupCheck {
             Id="ssh-key", Title="SSH-Schlüssel · ausgewählter Pod",
-            Guide="Laufenden Pod unter Instanzen auswählen. Der Test sucht die lokale Schlüsseldatei unter TNR_HOME oder Benutzerprofil/.thunder/keys/UUID, ohne 'tnr connect' aufzurufen. Ein bewusster Verbindungsversuch kann beim Anbieter einen neuen SSH-Schlüssel anlegen.",
+            Guide="Laufenden Pod unter Instanzen auswählen. Die rein lesende Prüfung sucht einen ausdrücklich festgelegten privaten SSH-Key, die Client-Identität oder TNR_HOME/keys/UUID. Die eigentliche Zuordnung erfolgt mit public_key idempotent über die dokumentierte Thunder-API; der Desktop-Client ruft nicht mehr tnr connect zur Schlüsselgenerierung auf.",
             HelpUrl="https://github.com/Thunder-Compute/thunder-compute-documentation/blob/main/guides/ssh-on-thunder-compute.mdx",
             HelpLabel="Thunder-SSH-Anleitung", SetupTabIndex=3
         },
@@ -118,6 +124,7 @@ public sealed class SystemReadinessService : IDisposable
                 var result = check.Id switch {
                     "github" => await CheckGitHubAsync(ct),
                     "thunder" => await CheckThunderAsync(ct),
+                    "thunder-api" => await CheckThunderApiAsync(ct),
                     "openssh" => CheckOpenSsh(),
                     "ssh-key" => await CheckSshKeyAsync(ct),
                     "ssh-auth" => await CheckSshAuthenticationAsync(ct),
@@ -164,6 +171,27 @@ public sealed class SystemReadinessService : IDisposable
         {
             return ("Fehler", "Privater GitHub-Zugriff fehlgeschlagen: Token, Ablaufdatum und Contents: Read-only für genau dieses Repository prüfen.");
         }
+    }
+
+    private async Task<(string, string)> CheckThunderApiAsync(CancellationToken ct)
+    {
+        var token = _readSecret("thunder-api");
+        if (string.IsNullOrWhiteSpace(token))
+            return ("Fehlt", "Kein benannter Thunder-API-Token für die idempotente SSH-Erstregistrierung hinterlegt.");
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            ThunderIdempotentSshAccess.EndpointBase + "/v1/instances/list");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.ParseAdd("application/json");
+        using var response = await _http.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            return ("Fehler", "Thunder-API-Token nicht bestätigt (HTTP " +
+                (int)response.StatusCode + "). Token, Workspace und Berechtigungen überprüfen.");
+        using var json = System.Text.Json.JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(ct));
+        return json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+            ? ("Erfolgreich getestet", "Thunder hat GET /v1/instances/list mit diesem " +
+                "API-Token akzeptiert. Keine Instanz oder SSH-Key angelegt.")
+            : ("Fehler", "Thunder-API-Instanzliste hat ein unerwartetes Format.");
     }
 
     private async Task<(string, string)> CheckThunderAsync(CancellationToken ct)
