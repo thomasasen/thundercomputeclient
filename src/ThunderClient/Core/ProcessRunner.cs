@@ -124,8 +124,14 @@ public sealed class ProcessRunner : ICommandRunner
                 {
                     var line = await reader.ReadLineAsync(timer.Token);
                     if (line is null) break;
-                    if (buffer.Length > 4_000_000) throw new InvalidDataException("Prozessausgabe zu groß");
+                    if (onLine is null && buffer.Length > 4_000_000)
+                        throw new InvalidDataException("Prozessausgabe zu groß");
                     buffer.AppendLine(line);
+                    // Long-running SSH log streams must not fail after 4 MB.
+                    // Keep only a bounded diagnostic tail; the caller receives
+                    // every line through onLine (and can persist it separately).
+                    if (onLine is not null && buffer.Length > 256_000)
+                        buffer.Remove(0, buffer.Length - 128_000);
                     onLine?.Invoke(line);
                 }
             }

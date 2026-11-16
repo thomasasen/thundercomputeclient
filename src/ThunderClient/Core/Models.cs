@@ -72,10 +72,32 @@ public sealed class ClientSettings
 public static class Estimates
 {
     // Historical published list estimates from 2026-11-15, NOT live provider quotations.
+    // Published Thunder instance list rates (checked 2026-11-16), NOT live quotes.
+    // Fail closed for unknown GPU families rather than approving an invented tariff.
     public const decimal AdditionalDiskGbMonthUsd = 0.219m;
-    public static decimal Hourly(GpuChoice gpu, int gpuCount, int diskGb) =>
-        gpu.GpuHourlyEstimate * gpuCount +
-        Math.Max(0, diskGb - 100 * gpuCount) * AdditionalDiskGbMonthUsd / 730m;
+    public const decimal AdditionalVcpuHourlyUsd = 0.04m;
+
+    public static decimal Hourly(GpuChoice gpu, int gpuCount, int diskGb)
+    {
+        if (gpuCount < 1 || gpu.Vcpus < 1 || diskGb < 1)
+            throw new ArgumentOutOfRangeException(nameof(gpuCount), "GPU, vCPU und Disk müssen positiv sein.");
+        var (includedCpusPerGpu, publishedGpuMinimum) = gpu.Key.ToLowerInvariant() switch
+        {
+            "a6000" => (6, .35m),
+            "l40" => (6, .79m),
+            "a100" => (8, 1.09m),
+            "h100" => (4, 3.20m),
+            _ => throw new InvalidOperationException(
+                "Kein veröffentlichter Thunder-Tarif für diese GPU bekannt. Kostenfreigabe gesperrt.")
+        };
+        // Edited GUI price estimates must not lower the known published list floor.
+        var gpuHourly = Math.Max(gpu.GpuHourlyEstimate, publishedGpuMinimum) * gpuCount;
+        var additionalCpus = Math.Max(0, gpu.Vcpus - includedCpusPerGpu * gpuCount);
+        var cpuHourly = additionalCpus * AdditionalVcpuHourlyUsd;
+        var diskHourly = Math.Max(0, diskGb - 100 * gpuCount) *
+                         AdditionalDiskGbMonthUsd / 730m;
+        return gpuHourly + cpuHourly + diskHourly;
+    }
     public static string CapacityWarning(double? manifestGb, int diskGb)
     {
         if (!manifestGb.HasValue) return "Manifestgröße nicht vollständig bekannt. Disk manuell prüfen.";

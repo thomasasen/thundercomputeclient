@@ -322,12 +322,33 @@ public sealed class SshService(ICommandRunner commands)
         return RemoteReadinessAudit.Parse(outcome);
     }
 
-    public async Task<CommandResult> BootstrapAsync(SshConnection endpoint, string adapter,
-        string workflows, string gitToken, string? huggingFace, string? civitai,
-        Action<string> onLine, CancellationToken ct = default)
+    public static string PinBootstrapAdapter(string adapter, string commit)
     {
-        if (!adapter.StartsWith("#!/usr/bin/env bash\n", StringComparison.Ordinal))
-            throw new InvalidDataException("Thunder-Adapter enthält keinen erwarteten Bash-Header.");
+        if (!Regex.IsMatch(commit, @"\A[a-fA-F0-9]{40}\z"))
+            throw new InvalidDataException("Ungültiger Remote-Commit-Pin.");
+        const string guard = "if [[ \"${REPO_REF:-main}\" != 'main' ]]; then";
+        const string export = "export REPO_REF=main";
+        const string entry = "contents/scripts/pod_entry.py?ref=main";
+        if (!adapter.StartsWith("#!/usr/bin/env bash\n", StringComparison.Ordinal) ||
+            adapter.Split(guard).Length != 2 ||
+            adapter.Split(export).Length != 2 ||
+            adapter.Split(entry).Length != 2)
+            throw new InvalidDataException(
+                "Thunder-Adapter-Vertrag hat sich geändert. Kein ungesicherter main-Download.");
+        var revision = commit.ToLowerInvariant();
+        return adapter
+            .Replace(guard, "if [[ \"${REPO_REF:-" + revision +
+                "}\" != '" + revision + "' ]]; then", StringComparison.Ordinal)
+            .Replace(export, "export REPO_REF=" + revision, StringComparison.Ordinal)
+            .Replace(entry, "contents/scripts/pod_entry.py?ref=" + revision, StringComparison.Ordinal);
+    }
+
+    public async Task<CommandResult> BootstrapAsync(SshConnection endpoint, string adapter,
+        string workflows, string expectedCommit, string gitToken,
+        string? huggingFace, string? civitai, Action<string> onLine,
+        CancellationToken ct = default)
+    {
+        adapter = PinBootstrapAdapter(adapter, expectedCommit);
         if (string.IsNullOrWhiteSpace(gitToken)) throw new InvalidOperationException("GitHub-Token für den Remote-Bootstrap fehlt.");
         var script = "set -e\numask 077\n" +
             "command -v flock >/dev/null || { echo '[THUNDER-CLIENT] flock fehlt'; exit 41; }\n" +
@@ -340,7 +361,8 @@ public sealed class SshService(ICommandRunner commands)
             // The upstream scheduler already defaults to four workers; make
             // its bounded adaptive parallel-download policy explicit.
             "export MODEL_DOWNLOAD_WORKERS=4\n" +
-            "export REPO_REF=main\n" + adapter + "\n";
+            "export REPO_REF=" + expectedCommit.ToLowerInvariant() + "\n" +
+            adapter + "\n";
         return await RunScriptAsync(endpoint, script, onLine, ct);
     }
 

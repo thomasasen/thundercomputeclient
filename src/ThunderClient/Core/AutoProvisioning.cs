@@ -72,7 +72,7 @@ public static class AutoProvisioning
         var warning = "GPU-/VRAM-Werte stammen aus RunPod-READMEs, keine Thunder-Livemessung. " +
             "Disk = deduplizierte Modelle + pauschale Reserve und ggf. größere RunPod-Referenz. " +
             "Kosten sind historische Schätzwerte, die Preisgrenze ist keine Abrechnungssperre. " +
-            "Der vorhandene Thunder-Adapter lädt den Remote-Entrypoint weiterhin von main.";
+            "Der Client pinnt den ausgeführten Remote-Entrypoint an die zuvor bestätigte GitHub-Revision.";
         if (!hardware.CompleteVramReference)
             warning += " Nicht für alle Workflows liegen GPU-Referenzen vor.";
         if (estimate.FilesWithoutSize > 0)
@@ -88,7 +88,7 @@ public static class AutoProvisioning
         Func<CancellationToken, Task<IReadOnlyList<InstanceItem>>> list,
         Func<TimeSpan, CancellationToken, Task> delay,
         Action<string>? progress = null,
-        int maxChecks = 90, CancellationToken ct = default)
+        int maxChecks = 90, bool tolerateMissing = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
             throw new ArgumentException("Instanz-ID fehlt.", nameof(instanceId));
@@ -101,9 +101,17 @@ public static class AutoProvisioning
             var items = await list(ct);
             var pod = items.SingleOrDefault(x => x.Id == instanceId);
             if (pod is null)
-                throw new InvalidOperationException(
-                    "Pod " + instanceId + " nicht mehr im Thunder-Status gefunden. " +
-                    "Keine neue Instanz wird automatisch angelegt.");
+            {
+                if (!tolerateMissing || i == maxChecks - 1)
+                    throw new InvalidOperationException(
+                        "Pod " + instanceId + " noch nicht im Thunder-Status gefunden. " +
+                        "Er kann bereits kostenpflichtig laufen. Keine neue Instanz wird automatisch angelegt.");
+                progress?.Invoke("Pod " + instanceId +
+                    ": Create-Identität gesichert; Statusliste noch nicht konsistent (" +
+                    (i + 1) + "/" + maxChecks + ").");
+                await delay(TimeSpan.FromSeconds(4), ct);
+                continue;
+            }
             if (pod.Status is "STOPPED" or "TERMINATED" or "ERROR" or "FAILED")
                 throw new InvalidOperationException(
                     "Pod " + instanceId + " ist nicht mehr startbar (" + pod.Status +

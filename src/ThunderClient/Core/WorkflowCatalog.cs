@@ -39,9 +39,14 @@ public static class WorkflowCatalog
                     if (model.TryGetProperty("download", out var download) &&
                         download.ValueKind == JsonValueKind.False) continue;
                     var source = GetString(model, "source");
-                    var sourceId = source == "hf"
-                        ? GetString(model, "repo") + "/" + GetString(model, "file")
-                        : source + ":" + GetString(model, "version_id") + ":" + GetString(model, "sha256");
+                    // The upstream manifest resolver compares the complete model
+                    // identity, excluding *only* planning/estimate size fields.
+                    // HF revisions, snapshots and Civitai file_id must not alias.
+                    var sourceId = JsonSerializer.Serialize(model.EnumerateObject()
+                        .Where(property => property.Name is not ("size_gb" or "size_estimated"))
+                        .OrderBy(property => property.Name, StringComparer.Ordinal)
+                        .ToDictionary(property => property.Name,
+                            property => property.Value.Clone(), StringComparer.Ordinal));
                     double? size = null;
                     if (model.TryGetProperty("size_gb", out var sizeValue) &&
                         sizeValue.ValueKind == JsonValueKind.Number &&

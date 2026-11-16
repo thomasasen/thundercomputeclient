@@ -495,7 +495,8 @@ public sealed class MainViewModel : Bindable, IDisposable
             (size.Collisions > 0 ? $" · WARNUNG: {size.Collisions} Modell-Zielkonflikte" : "");
         var sb = new StringBuilder();
         sb.AppendLine("WORKFLOWS=" + (WorkflowNames.Length > 0 ? WorkflowNames : "(keine Auswahl)"));
-        sb.AppendLine("REPO_REF=main (Remote-Bootstrap nicht SHA-gepinnt)");
+        sb.AppendLine("REPO_REF=" + (_snapshot?.Commit ?? "unbekannt") +
+            " (Remote-Bootstrap vor Ausführung SHA-gepinnt)");
         if (plan.ReferenceVramGb.HasValue)
             sb.AppendLine("RunPod-README-VRAM-Orientierung: " + plan.ReferenceVramGb +
                 " GB. Keine getestete Thunder-Mindestanforderung.");
@@ -828,7 +829,8 @@ public sealed class MainViewModel : Bindable, IDisposable
             target = await AutoProvisioning.WaitForRunningSshAsync(target.Id,
                 c => _thunder.ListAsync(c),
                 (delay, c) => Task.Delay(delay, c),
-                line => Log("[AUTO-DEPLOY] " + line), ct: ct);
+                line => Log("[AUTO-DEPLOY] " + line),
+                tolerateMissing: !reuse, ct: ct);
 
             // Keep visible pod selection consistent with the status service.
             await RefreshInstancesAsync(ct);
@@ -848,11 +850,12 @@ public sealed class MainViewModel : Bindable, IDisposable
             _autoDeploymentSsh = ssh;
             if (await _ssh.IsComfyUiReadyAsync(ssh, ct))
             {
-                AutoDeploymentStatus =
-                    "ComfyUI läuft auf diesem Pod bereits. Kein zweiter Bootstrap gestartet. " +
-                    "Ob alle aktuell gewählten Workflows installiert sind, muss separat geprüft werden.";
-                Message = AutoDeploymentStatus;
-                Log("[AUTO-DEPLOY] Bereits laufendes ComfyUI erkannt; keine Doppelinstallation.");
+                SetAutoDeploymentStage(
+                    "Bereits laufendes ComfyUI erkannt. Prüfe jetzt die ausgewählten Modelle, " +
+                    "Nodes und Workflows read-only; kein zweiter Bootstrap.");
+                _autoVerificationStarted = true;
+                await ConfirmFullReadinessAsync(ssh, _deploymentGate!.ExpectedModels,
+                    plan.Revision, workflowsCsv, ct);
                 return;
             }
 
@@ -865,7 +868,8 @@ public sealed class MainViewModel : Bindable, IDisposable
             // ComfyUI process keeps this authenticated SSH stream open.
             Busy = false;
             var outcome = await _ssh.BootstrapAsync(ssh, adapter, workflowsCsv,
-                githubToken, hfToken, civitaiToken, ObserveAutomaticBootstrapLine, ct);
+                plan.Revision, githubToken, hfToken, civitaiToken,
+                ObserveAutomaticBootstrapLine, ct);
             if (!outcome.Success)
                 throw new InvalidOperationException(
                     "Bootstrap-/ComfyUI-Verbindung endete mit Exitcode " + outcome.ExitCode +
@@ -1033,8 +1037,8 @@ public sealed class MainViewModel : Bindable, IDisposable
         try
         {
             var result = await _ssh.BootstrapAsync(ssh, script, WorkflowNames,
-                token, _vault.Read("huggingface"), _vault.Read("civitai"),
-                Log, _shutdown.Token);
+                _snapshot.Commit, token, _vault.Read("huggingface"),
+                _vault.Read("civitai"), Log, _shutdown.Token);
             if (!result.Success)
             {
                 DownloadStatus = "Failed / Unterbrochen: Remote-Zustand vor erneutem Start prüfen";

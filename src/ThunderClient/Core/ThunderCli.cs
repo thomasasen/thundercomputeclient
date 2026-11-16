@@ -87,6 +87,26 @@ public sealed class ThunderCli(ICommandRunner commands)
             RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     }
 
+    // The successful CLI creation response is authoritative for identity.
+    // Never log raw JSON: the API may include private credential material.
+    public static (string Id, string Uuid) ParseCreateIdentity(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new FormatException("Thunder-Create-Antwort enthält kein Objekt.");
+        var id = Text(root, "identifier");
+        if (string.IsNullOrWhiteSpace(id)) id = Text(root, "id");
+        var uuid = Text(root, "uuid");
+        if (!Regex.IsMatch(id, @"^[A-Za-z0-9_-]{1,64}$") ||
+            (!string.IsNullOrEmpty(uuid) &&
+             !Regex.IsMatch(uuid, @"^[A-Za-z0-9_-]{1,128}$")))
+            throw new FormatException(
+                "Thunder meldet Create-Erfolg ohne gültige Instanzidentität. " +
+                "Vor einem weiteren Create vorhandene Instanzen kontrollieren.");
+        return (id, uuid);
+    }
+
     // Das Sperrfile verhindert parallele Creates in zwei Client-Prozessen desselben Windows-Accounts.
     public async Task<InstanceItem> CreateWithFallbackAsync(
         IReadOnlyList<GpuChoice> priority, int gpuCount, int diskGb,
@@ -117,10 +137,20 @@ public sealed class ThunderCli(ICommandRunner commands)
                 "--disk", diskGb.ToString()], TimeSpan.FromMinutes(5), ct);
             if (output.Success)
             {
+                var (id, uuid) = ParseCreateIdentity(output.Stdout);
+                // A just-created paid instance need not be visible in status
+                // immediately. Its exact identifier comes from create itself.
                 var newest = await ListAsync(ct);
-                if (newest.Count != 1)
-                    throw new InvalidOperationException("Create war erfolgreich, aber der neue Instanzstatus ist nicht eindeutig. Vor weiteren Aktionen manuell prüfen.");
-                return newest[0];
+                var matches = newest.Where(item => item.Id == id ||
+                    (!string.IsNullOrEmpty(uuid) && item.Uuid == uuid)).ToArray();
+                if (matches.Length > 1)
+                    throw new InvalidOperationException(
+                        "Thunder meldet widersprüchliche Instanzidentitäten. " +
+                        "Kein zweiter Pod wird erstellt.");
+                if (matches.Length == 1) return matches[0];
+                log("Create erfolgreich: exakte Pod-ID gesichert; Thunder-Status wird nachgeführt.");
+                return new InstanceItem(id, uuid, "", "CREATING",
+                    gpu.Key, "", 0, DateTimeOffset.UtcNow, diskGb, gpuCount);
             }
             // Unabhängig vom Rückgabecode könnte die API bereits eine Instanz angelegt haben.
             var after = await ListAsync(ct);
