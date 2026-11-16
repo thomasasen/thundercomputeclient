@@ -307,7 +307,9 @@ public sealed class SshService(ICommandRunner commands)
         var expectedFreeGb = (int)Math.Ceiling(modelGb + 20);
         var script = "python3 - <<'PY'\n" +
             "import pathlib, shutil, subprocess, sys\n" +
-            "free_gb = shutil.disk_usage(pathlib.Path.home()).free / 1e9\n" +
+            "home = pathlib.Path.home()\n" +
+            "workspace = home / 'comfyui-workspace'\n" +
+            "free_gb = shutil.disk_usage(workspace if workspace.is_dir() else home).free / 1e9\n" +
             "required = " + expectedFreeGb + "\n" +
             "expected = " + expectedGpus + "\n" +
             "vram_required = " + requiredVramGb + "\n" +
