@@ -897,6 +897,11 @@ public sealed class MainViewModel : Bindable, IDisposable
                 return;
             }
 
+            SetAutoDeploymentStage("Prüfe tatsächliche GPU-Anzahl, VRAM und freien Speicher auf dem Pod.");
+            var capacity = await _ssh.CheckGpuAndFreeDiskAsync(ssh,
+                plan.GpuCount, plan.ReferenceVramGb ?? 0, plan.ModelGb, ct);
+            Log(capacity);
+
             Downloads.Clear();
             DownloadSummary = "Warte auf die ersten Downloadereignisse des bestehenden Bootstrap.";
             DownloadStatus = "Bootstrap startet · parallele HF-/Civitai-Downloads bis 4 Dateien.";
