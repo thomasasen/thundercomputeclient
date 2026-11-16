@@ -41,6 +41,11 @@ job="$HOME/.thunderclient-deployment"
 if [[ -L "$job" ]]; then echo '[THUNDER-CLIENT] Unsicheres Job-Verzeichnis'; exit 41; fi
 mkdir -p "$job"
 chmod 700 "$job"
+# All metadata is controlled by the authenticated ubuntu user. Never follow
+# a pre-created symlink while writing credentials-free job metadata or logs.
+for item in "$job/launch.lock" "$job/pid" "$job/run_id" "$job/commit"             "$job/workflows" "$job/bootstrap.sh" "$job/output.log"; do
+    if [[ -L "$item" ]]; then echo '[THUNDER-CLIENT] Unsicherer Job-Pfad'; exit 41; fi
+done
 exec 8>"$job/launch.lock"
 flock -w 15 8 || { echo '[THUNDER-CLIENT] Anderer Start läuft'; exit 42; }
 active=''
