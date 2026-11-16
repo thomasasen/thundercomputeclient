@@ -349,22 +349,16 @@ public sealed class SshService(ICommandRunner commands)
         string? huggingFace, string? civitai, Action<string> onLine,
         CancellationToken ct = default)
     {
-        adapter = PinBootstrapAdapter(adapter, expectedCommit);
-        if (string.IsNullOrWhiteSpace(gitToken)) throw new InvalidOperationException("GitHub-Token für den Remote-Bootstrap fehlt.");
-        var script = "set -e\numask 077\n" +
-            "command -v flock >/dev/null || { echo '[THUNDER-CLIENT] flock fehlt'; exit 41; }\n" +
-            "exec 9>\"$HOME/.thunderclient-bootstrap.lock\"\n" +
-            "if ! flock -n 9; then echo '[THUNDER-CLIENT] Ein Bootstrap läuft bereits'; exit 42; fi\n" +
-            "export GITHUB_TOKEN=" + QuoteShell(gitToken) + "\n" +
-            "export HF_TOKEN=" + QuoteShell(huggingFace ?? "") + "\n" +
-            "export CIVITAI_TOKEN=" + QuoteShell(civitai ?? "") + "\n" +
-            "export WORKFLOWS=" + QuoteShell(workflows) + "\n" +
-            // The upstream scheduler already defaults to four workers; make
-            // its bounded adaptive parallel-download policy explicit.
-            "export MODEL_DOWNLOAD_WORKERS=4\n" +
-            "export REPO_REF=" + expectedCommit.ToLowerInvariant() + "\n" +
-            adapter + "\n";
-        return await RunScriptAsync(endpoint, script, onLine, ct);
+        // Start or safely reattach a persistent job without placing tokens in
+        // on-pod scripts, arguments or persistent metadata.
+        var launcher = RemoteBootstrapSupervisor.BuildLaunchScript(
+            adapter, expectedCommit, workflows, gitToken, huggingFace, civitai);
+        var created = await RunScriptAsync(endpoint, launcher, onLine, ct);
+        if (!created.Success) return created;
+        onLine("[THUNDER-CLIENT] Remote-Job verbunden; Live-Log ab Beginn. " +
+            "Das Schließen der Windows-App stoppt den Pod-Job nicht.");
+        return await RunScriptAsync(endpoint,
+            RemoteBootstrapSupervisor.BuildFollowScript(), onLine, ct);
     }
 
     public void OpenTerminal(SshConnection endpoint)
