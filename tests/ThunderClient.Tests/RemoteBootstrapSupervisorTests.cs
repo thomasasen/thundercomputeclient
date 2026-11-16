@@ -25,9 +25,9 @@ public sealed class RemoteBootstrapSupervisorTests
         Assert.Contains("Bestehenden Remote-Job wieder aufnehmen", result);
         Assert.Contains("base64 --decode", result);
         var line = result.Split('\n').Single(x => x.Contains("base64 --decode"));
-        var first = line.IndexOf('\'');
-        var last = line.IndexOf('\'', first + 1);
-        var worker = Encoding.UTF8.GetString(Convert.FromBase64String(line[(first + 1)..last]));
+        var quoted = line.Split('\'');
+        Assert.True(quoted.Length >= 5);
+        var worker = Encoding.UTF8.GetString(Convert.FromBase64String(quoted[3]));
         Assert.Contains("REPO_REF=" + Commit, worker);
         Assert.DoesNotContain("github-secret", worker);
         Assert.DoesNotContain("hf-secret", worker);
