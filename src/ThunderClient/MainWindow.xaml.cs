@@ -49,7 +49,7 @@ public partial class MainWindow : Window, IUserDialogs
     {
         if (Navigation.Items.Count != 8 || MainTabs.Items.Count != 8)
             throw new InvalidOperationException("Navigation und Inhalte sind nicht vollständig.");
-        if (ReadinessItems.Items.Count != 7 ||
+        if (ReadinessItems.Items.Count != SystemReadinessService.CreateChecks().Count ||
             RunSystemChecksButton.Content is not "Jetzt alles sicher prüfen")
             throw new InvalidOperationException("Systemstatus-Ansicht ist nicht vollständig.");
         if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
