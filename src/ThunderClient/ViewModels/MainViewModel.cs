@@ -959,7 +959,7 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "kein automatischer Registrierungsversuch. Unter Instanzen den " +
                 "vorhandenen Pod prüfen und bei Bedarf eine erneute Verbindung bewusst starten.";
             Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
-            Log("[THUNDER-API] " + RedactKnownSecrets(ex.Message));
+            // Error(ex) emits the sanitized root cause once, after this catch.
             throw;
         }
         catch (Exception ex)
@@ -1271,11 +1271,15 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "lang nicht geantwortet. Es ist unbekannt, ob die Registrierung " +
                 "serverseitig bereits erfolgte.\n\n" +
                 "1. Unter Instanzen den bereits vorhandenen Pod prüfen.\n" +
-                "2. Den Pod NICHT erneut erstellen. Wenn der Dienst wieder " +
-                "antwortet, die Einrichtung dieses Pods ausdrücklich erneut versuchen. " +
-                "Dabei kann Thunder einen weiteren Schlüssel registrieren.\n" +
-                "3. Bei wiederholtem Fehler den Thunder-Dienststatus prüfen " +
-                "und die bereinigte Diagnose an den Thunder-Support weitergeben.\n\n" +
+                "2. Bevor ein weiterer API-Registrierungsversuch erfolgt: " +
+                "einen bereits autorisierten privaten SSH-Schlüssel direkt nutzen. " +
+                "Dessen absoluten Dateipfad als Windows-Benutzervariable " +
+                "THUNDERCLIENT_SSH_KEY eintragen und die App neu starten. " +
+                "Der öffentliche Schlüssel muss auf genau diesem Pod hinterlegt sein.\n" +
+                "3. Ist kein passender Schlüssel vorhanden, die dokumentierte " +
+                "Thunder-API mit ausdrücklich angegebenem public_key bzw. den " +
+                "Thunder-Support prüfen. Ein weiterer normaler tnr-connect-Versuch " +
+                "kann sonst erneut einen Schlüssel erzeugen.\n\n" +
                 "Falls der Pod nicht gebraucht wird, seine Löschung unter " +
                 "Instanzen separat bestätigen, damit keine weiteren Kosten entstehen.");
             return;
