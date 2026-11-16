@@ -135,6 +135,28 @@ public class ThunderTests
     }
 
     [Fact]
+    public async Task CreateStatusFailureStillReturnsNewPaidPodIdentity()
+    {
+        var fake = new FakeRunner();
+        fake.Responses.Enqueue(Ok("[]"));
+        fake.Responses.Enqueue(Ok("""{"identifier":123,"uuid":"uuid-123","key":"SENSITIVE"}"""));
+        fake.Responses.Enqueue(Fail("Status API unavailable"));
+        var directory = LockFolder();
+        var log = new List<string>();
+        try
+        {
+            var created = await new ThunderCli(fake).CreateWithFallbackAsync(
+                [new GpuChoice("a6000", "RTX", 48, 6, .35m)],
+                1, 120, "base", .85m, directory, log.Add);
+            Assert.Equal("123", created.Id);
+            Assert.Equal("CREATING", created.Status);
+            Assert.DoesNotContain("SENSITIVE", string.Join("\n", log));
+            Assert.Single(fake.Calls.Where(call => call[0] == "create"));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
     public void BudgetIncludesExtraVcpusAndDoesNotTrustEditedPriceBelowPublishedMinimum()
     {
         var l40 = new GpuChoice("l40", "L40", 48, 12, .10m);
