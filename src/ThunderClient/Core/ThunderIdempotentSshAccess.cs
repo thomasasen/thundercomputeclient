@@ -17,6 +17,7 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
     public const string EndpointBase = "https://api.thundercompute.com:8443";
     private const int KeyRequestAttempts = 2;
     public sealed record LocalIdentity(string PrivateFile, string PublicKey);
+    public sealed record AuthorizationResult(SshConnection Endpoint, bool ProviderConfirmed);
 
     private static bool IsSafePath(string file)
     {
@@ -100,7 +101,18 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
         using var request = Request(HttpMethod.Get, "/v1/instances/list", apiToken);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(25));
-        using var response = await SendAsync(request, deadline.Token);
+        using HttpResponseMessage response;
+        try { response = await SendAsync(request, deadline.Token); }
+        catch (HttpRequestException)
+        {
+            throw new InvalidOperationException(
+                "Thunder-API ist nicht erreichbar. Kein kostenpflichtiger Create.");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                "Thunder-API-Lesetest hat das Zeitlimit überschritten. Kein kostenpflichtiger Create.");
+        }
         if (!response.IsSuccessStatusCode)
             throw ResponseFailure(response.StatusCode, "Thunder-API-Lesetest");
         // A valid named Thunder token must access the documented instance list.
@@ -112,7 +124,7 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
                 "Thunder-API lieferte keine Instanzliste; kostenpflichtiger Create gesperrt.");
     }
 
-    public async Task<SshConnection> AuthorizeAsync(InstanceItem instance,
+    public async Task<AuthorizationResult> AuthorizeAsync(InstanceItem instance,
         LocalIdentity identity, string apiToken, CancellationToken ct = default)
     {
         ValidateTokenPresent(apiToken);
@@ -146,11 +158,18 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
                         await Task.Delay(TimeSpan.FromSeconds(3), ct);
                         continue;
                     }
+                    // Provider may have applied the key before sending 5xx.
+                    // The caller MUST verify actual SSH authentication before
+                    // reporting success. Never fall back to tnr connect.
+                    return new AuthorizationResult(
+                        new SshConnection(instance.Id, instance.Ip, instance.Port, identity.PrivateFile),
+                        false);
                 }
                 if (!response.IsSuccessStatusCode)
                     throw ResponseFailure(response.StatusCode, "Thunder-SSH-Public-Key");
                 using var payload = await JsonDocument.ParseAsync(
-                    await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+                    await response.Content.ReadAsStreamAsync(deadline.Token),
+                    cancellationToken: deadline.Token);
                 var data = payload.RootElement;
                 if (data.ValueKind != JsonValueKind.Object ||
                     !data.TryGetProperty("success", out var success) ||
@@ -167,8 +186,9 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
                     !string.Equals(uuid.GetString(), instance.Uuid, StringComparison.Ordinal))
                     throw new InvalidDataException(
                         "Thunder bestätigt eine andere Instanz-UUID. SSH-Anmeldung gesperrt.");
-                return new SshConnection(instance.Id, instance.Ip,
-                    instance.Port, identity.PrivateFile);
+                return new AuthorizationResult(
+                    new SshConnection(instance.Id, instance.Ip, instance.Port, identity.PrivateFile),
+                    true);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
@@ -177,17 +197,19 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
                 if (attempt == KeyRequestAttempts) break;
                 await Task.Delay(TimeSpan.FromSeconds(3), ct);
             }
-            catch (HttpRequestException) when (attempt < KeyRequestAttempts &&
-                                               !ct.IsCancellationRequested)
+            catch (HttpRequestException) when (!ct.IsCancellationRequested)
             {
+                // Same immutable public_key for the only retry.
+                if (attempt == KeyRequestAttempts) break;
                 await Task.Delay(TimeSpan.FromSeconds(3), ct);
             }
         }
-        throw new InvalidOperationException(
-            "Thunder hat den vorhandenen öffentlichen SSH-Schlüssel nicht bestätigt. " +
-            "Maximal zwei idempotente Versuche mit identischem public_key; " +
-            "kein tnr connect und kein zweiter Pod. " +
-            "Pod kann weiterhin Kosten verursachen.");
+        // Timeout/transport failure is ambiguous but not a reason to give
+        // up: with the same local private key, a strictly authenticated SSH
+        // probe can prove whether the server already attached the public half.
+        return new AuthorizationResult(
+            new SshConnection(instance.Id, instance.Ip, instance.Port, identity.PrivateFile),
+            false);
     }
 
     private static void ValidateTokenPresent(string token)
@@ -206,22 +228,11 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
         return request;
     }
 
-    private async Task<HttpResponseMessage> SendAsync(
+    private Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken ct)
-    {
-        try
-        {
-            return await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        }
-        catch (HttpRequestException)
-        {
-            // Never include HttpRequestException.Message: some transports
-            // copy request URLs and headers into their diagnostic strings.
-            throw new InvalidOperationException(
-                "Thunder-API nicht erreichbar. Status/Netzwerk prüfen. " +
-                "Kein unkontrollierter CLI-Registrierungsversuch.");
-        }
-    }
+        // NEVER show exception detail from HttpRequestException; some HTTP
+        // transports include URLs, raw request headers or private fields.
+        => http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
     private static InvalidOperationException ResponseFailure(
         HttpStatusCode status, string operation)
