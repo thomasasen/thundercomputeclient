@@ -911,7 +911,8 @@ public sealed class MainViewModel : Bindable, IDisposable
             SetAutoDeploymentStage("SSH-Endpunkt bereit: authentifiziere Schlüssel und prüfe den Hostfingerprint.");
             var ssh = await TrustedSshAsync(ct, SetAutoDeploymentStage,
                 preparedIdentity, thunderApiToken);
-            var probe = await _ssh.ProbeAuthenticationAsync(ssh, ct);
+            var probe = await _ssh.WaitForAuthenticationAsync(ssh,
+                SetAutoDeploymentStage, ct: ct);
             if (!probe.Success)
                 throw new InvalidOperationException(
                     "SSH-Anmeldung fehlgeschlagen (Exitcode " + probe.ExitCode +
