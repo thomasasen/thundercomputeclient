@@ -18,7 +18,7 @@ url = 'https://api.github.com/repos/thomasasen/runpod-ai-workflows/contents/scri
     [Fact]
     public void UsesExactlyReviewedCommitForEntrypointAndWorker()
     {
-        var result = SshService.PinBootstrapAdapter(MinimalAdapter, Sha);
+        var result = SshService.PinBootstrapAdapter(MinimalAdapter.Replace("\r\n", "\n"), Sha);
         Assert.Contains("export REPO_REF=" + Sha, result);
         Assert.Contains("contents/scripts/pod_entry.py?ref=" + Sha, result);
         Assert.Contains("if [[ \"${REPO_REF:-" + Sha + "}\" != '" + Sha + "' ]]; then", result);
@@ -29,9 +29,9 @@ url = 'https://api.github.com/repos/thomasasen/runpod-ai-workflows/contents/scri
     public void AdapterVersionChangeCannotQuietlyFallBackToMain()
     {
         Assert.Throws<InvalidDataException>(() =>
-            SshService.PinBootstrapAdapter(MinimalAdapter.Replace("export REPO_REF=main",
+            SshService.PinBootstrapAdapter(MinimalAdapter.Replace("\r\n", "\n").Replace("export REPO_REF=main",
                 "export REPO_REF=latest"), Sha));
         Assert.Throws<InvalidDataException>(() =>
-            SshService.PinBootstrapAdapter(MinimalAdapter, "main"));
+            SshService.PinBootstrapAdapter(MinimalAdapter.Replace("\r\n", "\n"), "main"));
     }
 }
