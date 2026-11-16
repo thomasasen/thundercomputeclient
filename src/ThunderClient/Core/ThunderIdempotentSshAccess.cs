@@ -101,7 +101,7 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
         using var request = Request(HttpMethod.Get, "/v1/instances/list", apiToken);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(25));
-        using HttpResponseMessage response;
+        HttpResponseMessage response;
         try { response = await SendAsync(request, deadline.Token); }
         catch (HttpRequestException)
         {
@@ -113,6 +113,7 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
             throw new TimeoutException(
                 "Thunder-API-Lesetest hat das Zeitlimit überschritten. Kein kostenpflichtiger Create.");
         }
+        using var ownedResponse = response;
         if (!response.IsSuccessStatusCode)
             throw ResponseFailure(response.StatusCode, "Thunder-API-Lesetest");
         // A valid named Thunder token must access the documented instance list.

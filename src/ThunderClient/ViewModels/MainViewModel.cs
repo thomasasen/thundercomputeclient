@@ -979,7 +979,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             Log("[AUTO-DEPLOY] " + AutoDeploymentStatus);
             throw new TimeoutException(timeoutMessage, ex);
         }
-        catch (ThunderSshKeyApiTimeoutException ex)
+        catch (ThunderSshKeyApiTimeoutException)
         {
             AutoDeploymentStatus =
                 "Thunder hat die Registrierung des SSH-Schlüssels nicht beantwortet. " +
