@@ -256,6 +256,10 @@ public partial class MainWindow : Window, IUserDialogs
         }
     }
 
+    private void SaveThunderApi_Click(object sender, RoutedEventArgs e)
+    { _model.SaveSecret("thunder-api", ThunderApiPassword.Password); ThunderApiPassword.Clear(); }
+    private void DeleteThunderApi_Click(object sender, RoutedEventArgs e)
+    { _model.DeleteSecret("thunder-api"); ThunderApiPassword.Clear(); }
     private void SaveGithub_Click(object sender, RoutedEventArgs e)
     { _model.SaveSecret("github", GithubPassword.Password); GithubPassword.Clear(); }
     private void DeleteGithub_Click(object sender, RoutedEventArgs e)

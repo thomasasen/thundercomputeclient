@@ -573,8 +573,19 @@
                         <TextBlock Margin="0,8,0,15" Foreground="{DynamicResource SubtleBrush}"
                                    Text="Tokens liegen im Windows Credential Manager. Der private Workflow-Katalog wird über die authentifizierte GitHub-API gelesen. Dafür und für den Remote-Bootstrap wird ein Fine-grained PAT mit Contents: Read-only benötigt. Thunder verwendet separat die tnr-Anmeldung." />
                         <TextBlock FontWeight="Bold" Text="Thunder Compute" />
-                        <TextBlock Text="CLI-Anmeldung: über tnr login im Windows Terminal; SSH-Schlüssel generiert die offizielle CLI." Margin="0,5" />
+                        <TextBlock TextWrapping="Wrap" Margin="0,5"
+                                   Text="CLI über tnr login anmelden. Für den sicheren automatischen SSH-Erstzugang zusätzlich einen eigenen API-Token in der Thunder Console anlegen. Der Client prüft ihn vor der Pod-Erstellung und registriert ausschließlich einen festen öffentlichen SSH-Schlüssel." />
                         <Button Command="{Binding ThunderLoginCommand}" Content="Anleitung zur Thunder-Anmeldung" HorizontalAlignment="Left" />
+                        <Separator Margin="0,15" />
+                        <TextBlock FontWeight="Bold" Text="Thunder · API-Token für sicheren SSH-Erstzugang" />
+                        <TextBlock Text="{Binding ThunderApiTokenStatus}" TextWrapping="Wrap" />
+                        <PasswordBox x:Name="ThunderApiPassword" Width="480" HorizontalAlignment="Left" />
+                        <WrapPanel>
+                            <Button Click="SaveThunderApi_Click" Content="Thunder-API-Token speichern" />
+                            <Button Click="DeleteThunderApi_Click" Content="Token löschen" />
+                        </WrapPanel>
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}" TextWrapping="Wrap"
+                                   Text="Aus Thunder Console → Authentication → API Tokens. Sicher im Windows Credential Manager; niemals in Logs, URL oder Screenshots eintragen." />
                         <Separator Margin="0,15" />
                         <TextBlock FontWeight="Bold" Text="GitHub · Katalog und Remote-Bootstrap (Contents: Read-only)" />
                         <TextBlock Text="{Binding GitTokenStatus}" />
