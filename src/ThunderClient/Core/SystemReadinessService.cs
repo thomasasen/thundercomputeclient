@@ -254,6 +254,21 @@ public sealed class SystemReadinessService : IDisposable
                 return Task.FromResult(("Fehler", ex.Message));
             }
         }
+        // The one-click flow now owns one persistent local ED25519 identity.
+        // This inspection is strictly read-only and never provisions a key.
+        var appIdentity = Path.Combine(Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData),
+            "ThunderClient", "ssh", "identity_ed25519");
+        if (File.Exists(appIdentity) &&
+            !File.GetAttributes(appIdentity).HasFlag(FileAttributes.ReparsePoint))
+        {
+            _sshEndpoint = new SshConnection(_runningPod.Id,
+                _runningPod.Ip, _runningPod.Port, appIdentity);
+            return Task.FromResult(("Vorhanden",
+                "Lokal erzeugter ThunderClient-SSH-Schlüssel gefunden. " +
+                "Der Public-Key muss diesem Pod über die dokumentierte Thunder-API " +
+                "zugeordnet sein; dies wird im SSH-Anmeldetest verifiziert."));
+        }
         var thunderHome = Environment.GetEnvironmentVariable("TNR_HOME");
         if (string.IsNullOrWhiteSpace(thunderHome))
             thunderHome = Path.Combine(Environment.GetFolderPath(
