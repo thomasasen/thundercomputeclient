@@ -1047,8 +1047,13 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         var item = SelectedInstance ?? throw new InvalidOperationException("Zuerst eine Instanz auswählen.");
         var token = ct == default ? _shutdown.Token : ct;
-        progress?.Invoke("Ermittle SSH-Verbindungsdaten über die offizielle Thunder-CLI.");
-        var endpoint = await _thunder.GetSshAsync(item, token);
+        progress?.Invoke("Prüfe vorhandene lokale SSH-Schlüssel ohne Thunder-API-Aufruf.");
+        var existing = _thunder.GetExistingSsh(item);
+        progress?.Invoke(existing is null
+            ? "Kein lokaler Schlüssel für diesen Pod vorhanden; tnr connect kann eine " +
+              "neue Schlüsselregistrierung beim Anbieter auslösen."
+            : "Vorhandener privater SSH-Schlüssel gefunden: Thunder /add_key wird nicht aufgerufen.");
+        var endpoint = existing ?? await _thunder.GetSshAsync(item, token);
         progress?.Invoke("Prüfe gespeichertes SSH-Hostvertrauen (maximal 10 Sekunden).");
         if (!await _ssh.HasKnownHostAsync(endpoint, token))
         {
