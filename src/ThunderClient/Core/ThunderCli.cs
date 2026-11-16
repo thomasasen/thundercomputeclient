@@ -140,7 +140,20 @@ public sealed class ThunderCli(ICommandRunner commands)
                 var (id, uuid) = ParseCreateIdentity(output.Stdout);
                 // A just-created paid instance need not be visible in status
                 // immediately. Its exact identifier comes from create itself.
-                var newest = await ListAsync(ct);
+                IReadOnlyList<InstanceItem> newest;
+                try
+                {
+                    newest = await ListAsync(ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException &&
+                                          !ct.IsCancellationRequested)
+                {
+                    // Status failures AFTER successful billable creation must
+                    // never destroy its authoritative create identity.
+                    log("Create erfolgreich: Pod-ID gespeichert; Statusliste vorübergehend nicht erreichbar.");
+                    return new InstanceItem(id, uuid, "", "CREATING",
+                        gpu.Key, "", 0, DateTimeOffset.UtcNow, diskGb, gpuCount);
+                }
                 var matches = newest.Where(item => item.Id == id ||
                     (!string.IsNullOrEmpty(uuid) && item.Uuid == uuid)).ToArray();
                 if (matches.Length > 1)
