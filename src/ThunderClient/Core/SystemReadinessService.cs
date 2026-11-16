@@ -235,6 +235,25 @@ public sealed class SystemReadinessService : IDisposable
             return Task.FromResult(("Nicht prüfbar",
                 "SSH-IP oder SSH-Port fehlen noch im Thunder-Status. " +
                 "Status nach dem Start erneut aktualisieren."));
+        // Explicitly configured user-owned key is an opt-in read-only
+        // alternative to tnr connect's potentially non-idempotent /add_key.
+        var configuredKey = Environment.GetEnvironmentVariable("THUNDERCLIENT_SSH_KEY");
+        if (!string.IsNullOrWhiteSpace(configuredKey))
+        {
+            try
+            {
+                _sshEndpoint = ThunderCli.TryExistingSshKey(_runningPod,
+                    configuredKey, Environment.GetEnvironmentVariable("TNR_HOME"));
+                return Task.FromResult(("Vorhanden",
+                    "Explizit gewählter privater SSH-Schlüssel gefunden. " +
+                    "Keine Registrierung über tnr connect erforderlich. " +
+                    "Hostfingerprint und echte SSH-Anmeldung müssen separat bestätigt werden."));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Task.FromResult(("Fehler", ex.Message));
+            }
+        }
         var thunderHome = Environment.GetEnvironmentVariable("TNR_HOME");
         if (string.IsNullOrWhiteSpace(thunderHome))
             thunderHome = Path.Combine(Environment.GetFolderPath(
