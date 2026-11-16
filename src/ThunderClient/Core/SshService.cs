@@ -273,6 +273,44 @@ public sealed class SshService(ICommandRunner commands)
             cancellationToken: ct);
     }
 
+    /// <summary>
+    /// The provider may return HTTP 200 for add_key before authorized_keys
+    /// has propagated to sshd. Bounded read-only ssh true probes only:
+    /// NEVER call /add_key, tnr connect, or mutate trusted host keys here.
+    /// </summary>
+    public async Task<CommandResult> WaitForAuthenticationAsync(
+        SshConnection endpoint, Action<string>? progress = null,
+        int attempts = 6, Func<TimeSpan, CancellationToken, Task>? delay = null,
+        CancellationToken ct = default)
+    {
+        if (attempts is < 1 or > 10)
+            throw new ArgumentOutOfRangeException(nameof(attempts));
+        delay ??= (pause, token) => Task.Delay(pause, token);
+        CommandResult last = new(255, "", "Noch kein SSH-Probe ausgeführt");
+        for (var i = 0; i < attempts; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            last = await ProbeAuthenticationAsync(endpoint, ct);
+            if (last.Success) return last;
+            var error = last.Combined;
+            // A changed host key or a missing independent trust entry is a
+            // security failure, not a transient authorized_keys delay.
+            if (error.Contains("REMOTE HOST IDENTIFICATION HAS CHANGED",
+                    StringComparison.OrdinalIgnoreCase) ||
+                error.Contains("Host key verification failed",
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "SSH-Hostfingerprint nicht mehr gültig. " +
+                    "Keine erneute Verbindung ohne unabhängige Hostprüfung.");
+            progress?.Invoke("SSH-Key-Propagation noch nicht bestätigt (" +
+                (i + 1) + "/" + attempts + "). " +
+                "Es wird nur ssh true wiederholt, kein weiterer API-Key-POST.");
+            if (i + 1 < attempts)
+                await delay(TimeSpan.FromSeconds(5), ct);
+        }
+        return last;
+    }
+
     public async Task<CommandResult> RunScriptAsync(SshConnection endpoint, string script,
         Action<string>? onLine = null, CancellationToken ct = default)
     {
