@@ -95,7 +95,8 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
         return parts[0] + " " + parts[1];
     }
 
-    public async Task ValidateTokenAsync(string apiToken, CancellationToken ct = default)
+    public async Task ValidateTokenAsync(string apiToken, CancellationToken ct = default,
+        IReadOnlyList<InstanceItem>? cliInstances = null)
     {
         ValidateTokenPresent(apiToken);
         using var request = Request(HttpMethod.Get, "/v1/instances/list", apiToken);
@@ -123,6 +124,29 @@ public sealed class ThunderIdempotentSshAccess(HttpClient http, ICommandRunner r
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException(
                 "Thunder-API lieferte keine Instanzliste; kostenpflichtiger Create gesperrt.");
+        if (cliInstances is not null)
+        {
+            // The official tnr client decodes GET /v1/instances/list into
+            // map[ID]InstanceListItem, including UUID. Detect account/workspace
+            // mismatch and conflicting instance visibility before any payment.
+            var provider = document.RootElement;
+            if (provider.EnumerateObject().Count() != cliInstances.Count)
+                throw new InvalidOperationException(
+                    "Thunder CLI und Thunder-API-Token sehen unterschiedliche " +
+                    "Instanzzahlen. Anmeldung/Workspace abgleichen. Kein Pod erstellt.");
+            foreach (var item in cliInstances)
+            {
+                if (!provider.TryGetProperty(item.Id, out var matched) ||
+                    matched.ValueKind != JsonValueKind.Object ||
+                    !matched.TryGetProperty("uuid", out var uuid) ||
+                    uuid.ValueKind != JsonValueKind.String ||
+                    string.IsNullOrWhiteSpace(item.Uuid) ||
+                    !string.Equals(uuid.GetString(), item.Uuid, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "Thunder CLI und API-Token liefern keine übereinstimmende " +
+                        "Pod-ID/UUID. Kein kostenpflichtiger Create und keine Schlüsselzuordnung.");
+            }
+        }
     }
 
     public async Task<AuthorizationResult> AuthorizeAsync(InstanceItem instance,
