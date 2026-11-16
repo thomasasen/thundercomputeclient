@@ -22,6 +22,11 @@ jobs:
         run: dotnet restore tests/ThunderClient.Tests/ThunderClient.Tests.csproj
       - name: Test (nur Mocks, keine GPU/Downloads)
         run: dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=thunderclient-tests.trx" --results-directory artifacts/testresults
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute embedded remote readiness against synthetic file and HTTP fixtures
+        run: python -m unittest discover -s tests -p remote_readiness_fixture_test.py -v
       - name: Publish Desktop App
         run: dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish
       - name: GUI-Starttest auf Windows (ohne Netzwerk/GPU)
