@@ -23,7 +23,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     private readonly GitHubWorkflowSource _github = new();
     private WorkflowSnapshot? _snapshot;
     private readonly ThunderCli _thunder;
-    private readonly HttpClient _thunderPricingHttp = new();
+    private readonly HttpClient _thunderPricingHttp = new(new HttpClientHandler { AllowAutoRedirect = false });
     private readonly ThunderPublicPricing _livePricing;
     private readonly SshService _ssh;
     private readonly SystemReadinessService _readiness;
