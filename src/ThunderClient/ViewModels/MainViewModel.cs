@@ -23,6 +23,8 @@ public sealed class MainViewModel : Bindable, IDisposable
     private readonly GitHubWorkflowSource _github = new();
     private WorkflowSnapshot? _snapshot;
     private readonly ThunderCli _thunder;
+    private readonly HttpClient _thunderPricingHttp = new();
+    private readonly ThunderPublicPricing _livePricing;
     private readonly SshService _ssh;
     private readonly SystemReadinessService _readiness;
     private readonly ClientSettings _settings;
@@ -103,6 +105,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         _dialogs = dialogs;
         _settings = _store.Load();
         _thunder = new ThunderCli(_runner);
+        _livePricing = new ThunderPublicPricing(_thunderPricingHttp);
         _ssh = new SshService(_runner);
         _readiness = new SystemReadinessService(_runner, _vault.Read,
             (token, ct) => _github.FetchAsync(token, ct), () => SelectedInstance, _ssh);
@@ -773,7 +776,29 @@ public sealed class MainViewModel : Bindable, IDisposable
                 podId = item.Id;
             }
 
-            var cost = plan.FirstHourlyEstimate;
+            // Confirm provider rates and hardware options before the first paid
+            // create. A price API outage is NOT permission to use stale estimates.
+            decimal cost;
+            if (!reuse)
+            {
+                SetAutoDeploymentStage("Prüfe aktuelle Thunder-Preise und GPU-/vCPU-/Disk-Spezifikationen.");
+                var quotes = await _livePricing.QuoteAsync(
+                    plan.Candidates, plan.GpuCount, plan.DiskGb, ct);
+                var approved = plan.Candidates.Where(x =>
+                    quotes[x.Key].HourlyUsd <= plan.MaxEstimatedHourlyUsd).ToArray();
+                if (approved.Length == 0)
+                    throw new InvalidOperationException(
+                        "Keine GPU erfüllt die bestätigte aktuelle Thunder-Preisgrenze. " +
+                        "Kein kostenpflichtiger Pod wurde erstellt.");
+                plan = plan with { Candidates = approved };
+                cost = quotes[approved[0].Key].HourlyUsd;
+                Log("[THUNDER-PRICING] Live-Tarife und Spezifikationen geprüft: " +
+                    string.Join(", ", approved.Select(x =>
+                        x.Key + " " + quotes[x.Key].HourlyUsd.ToString("N3") + " USD/h")));
+            }
+            else
+                cost = plan.FirstHourlyEstimate;
+
             var offer =
                 "Workflows: " + workflowsCsv + "\n" +
                 "Quelle: private GitHub-Revision " + plan.Revision[..12] + "\n" +
@@ -782,7 +807,9 @@ public sealed class MainViewModel : Bindable, IDisposable
                     x.Display + ", " + x.Vcpus + " vCPUs")) + "\n" +
                 "GPU-Anzahl: " + plan.GpuCount + "\n" +
                 "Gesamtdisk: " + plan.DiskGb + " GB · Template: " + plan.Template + "\n" +
-                "Erste GPU geschätzt: " + cost.ToString("N3") + " USD/h\n" +
+                (reuse ? "Bestehender Pod, nicht live quotiert: " :
+                    "Live-Quote (max. aus Anbieterpreis und konservativem Listenwert): ") +
+                cost.ToString("N3") + " USD/h\n" +
                 "Rechnerisch für 1 / 4 / 12 Stunden: " +
                     cost.ToString("N2") + " / " + (4 * cost).ToString("N2") +
                     " / " + (12 * cost).ToString("N2") + " USD\n" +
@@ -962,19 +989,29 @@ public sealed class MainViewModel : Bindable, IDisposable
             throw new InvalidOperationException("GPU-Anzahl, Disk oder Schätzpreisgrenze ungültig.");
         if (!GpuChoices.Any(x => x.Enabled && Estimates.Hourly(x, GpuCount, DiskGb) <= MaximumHourlyUsd))
             throw new InvalidOperationException("Keine GPU innerhalb der freigegebenen Schätzpreisgrenze aktiviert.");
+        // Quote before asking for the irreversible paid-create confirmation.
+        var providerEligible = GpuChoices.Where(gpu => gpu.Enabled &&
+            Estimates.Hourly(gpu, GpuCount, DiskGb) <= MaximumHourlyUsd).ToArray();
+        var rates = await _livePricing.QuoteAsync(providerEligible, GpuCount, DiskGb, _shutdown.Token);
+        var approvedChoices = providerEligible.Where(gpu =>
+            rates[gpu.Key].HourlyUsd <= MaximumHourlyUsd).ToArray();
+        if (approvedChoices.Length == 0)
+            throw new InvalidOperationException(
+                "Keine GPU erfüllt die aktuelle Thunder-Preisgrenze. Kein Pod erstellt.");
+        var approvedFirst = rates[approvedChoices[0].Key].HourlyUsd;
         if (!_dialogs.Confirm("Kostenpflichtige Instanz erstellen",
-            Preview + "\nKostenschätzung für 1/4/12 Stunden: " +
-            string.Join(" / ", GpuChoices.Where(x => x.Enabled).Take(1).SelectMany(gpu =>
-            {
-                var h = Estimates.Hourly(gpu, GpuCount, DiskGb);
-                return new[] { (h * 1).ToString("N2"), (h * 4).ToString("N2"), (h * 12).ToString("N2") };
-            })) + " USD (nur erste GPU).\n" +
-            "Die Instanz kostet ab Erstellung Geld. Preisgrenze ist KEINE Abrechnungsbremse. Verbindlich jetzt kostenpflichtig erstellen?"))
+            Preview + "\nLive-Tarife (GPU + zusätzliche vCPUs + Disk): " +
+            string.Join(", ", approvedChoices.Select(gpu =>
+                gpu.Key + " " + rates[gpu.Key].HourlyUsd.ToString("N3") + " USD/h")) +
+            "\nKostenschätzung für 1/4/12 Stunden: " +
+            string.Join(" / ", new[] { approvedFirst, 4 * approvedFirst, 12 * approvedFirst }
+                .Select(x => x.ToString("N2"))) + " USD (erste GPU).\n" +
+            "Kostenpflichtig ab Create; dies ist keine serverseitige Abrechnungsbremse. Jetzt erstellen?"))
             return;
         Busy = true;
         try
         {
-            var instance = await _thunder.CreateWithFallbackAsync(GpuChoices.ToList(),
+            var instance = await _thunder.CreateWithFallbackAsync(approvedChoices,
                 GpuCount, DiskGb, Template, MaximumHourlyUsd, _lockDirectory, Log, _shutdown.Token);
             await RefreshInstancesAsync();
             SelectedInstance = Instances.FirstOrDefault(x => x.Id == instance.Id);
@@ -1246,6 +1283,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         _ssh.StopTunnel();
         _readiness.Dispose();
         _github.Dispose();
+        _thunderPricingHttp.Dispose();
         _shutdown.Dispose();
     }
 }
