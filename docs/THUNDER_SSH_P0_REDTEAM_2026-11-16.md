@@ -18,7 +18,7 @@ Tester-Screenshot vom 16.11.2026, 15:43 Uhr: privater GitHub-Katalog geladen (18
 2. [Thunder CLI: Source cmd/connect.go](https://github.com/Thunder-Compute/thunder-cli/blob/main/cmd/connect.go): ohne lokalen Key ruft die CLI `client.AddSSHKeyCtx(ctx, instanceID)` auf; die API erzeugt mit dem CLI-Parameterlosen Aufruf ein Schlüsselpaar. Die lokale private Hälfte wird erst **nach dem erfolgreichen API-Response** gespeichert. Der `http.Client` hat 30 Sekunden Default-Timeout. Das passt exakt zum gemeldeten Fehlerbild.
 3. [Thunder Console: SSH manually](https://www.thundercompute.com/docs/console/operations/ssh): gespeicherte SSH-Keys sind auf Organisationsebene. Bei **Console-Create** kann ein vorhandener öffentlicher Key ausgewählt werden; bei bestehenden Pods muss er gesondert hinzugefügt werden. Die Key-Datei auf dem Windows-PC ist die private Hälfte; Standard-SSH verwendet `ssh ubuntu@IP -p Port -i Pfad`. **Ein im Account gespeicherter Key ist kein Beweis für dessen Autorisierung auf dem bereits laufenden Pod.**
 4. [Thunder REST: Add SSH key to instance](https://www.thundercompute.com/docs/api-reference/instances/add-ssh-key-to-instance): `POST /v1/instances/{id}/add_key` mit JSON `{"public_key":"ssh-ed25519 ..."}`; ein **identischer** Public-Key wird ausdrücklich **ohne Fehler als No-op** behandelt. Ohne Feld `public_key` erstellt Thunder selbst ein neues Schlüsselpaar; private Hälfte wird **nur einmal** zurückgegeben. Bearer-Authorization erforderlich.
-5. [Thunder REST: List instances](https://www.thundercompute.com/docs/api-reference/instances/list-instances): dokumentierter **lesender** `GET /v1/instances/list` mit Bearer Token; als Vorab-Anmeldetest für GUI geeignet. Ein erfolgreicher GET bestätigt nur den eigenen API-Token-Zugang, nicht automatisch denselben Account/Workspace wie die parallel verwendete `tnr`-Anmeldung.
+5. [Thunder REST: List instances](https://www.thundercompute.com/docs/api-reference/instances/list-instances): dokumentierter **lesender** `GET /v1/instances/list` mit Bearer Token. Die offizielle CLI dekodiert die Antwort als `map[instanceID]InstanceListItem` inklusive `uuid`. Der Desktop gleicht jetzt **Anzahl, IDs und UUIDs** mit der CLI-Instanzliste **vor einem kostenpflichtigen Create** ab. Sind beide Listen leer, ist die tatsächliche Identität desselben Accounts dennoch nicht vollständig nachweisbar; ein echter Account-/Workspace-Abgleich bleibt als Livetest erforderlich.
 6. [Thunder Console: Authentication](https://www.thundercompute.com/docs/console/operations/authentication): API-Tokens können in der Console erzeugt/widerrufen werden; eindeutige Tokens pro Anwendung empfohlen. Der Desktop speichert sein Token getrennt von GitHub/HuggingFace/Civitai im Windows Credential Manager.
 
 ## 3. Root-Cause-Analyse: Warum die vorherigen Clientversionen weiterhin scheitern
@@ -35,7 +35,7 @@ Der erste Fix mit `TryExistingSshKey` hilft **nur, wenn eine nutzbare private Sc
 |---|---|---|
 | G0 Quelle | Privaten Katalog laden, vollständige Model-IDs prüfen, SHA/Adapter pinnen | Bei unvollständiger Auswahl kein Create |
 | G1 Thunder CLI | `tnr status --json --no-wait` lesend, vorhandene Pods und ID identifizieren | Bei mehreren Pods kein Auto-Create |
-| G2 Thunder REST | Benannten Console-Token über `GET /v1/instances/list` prüfen, keine API-Mutation | Fehlender/ungültiger Token und kein bereits lokal nutzbarer Key ⇒ **kein kostenpflichtiger Auto-Create** |
+| G2 Thunder REST | Benannten Console-Token über `GET /v1/instances/list` prüfen und **Liste der IDs/UUIDs gegen die echte `tnr status`-Liste abgleichen**, keine API-Mutation | Fehlender Token, fehlende UUID, abweichender Account/Workspace, inkonsistente Pod-Liste ⇒ **kein kostenpflichtiger Auto-Create** |
 | G3 Lokaler SSH-Key | Eigene permanente ED25519-Identität vor Create anlegen oder expliziten vorhandenen privaten Key prüfen; `ssh-keygen -y` leitet Public-Key daraus ab; Schlüsseldatei nicht an Provider übertragen | Ungültige Datei, fehlende Rechte, nicht-ED25519, Passphrase-Problem ⇒ **kein Create** |
 | G4 Anbieterquote | `GET /v2/pricing` und `/v2/specs`, GPU/vCPU/Disk, Obergrenze und explizite GUI-Bestätigung | Teurer/unklar ⇒ kein Create |
 | G5 Create | `tnr create --json`, Identität/UUID aus Create-Antwort, Status-Poll der exakten ID | Kein zweiter Pod bei verlorener Statusliste |
@@ -47,7 +47,7 @@ Der erste Fix mit `TryExistingSshKey` hilft **nur, wenn eine nutzbare private Sc
 | G11 Bootstrap | Remote-Supervisor, SHA-gepinnter Adapter, Run-ID/PID/Log, keine Secrets in Remote-Skript | Bestehenden Job anhängen, keine zweite Installation |
 | G12 ComfyUI | Download-Endereignisse, Node-/Dependency-Audit, private HTTP-API, SSH-Readiness-Audit | HTTP 200 allein **keine** einsatzbereite Meldung |
 
-**Kritischer Hinweis:** G2 ist ein *Authentifizierungs- und Erreichbarkeitstest*, keine kryptografische Kontrolle, dass der `tnr`-Client exakt denselben Org-/Workspace-Kontext verwendet. G7 nutzt eine **dokumentierte** POST-Route; bei echten Backend-Ausfällen kann auch der sichere Public-Key-Modus fehlschlagen. G8 verlangt weiterhin eine außerhalb der vom Host gelieferten Daten geprüfte Vertrauensquelle.
+**Kritischer Hinweis:** G2 vergleicht ID/UUID-Vorkommen bei **vorhandenen Pods** aus beiden Anmeldungen. Falls beide Konten **überhaupt keine Pods** anzeigen, reicht dieser Vergleich nicht als Beweis gleicher Org-/Workspace-Zugehörigkeit. G7 nutzt eine **dokumentierte** POST-Route; bei echten Backend-Ausfällen kann auch der sichere Public-Key-Modus fehlschlagen. G8 verlangt weiterhin eine außerhalb der vom Host gelieferten Daten geprüfte Vertrauensquelle.
 
 ## 5. Adversarial Checks (ohne paid provider)
 
@@ -75,7 +75,7 @@ Der erste Fix mit `TryExistingSshKey` hilft **nur, wenn eine nutzbare private Sc
 | RT20 | Windows-Navigation und neue Readiness-Seite | GUI-Smoke inkl. vollständiger Systemchecks |
 | RT21 | Vorherige Checkout-/PATH-Fehler im historischen Startup-Log | Nicht fälschlich als Ursache des aktuellen SSH-Falls klassifizieren |
 | RT22 | Nur Account-Key gespeichert, nicht an bestehenden Pod gebunden | Kein „SSH bereit“ allein aufgrund eines Keys im Org-Store |
-| RT23 | Client-Token stammt von anderem Thunder-Workspace | Kein irrtümliches „SSH bereit“; **zusätzlicher Live-Org-Test weiterhin erforderlich** |
+| RT23 | Client-Token stammt von anderem Thunder-Workspace oder andere Instanz-UUID | API- und CLI-Pod-Listen stimmen nicht überein ⇒ Stop vor Create; beide leeren Listen benötigen zusätzlichen Account-Livetest |
 
 ## 6. Release-/Livetest-Gates
 
