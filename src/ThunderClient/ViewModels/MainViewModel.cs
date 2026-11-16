@@ -25,6 +25,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     private readonly ThunderCli _thunder;
     private readonly HttpClient _thunderPricingHttp = new(new HttpClientHandler { AllowAutoRedirect = false });
     private readonly ThunderPublicPricing _livePricing;
+    private readonly ThunderIdempotentSshAccess _thunderSshApi;
     private readonly SshService _ssh;
     private readonly SystemReadinessService _readiness;
     private readonly ClientSettings _settings;
@@ -60,6 +61,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     private Task? _monitorTask;
     private string _snapshotName = "comfyui-backup";
     private string _gitTokenStatus = "";
+    private string _thunderApiTokenStatus = "";
     private string _hfTokenStatus = "";
     private string _civitaiTokenStatus = "";
     private InstanceItem? _selectedInstance;
@@ -111,6 +113,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         _settings = _store.Load();
         _thunder = new ThunderCli(_runner);
         _livePricing = new ThunderPublicPricing(_thunderPricingHttp);
+        _thunderSshApi = new ThunderIdempotentSshAccess(_thunderPricingHttp, _runner);
         _ssh = new SshService(_runner);
         _readiness = new SystemReadinessService(_runner, _vault.Read,
             (token, ct) => _github.FetchAsync(token, ct), () => SelectedInstance, _ssh);
@@ -270,6 +273,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string VersionStatus { get => _versionStatus; private set => Set(ref _versionStatus, value); }
     public string LastRefreshed { get => _lastRefreshed; private set => Set(ref _lastRefreshed, value); }
     public string GitTokenStatus { get => _gitTokenStatus; private set => Set(ref _gitTokenStatus, value); }
+    public string ThunderApiTokenStatus { get => _thunderApiTokenStatus; private set => Set(ref _thunderApiTokenStatus, value); }
     public string HfTokenStatus { get => _hfTokenStatus; private set => Set(ref _hfTokenStatus, value); }
     public string CivitaiTokenStatus { get => _civitaiTokenStatus; private set => Set(ref _civitaiTokenStatus, value); }
     public string SnapshotName { get => _snapshotName; set => Set(ref _snapshotName, value); }
@@ -394,6 +398,9 @@ public sealed class MainViewModel : Bindable, IDisposable
     private void UpdateSecretStatuses()
     {
         GitTokenStatus = _vault.Exists("github") ? "Lesetoken gespeichert: ••••••••" : "Lesetoken fehlt: privater GitHub-Katalog nicht abrufbar";
+        ThunderApiTokenStatus = _vault.Exists("thunder-api")
+            ? "Thunder-API-Token hinterlegt: ••••••••"
+            : "Thunder-API-Token fehlt: automatischer SSH-Erstzugang vor kostenpflichtigem Create gesperrt";
         HfTokenStatus = _vault.Exists("huggingface") ? "Gespeichert: ••••••••" : "Nicht hinterlegt";
         CivitaiTokenStatus = _vault.Exists("civitai") ? "Gespeichert: ••••••••" : "Nicht hinterlegt";
     }
@@ -402,7 +409,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     {
         try
         {
-            if (service is not ("github" or "huggingface" or "civitai"))
+            if (service is not ("github" or "huggingface" or "civitai" or "thunder-api"))
                 throw new ArgumentOutOfRangeException(nameof(service));
             _vault.Save(service, value);
             UpdateSecretStatuses();
@@ -774,6 +781,27 @@ public sealed class MainViewModel : Bindable, IDisposable
                     "Mehrere Pods vorhanden: automatische Zuordnung nicht eindeutig. " +
                     "Pod in der Instanzverwaltung manuell auswählen. Es wird kein weiterer erstellt.");
             var reuse = existing.Count == 1;
+            // P0: validate the named API token and a persistent locally held
+            // private key before any billable VM. No server-generated keypairs.
+            var thunderApiToken = _vault.Read("thunder-api");
+            ThunderIdempotentSshAccess.LocalIdentity? preparedIdentity = null;
+            var knownKey = reuse && existing[0].Status == "RUNNING"
+                ? _thunder.GetExistingSsh(existing[0]) : null;
+            if (string.IsNullOrWhiteSpace(thunderApiToken) && knownKey is null)
+                throw new InvalidOperationException(
+                    "Thunder-API-Token fehlt und kein lokaler SSH-Schlüssel gefunden. " +
+                    "Vor einer kostenpflichtigen Erstellung einen benannten Token " +
+                    "in der Thunder Console anlegen und unter Zugangsdaten speichern. " +
+                    "Kein neuer Pod wurde erstellt; kein unsicherer tnr-connect-Retry.");
+            if (!string.IsNullOrWhiteSpace(thunderApiToken))
+            {
+                SetAutoDeploymentStage("Prüfe Thunder-Token und SSH-Schlüssel VOR jedem Pod-Create.");
+                await _thunderSshApi.ValidateTokenAsync(thunderApiToken, ct);
+                preparedIdentity = await _thunderSshApi.PrepareIdentityAsync(
+                    Environment.GetEnvironmentVariable("THUNDERCLIENT_SSH_KEY"), ct);
+                SetAutoDeploymentStage("Thunder-API geprüft; privater SSH-Schlüssel liegt lokal. " +
+                    "Registriert wird nur sein öffentlicher Teil.");
+            }
             if (reuse)
             {
                 var item = existing[0];
@@ -881,7 +909,8 @@ public sealed class MainViewModel : Bindable, IDisposable
             PodCreated?.Invoke();
             DeploymentLogsRequested?.Invoke();
             SetAutoDeploymentStage("SSH-Endpunkt bereit: authentifiziere Schlüssel und prüfe den Hostfingerprint.");
-            var ssh = await TrustedSshAsync(ct, SetAutoDeploymentStage);
+            var ssh = await TrustedSshAsync(ct, SetAutoDeploymentStage,
+                preparedIdentity, thunderApiToken);
             var probe = await _ssh.ProbeAuthenticationAsync(ssh, ct);
             if (!probe.Success)
                 throw new InvalidOperationException(
@@ -1043,17 +1072,33 @@ public sealed class MainViewModel : Bindable, IDisposable
     }
 
     private async Task<SshConnection> TrustedSshAsync(CancellationToken ct = default,
-        Action<string>? progress = null)
+        Action<string>? progress = null,
+        ThunderIdempotentSshAccess.LocalIdentity? preparedIdentity = null,
+        string? confirmedThunderToken = null)
     {
         var item = SelectedInstance ?? throw new InvalidOperationException("Zuerst eine Instanz auswählen.");
         var token = ct == default ? _shutdown.Token : ct;
-        progress?.Invoke("Prüfe vorhandene lokale SSH-Schlüssel ohne Thunder-API-Aufruf.");
-        var existing = _thunder.GetExistingSsh(item);
-        progress?.Invoke(existing is null
-            ? "Kein lokaler Schlüssel für diesen Pod vorhanden; tnr connect kann eine " +
-              "neue Schlüsselregistrierung beim Anbieter auslösen."
-            : "Vorhandener privater SSH-Schlüssel gefunden: Thunder /add_key wird nicht aufgerufen.");
-        var endpoint = existing ?? await _thunder.GetSshAsync(item, token);
+        var apiToken = confirmedThunderToken ?? _vault.Read("thunder-api");
+        SshConnection endpoint;
+        if (!string.IsNullOrWhiteSpace(apiToken))
+        {
+            var identity = preparedIdentity ?? await _thunderSshApi.PrepareIdentityAsync(
+                Environment.GetEnvironmentVariable("THUNDERCLIENT_SSH_KEY"), token);
+            progress?.Invoke("Ordne nur den festen öffentlichen SSH-Schlüssel dem Pod zu " +
+                "(idempotenter /add_key-Modus, keine serverseitige Schlüsselerzeugung).");
+            endpoint = await _thunderSshApi.AuthorizeAsync(item, identity, apiToken, token);
+            progress?.Invoke("Thunder bestätigt den Public-Key; prüfe unabhängig den Hostfingerprint.");
+        }
+        else
+        {
+            progress?.Invoke("Prüfe bereits gespeicherten privaten SSH-Schlüssel ohne Thunder-POST.");
+            endpoint = _thunder.GetExistingSsh(item) ??
+                throw new InvalidOperationException(
+                    "Kein autorisierter SSH-Schlüssel und kein Thunder-API-Token. " +
+                    "tnr connect wird NICHT aufgerufen, weil dieser Befehl ein neues " +
+                    "Schlüsselpaar per nicht-idempotentem POST erzeugen kann. " +
+                    "Unter Zugangsdaten einen API-Token speichern.");
+        }
         progress?.Invoke("Prüfe gespeichertes SSH-Hostvertrauen (maximal 10 Sekunden).");
         if (!await _ssh.HasKnownHostAsync(endpoint, token))
         {
@@ -1207,7 +1252,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     private string RedactKnownSecrets(string line)
     {
         var safe = Sanitize(line);
-        foreach (var service in new[] { "github", "huggingface", "civitai" })
+        foreach (var service in new[] { "github", "huggingface", "civitai", "thunder-api" })
         {
             var secret = _vault.Read(service);
             if (!string.IsNullOrEmpty(secret)) safe = safe.Replace(secret, "[GESCHWÄRZT]", StringComparison.Ordinal);
