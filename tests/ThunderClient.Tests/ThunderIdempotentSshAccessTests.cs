@@ -205,6 +205,36 @@ public sealed class ThunderIdempotentSshAccessTests
     }
 
     [Fact]
+    public async Task RealWindowsOpenSshGeneratesPersistentKeyAndDerivesItsPublicHalf()
+    {
+        // Genuine local Windows process integration, not a simulated runner.
+        // No provider network, no credentials and no remote GPU.
+        var folder = Path.Combine(Path.GetTempPath(), "thunder-real-ssh-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "id_ed25519");
+        try
+        {
+            var runner = new ProcessRunner();
+            var created = await runner.RunAsync("ssh-keygen",
+                ["-q", "-t", "ed25519", "-N", "", "-f", path,
+                 "-C", "ThunderClientFixture"], TimeSpan.FromSeconds(20));
+            Assert.True(created.Success);
+            Assert.True(File.Exists(path));
+            Assert.True(File.Exists(path + ".pub"));
+
+            using var http = new HttpClient(new FakeHttp());
+            var identity = await new ThunderIdempotentSshAccess(http, runner)
+                .PrepareIdentityAsync(path);
+            Assert.Equal(path, identity.PrivateFile);
+            Assert.StartsWith("ssh-ed25519 ", identity.PublicKey);
+            Assert.DoesNotContain("ThunderClientFixture", identity.PublicKey);
+            Assert.Equal(2, identity.PublicKey.Split(' ').Length);
+        }
+        finally { Directory.Delete(folder, recursive: true); }
+    }
+
+    [Fact]
     public void InvalidPublicKeysCannotReachProvider()
     {
         Assert.Throws<InvalidDataException>(() =>
