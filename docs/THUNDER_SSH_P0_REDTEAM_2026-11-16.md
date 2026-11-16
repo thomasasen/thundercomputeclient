@@ -42,7 +42,7 @@ Der erste Fix mit `TryExistingSshKey` hilft **nur, wenn eine nutzbare private Sc
 | G6 SSH-Endpunkt | Vom Provider gemeldete IP, **SSH-Port** (nicht hartkodiert 22), `RUNNING`, ID/UUID syntaktisch validieren | Bei falscher IP/Port/Pod-ID keine Key-Mutation |
 | G7 Public-Key-Write | `POST /v1/instances/{id}/add_key` mit **immer vorhandenem `public_key`**, HTTPS Bearer, keine Redirects; maximal zwei gleiche Versuche bei Timeout/5xx; `success=true`, UUID, fehlender servergenerierter Private-Key in Antwort prüfen | 401/403/400/UUID-Konflikt: STOP. Bei 5xx/Timeout: Anbieterstatus unklar, **kein `tnr connect`**, nach Hostprüfung nur identischen lokalen Key per SSH testen |
 | G8 Hostvertrauen | ED25519-Hostfingerprint unabhängige Thunder-Quelle + separate explizite Zustimmung, `StrictHostKeyChecking=yes` | Ohne Fingerprint: STOP; niemals blind `accept-new` |
-| G9 SSH | `ssh -i <privat> -p <providerport> ubuntu@<providerip> true`, `BatchMode=yes`, keine TTY-/Passwortfallbacks | Nur **echter Erfolg** entsperrt nächsten Schritt |
+| G9 SSH | `ssh -i <privat> -p <providerport> ubuntu@<providerip> true`, `BatchMode=yes`; bei noch nicht propagiertem `authorized_keys` bis zu sechs **rein lesende** Probes mit fünf Sekunden Pause; geänderter Hostfingerprint ist sofortiger Hard Stop | Nur **echter Erfolg** entsperrt nächsten Schritt; keine weiteren `add_key`-POSTs |
 | G10 GPU | SSH `nvidia-smi` VRAM/Anzahl und freier persistenter Workspace | Unzureichende Ressourcen: keine Modelldownloads |
 | G11 Bootstrap | Remote-Supervisor, SHA-gepinnter Adapter, Run-ID/PID/Log, keine Secrets in Remote-Skript | Bestehenden Job anhängen, keine zweite Installation |
 | G12 ComfyUI | Download-Endereignisse, Node-/Dependency-Audit, private HTTP-API, SSH-Readiness-Audit | HTTP 200 allein **keine** einsatzbereite Meldung |
@@ -76,6 +76,8 @@ Der erste Fix mit `TryExistingSshKey` hilft **nur, wenn eine nutzbare private Sc
 | RT21 | Vorherige Checkout-/PATH-Fehler im historischen Startup-Log | Nicht fälschlich als Ursache des aktuellen SSH-Falls klassifizieren |
 | RT22 | Nur Account-Key gespeichert, nicht an bestehenden Pod gebunden | Kein „SSH bereit“ allein aufgrund eines Keys im Org-Store |
 | RT23 | Client-Token stammt von anderem Thunder-Workspace oder andere Instanz-UUID | API- und CLI-Pod-Listen stimmen nicht überein ⇒ Stop vor Create; beide leeren Listen benötigen zusätzlichen Account-Livetest |
+| RT24 | API bestätigt Public-Key vor SSHD-Propagation | Bis zu sechs read-only `ssh true`-Probes; nur der echte SSH-Erfolg entsperrt Bootstrap |
+| RT25 | Hostfingerprint ändert sich während der Propagation | Sofortiger Stop, keine automatischen Wiederholungen oder Hostkey-Änderungen |
 
 ## 6. Release-/Livetest-Gates
 
