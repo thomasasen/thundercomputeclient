@@ -103,7 +103,14 @@ public partial class MainWindow : Window, IUserDialogs
     public bool ApproveFingerprint(string host, string fingerprint) =>
         Confirm("SSH-Hostschlüssel verifizieren",
             "Host: " + host + "\nED25519: " + fingerprint +
-            "\n\nUnbedingt mit dem Fingerprint aus der unabhängigen Thunder-Konsole oder einer vertrauenswürdigen Quelle vergleichen. Stimmt er exakt überein? Sonst Nein wählen.");
+            "\n\nDieser Wert stammt aus der zunächst UNVERTRAUENSWÜRDIGEN SSH-Verbindung. " +
+            "Er ist noch kein Beweis für die Identität des Pods.\n\n" +
+            "Über einen unabhängigen, bereits vertrauenswürdigen Pod-Konsolenzugang " +
+            "(falls vorhanden) den ED25519-Hostfingerprint auslesen:\n" +
+            "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub\n\n" +
+            "Nur wenn der SHA256-Wert exakt übereinstimmt, Ja wählen. " +
+            "Andernfalls Nein wählen und den Thunder-Support kontaktieren. " +
+            "Erneutes ssh-keyscan über dieselbe Verbindung ist KEINE unabhängige Verifikation.");
 
     public void Notify(string title, string message) =>
         MessageBox.Show(this, message, title, MessageBoxButton.OK, MessageBoxImage.Information);

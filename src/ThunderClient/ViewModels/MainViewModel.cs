@@ -956,6 +956,19 @@ public sealed class MainViewModel : Bindable, IDisposable
                     : "ComfyUI war HTTP-bereit, die vollständige Installation ist aber nicht bestätigt. Pod-Status und Logs prüfen.")
                 : "SSH-Bootstrap ist beendet, aber HTTP-Bereitschaft nicht bestätigt. Logs prüfen.";
         }
+        catch (SshFingerprintNotConfirmedException)
+        {
+            // Explicit user decision: do NOT convert it into a timeout.
+            // The host key is untrusted and has not been written to known_hosts.
+            AutoDeploymentStatus =
+                "SSH-Fingerprint nicht bestätigt. Hostschlüssel wird nicht vertraut; " +
+                "kein Bootstrap oder Modelldownload gestartet. " +
+                (podId is null ? "" :
+                    "Pod " + podId + " kann weiter Kosten verursachen. ") +
+                "Kein zweiter Pod wird erstellt.";
+            Log("[SSH-FINGERPRINT] " + AutoDeploymentStatus);
+            throw;
+        }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             AutoDeploymentStatus = "Lokale SSH-/Logverbindung unterbrochen. " +
@@ -997,17 +1010,13 @@ public sealed class MainViewModel : Bindable, IDisposable
             var reason = ex is TimeoutException timeout
                 ? RedactKnownSecrets(timeout.Message)
                 : RedactKnownSecrets(ex.Message);
-            var isHostKeyIssue =
-                reason.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("Programm 'ssh-keygen'", StringComparison.OrdinalIgnoreCase);
+            var isHostKeyIssue = SshFailureDiagnostics.Classify(ex, reason) ==
+                SshFailureKind.TechnicalHostCheckFailed;
             AutoDeploymentStatus = isHostKeyIssue
-                ? "SSH-Hostschlüssel noch nicht bestätigt. " +
+                ? "SSH-Hostprüfung technisch fehlgeschlagen: " + reason + " " +
                   (podId is null ? "Keine Pod-ID bestätigt. " :
                       "Pod " + podId + " besteht weiterhin und kann Kosten verursachen. ") +
-                  "Es wird kein weiterer Pod erstellt. Unter Instanzen den Status prüfen; " +
-                  "technische Details stehen im kopierbaren Protokoll."
+                  "Es wird kein weiterer Pod erstellt. Die Sicherheitsprüfung bleibt aktiv."
                 : "Bereitstellung gestoppt: " + reason +
                   (podId is null ? "" :
                       " · Pod " + podId + " kann weiter Kosten verursachen; kein automatischer zweiter Create-Versuch.");
@@ -1112,7 +1121,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             var scan = await _ssh.ScanHostKeyAsync(endpoint, token, progress);
             progress?.Invoke("SSH-Fingerprint muss jetzt unabhängig geprüft und bestätigt werden.");
             if (!_dialogs.ApproveFingerprint(endpoint.Host, scan.Fingerprint))
-                throw new OperationCanceledException("SSH-Fingerprint nicht bestätigt.");
+                throw new SshFingerprintNotConfirmedException();
             _ssh.TrustHostKey(scan.KeyLine);
         }
         progress?.Invoke("SSH-Hostvertrauen geprüft. Starte sicheren SSH-Anmeldetest.");
@@ -1336,27 +1345,40 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "Instanzen separat bestätigen, damit keine weiteren Kosten entstehen.");
             return;
         }
-        if (safe.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("Programm 'ssh-keygen'", StringComparison.OrdinalIgnoreCase))
+        var sshFailure = SshFailureDiagnostics.Classify(exception, safe);
+        if (sshFailure == SshFailureKind.FingerprintNotConfirmed)
         {
             var pod = SelectedInstance?.Id;
-            Message = "SSH-Verbindung noch nicht möglich. " +
-                (string.IsNullOrWhiteSpace(pod) ? "Eine bestehende Instanz " :
-                    "Pod " + pod + " ") +
-                "kann weiterhin Kosten verursachen. Kein neuer Pod wurde durch den " +
-                "fehlgeschlagenen Verbindungsversuch erstellt.";
-            Log("[SSH-DIAGNOSE] " + safe);
-            _dialogs.Notify("SSH-Hostschlüssel nicht bestätigt",
+            Message = "Der SHA256-Hostfingerprint wurde nicht bestätigt. " +
+                "Der neue Schlüssel wird nicht gespeichert; SSH und Modelldownloads bleiben gesperrt.";
+            Log("[SSH-FINGERPRINT] " + safe);
+            _dialogs.Notify("SSH-Fingerprint nicht freigegeben",
                 Message + "\n\n" +
+                (string.IsNullOrWhiteSpace(pod) ? "Ein vorhandener Pod" : "Pod " + pod) +
+                " kann weiterhin Kosten verursachen. " +
+                "Den Fingerprint nur mit einer unabhängigen, vertrauenswürdigen " +
+                "Thunder-Quelle abgleichen und bei exakter Übereinstimmung bestätigen. " +
+                "Keinen neuen Pod erstellen.");
+            return;
+        }
+        if (sshFailure == SshFailureKind.TechnicalHostCheckFailed)
+        {
+            var pod = SelectedInstance?.Id;
+            Message = "Die SSH-Hostprüfung ist technisch fehlgeschlagen. " +
+                (string.IsNullOrWhiteSpace(pod) ? "Ein vorhandener Pod " :
+                    "Pod " + pod + " ") +
+                "kann weiterhin Kosten verursachen. Kein neuer Pod wurde erstellt.";
+            Log("[SSH-DIAGNOSE] " + safe);
+            // Keep the actual command/scan failure visible. A scan timeout is
+            // not proof that the user declined a fingerprint; never conflate both.
+            var detail = SshFailureDiagnostics.SummarizeRedactedCause(safe);
+            _dialogs.Notify("SSH-Hostprüfung fehlgeschlagen",
+                Message + "\n\nTechnische Ursache:\n" + detail + "\n\n" +
                 "Die Einrichtung wurde vor den Modelldownloads gestoppt. " +
-                "Die SSH-Hostprüfung bleibt aktiv.\n\n" +
-                "1. Unter Instanzen den Pod-Status prüfen.\n" +
-                "2. Unter Systemstatus Windows OpenSSH prüfen.\n" +
-                "3. Bei anhaltendem Fehler unter Downloads & Logs das Protokoll kopieren.\n\n" +
-                "Falls der Pod nicht weiter benötigt wird, unter Instanzen " +
-                "die kostenpflichtige Instanz nach Prüfung bewusst löschen.");
+                "Der Hostfingerprint wird nicht automatisch akzeptiert.\n\n" +
+                "Unter Instanzen Pod-Status prüfen und unter Downloads & Logs " +
+                "das bereinigte Protokoll kontrollieren. Bei Bedarf unter Systemstatus " +
+                "Windows OpenSSH prüfen. Keinen weiteren Pod erstellen.");
             return;
         }
         Message = "Fehler: " + safe;
