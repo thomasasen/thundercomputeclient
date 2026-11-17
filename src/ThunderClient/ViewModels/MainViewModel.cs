@@ -1010,11 +1010,8 @@ public sealed class MainViewModel : Bindable, IDisposable
             var reason = ex is TimeoutException timeout
                 ? RedactKnownSecrets(timeout.Message)
                 : RedactKnownSecrets(ex.Message);
-            var isHostKeyIssue =
-                reason.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
-                reason.Contains("Programm 'ssh-keygen'", StringComparison.OrdinalIgnoreCase);
+            var isHostKeyIssue = SshFailureDiagnostics.Classify(ex, reason) ==
+                SshFailureKind.TechnicalHostCheckFailed;
             AutoDeploymentStatus = isHostKeyIssue
                 ? "SSH-Hostprüfung technisch fehlgeschlagen: " + reason + " " +
                   (podId is null ? "Keine Pod-ID bestätigt. " :
@@ -1348,7 +1345,8 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "Instanzen separat bestätigen, damit keine weiteren Kosten entstehen.");
             return;
         }
-        if (exception is SshFingerprintNotConfirmedException)
+        var sshFailure = SshFailureDiagnostics.Classify(exception, safe);
+        if (sshFailure == SshFailureKind.FingerprintNotConfirmed)
         {
             var pod = SelectedInstance?.Id;
             Message = "Der SHA256-Hostfingerprint wurde nicht bestätigt. " +
@@ -1363,10 +1361,7 @@ public sealed class MainViewModel : Bindable, IDisposable
                 "Keinen neuen Pod erstellen.");
             return;
         }
-        if (safe.Contains("SSH-Hostschlüssel", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("ssh-keyscan", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("Programm 'ssh'", StringComparison.OrdinalIgnoreCase) ||
-            safe.Contains("Programm 'ssh-keygen'", StringComparison.OrdinalIgnoreCase))
+        if (sshFailure == SshFailureKind.TechnicalHostCheckFailed)
         {
             var pod = SelectedInstance?.Id;
             Message = "Die SSH-Hostprüfung ist technisch fehlgeschlagen. " +
@@ -1376,7 +1371,7 @@ public sealed class MainViewModel : Bindable, IDisposable
             Log("[SSH-DIAGNOSE] " + safe);
             // Keep the actual command/scan failure visible. A scan timeout is
             // not proof that the user declined a fingerprint; never conflate both.
-            var detail = safe.Length <= 1200 ? safe : safe[..1200] + " … (gekürzt)";
+            var detail = SshFailureDiagnostics.SummarizeRedactedCause(safe);
             _dialogs.Notify("SSH-Hostprüfung fehlgeschlagen",
                 Message + "\n\nTechnische Ursache:\n" + detail + "\n\n" +
                 "Die Einrichtung wurde vor den Modelldownloads gestoppt. " +
