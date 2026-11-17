@@ -389,6 +389,12 @@ public sealed class SshService(ICommandRunner commands)
                     "SSH/CUDA/Festplatte nicht prüfbar") +
                 ". Keine großen Modelldownloads gestartet.");
         }
+        // A successful SSH process without a capacity report is not a passed preflight.
+        if (!result.Stdout.Split('\n', StringSplitOptions.TrimEntries)
+            .Any(line => line.StartsWith("[THUNDER-PREFLIGHT] free_gb=", StringComparison.Ordinal)))
+            throw new InvalidOperationException(
+                "Remote-GPU-/Disk-Vorprüfung lieferte keinen Kapazitätsbericht. " +
+                "Keine großen Modelldownloads gestartet.");
         return result.Stdout.Trim();
     }
 
