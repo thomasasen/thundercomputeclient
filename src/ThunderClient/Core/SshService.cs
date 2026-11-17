@@ -355,15 +355,19 @@ public sealed class SshService(ICommandRunner commands)
             "    gpu = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', " +
                 "'--format=csv,noheader,nounits'], capture_output=True, " +
                 "text=True, timeout=15, check=True)\n" +
-            "    vram = [int(line.strip()) / 1024 for line in gpu.stdout.splitlines() " +
+            "    # nvidia-smi reports MiB; README VRAM classes are decimal GB, not GiB.\n" +
+            "    vram = [int(line.strip()) * (1024 ** 2) / 1e9 for line in gpu.stdout.splitlines() " +
                 "if line.strip()]\n" +
             "except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):\n" +
             "    print('[THUNDER-PREFLIGHT] blocked reason=gpu-unavailable', flush=True)\n" +
             "    sys.exit(45)\n" +
             "print(f'[THUNDER-PREFLIGHT] free_gb={free_gb:.1f} " +
                 "required_gb={required} gpu_count={len(vram)} " +
-                "vram_gb={min(vram) if vram else 0:.1f}', flush=True)\n" +
-            "if len(vram) < expected or any(value < vram_required for value in vram[:expected]):\n" +
+                "vram_gb={min(vram) if vram else 0:.2f} required_vram_gb={vram_required}', flush=True)\n" +
+            "if len(vram) < expected:\n" +
+            "    print(\'[THUNDER-PREFLIGHT] blocked reason=gpu-count-insufficient\', flush=True)\n" +
+            "    sys.exit(46)\n" +
+            "if any(value < vram_required for value in vram[:expected]):\n" +
             "    print('[THUNDER-PREFLIGHT] blocked reason=gpu-vram-insufficient', flush=True)\n" +
             "    sys.exit(46)\n" +
             "if free_gb < required:\n" +
@@ -372,13 +376,19 @@ public sealed class SshService(ICommandRunner commands)
             "PY\n";
         var result = await RunScriptAsync(endpoint, script, ct: ct);
         if (!result.Success)
+        {
+            // Show the actual (non-secret) measured capacity, not just the reason.
+            var diagnostics = result.Stdout.Split('\n', StringSplitOptions.TrimEntries)
+                .Where(line => line.StartsWith("[THUNDER-PREFLIGHT] ", StringComparison.Ordinal))
+                .Take(3)
+                .Select(line => line.Length > 250 ? line[..250] : line)
+                .ToArray();
             throw new InvalidOperationException(
                 "Remote-GPU-/Disk-Vorprüfung fehlgeschlagen: " +
-                (result.Stdout.Contains("reason=", StringComparison.Ordinal)
-                    ? result.Stdout.Split('\n').FirstOrDefault(line =>
-                        line.Contains("[THUNDER-PREFLIGHT] blocked", StringComparison.Ordinal))
-                    : "SSH/CUDA/Festplatte nicht prüfbar") +
+                (diagnostics.Length > 0 ? string.Join("; ", diagnostics) :
+                    "SSH/CUDA/Festplatte nicht prüfbar") +
                 ". Keine großen Modelldownloads gestartet.");
+        }
         return result.Stdout.Trim();
     }
 
