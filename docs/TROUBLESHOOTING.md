@@ -1,3 +1,21 @@
+## v0.1.1: Pauschale Meldung „SSH-Hostschlüssel nicht bestätigt“
+
+In v0.1.0 wurde derselbe Dialog bei **zwei verschiedenen Ursachen** angezeigt: (1) Der Benutzer hat die unabhängige Verifizierung des SHA256-Hostfingerprints nicht bestätigt. (2) Ein technischer Fehler verhinderte die Hostschlüsselabfrage (z. B. `ssh-keyscan`-/KEX-/`ssh.exe`-Zeitlimit). Im automatischen Ablauf wurde der ausdrückliche Nichtbestätigungsfall zusätzlich fälschlich in einen Timeout umgewandelt.
+
+**Ab v0.1.1** trennt die GUI die Fälle. Bei einer nicht bestätigten Hostidentität bleibt der Hostschlüssel unvertraut; bei einem technischen Fehler wird die konkrete, bereinigte Ursache im Dialog und Log angezeigt. Es erfolgt weder ein automatisches Akzeptieren des Hostschlüssels noch eine zweite Pod-Erstellung.
+
+Zur sicheren Verifikation: Nur aus einem **unabhängigen, bereits vertrauenswürdigen Provider-/VM-Konsolenzugang** (falls verfügbar) auf genau demselben Pod ausführen:
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+Den vollständigen SHA256-Wert mit dem Fingerprint im GUI-Dialog vergleichen. Ein zweiter lokaler `ssh-keyscan` oder ein zweiter unbestätigter SSH-Handshake ist keine unabhängige Identitätsprüfung. Wenn Thunder keinen unabhängigen Zugang bereitstellt, nicht auf Verdacht „Ja“ klicken; beim Anbieter einen bestätigten Hostfingerprint oder einen vertrauenswürdigen Kontrollweg erfragen. Bei abweichendem Hostschlüssel **kein pauschales Löschen von `known_hosts` und kein `StrictHostKeyChecking=no`**.
+
+Ist die Verbindung weiterhin gestört, in **Downloads & Logs** den Text unmittelbar vor und nach `[SSH-DIAGNOSE]` prüfen. Vor dem Teilen von Exportlogs Geheimnisse und persönliche Angaben prüfen. Ein existierender Pod kann weiter Kosten verursachen und muss gegebenenfalls separat bewusst beendet werden.
+
+---
+
 ## GPU-VRAM-Vorprüfung: `gpu-vram-insufficient` bei RTX A6000 / L40 (48 GB)
 
 Die GPU-Tabelle der Workflow-README nennt **dezimal beschriftete GB-Nennklassen**. Dagegen meldet `nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits` den GPU-Speicher in **MiB**. Die alte Vorprüfung teilte die Zahl durch 1024 (GiB) und verglich sie direkt mit der README-Angabe in GB. Dadurch konnte ein passender 48-GB-Pod vor dem Bootstrap abgewiesen werden. Ein realistisches Beispiel ist `46068 MiB = 48,30 GB = 44,99 GiB` bei aktiviertem ECC.
