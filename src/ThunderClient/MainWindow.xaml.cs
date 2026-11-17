@@ -55,6 +55,12 @@ public partial class MainWindow : Window, IUserDialogs
         if (!LogTextBox.IsReadOnly || CopyLogButton.Content is not "Log kopieren" ||
             CopyStartupLogButton.Content is not "Startdiagnose kopieren")
             throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
+        if (!DownloadsGrid.IsReadOnly || !DownloadsGrid.EnableRowVirtualization ||
+            ScrollViewer.GetVerticalScrollBarVisibility(DownloadsGrid) != ScrollBarVisibility.Auto ||
+            DownloadsGrid.Columns.Count != 3 ||
+            DownloadsGrid.Columns[1] is not DataGridTemplateColumn)
+            throw new InvalidOperationException(
+                "Download-Tabelle muss scrollbar, virtualisiert und farblich differenziert sein.");
         if (AutomaticDeployButton.Content is not "Pod + Modelle automatisch starten …")
             throw new InvalidOperationException("Automatische Bereitstellung ist nicht erreichbar.");
         if (LoadCatalogButton.Content is not "1  Katalog laden und Workflows wählen" ||
@@ -202,7 +208,7 @@ public partial class MainWindow : Window, IUserDialogs
         OpenTrustedThunderPage("https://status.thundercompute.com/");
 
     private void OpenThunderConsole_Click(object sender, RoutedEventArgs e) =>
-        OpenTrustedThunderPage("https://console.thundercompute.com/");
+        OpenTrustedThunderPage(PodRecoveryPlanner.ConsoleUrl);
 
     private void OpenTrustedThunderPage(string url)
     {
