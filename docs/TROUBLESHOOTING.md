@@ -1,3 +1,20 @@
+## GPU-VRAM-Vorprüfung: `gpu-vram-insufficient` bei RTX A6000 / L40 (48 GB)
+
+Die GPU-Tabelle der Workflow-README nennt **dezimal beschriftete GB-Nennklassen**. Dagegen meldet `nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits` den GPU-Speicher in **MiB**. Die alte Vorprüfung teilte die Zahl durch 1024 (GiB) und verglich sie direkt mit der README-Angabe in GB. Dadurch konnte ein passender 48-GB-Pod vor dem Bootstrap abgewiesen werden. Ein realistisches Beispiel ist `46068 MiB = 48,30 GB = 44,99 GiB` bei aktiviertem ECC.
+
+Der korrigierte Client rechnet nun mit `MiB × 1.048.576 / 1.000.000.000` in **dezimalen GB** um, bevor er den README-Referenzwert überprüft. Bei einem Fehler enthält die Meldung die gemessene Kapazität (`vram_gb`), den verlangten Referenzwert (`required_vram_gb`) und den Grund. Fehlende Messausgaben bleiben ein Sperrgrund; die Prüfung wird **nicht** generell deaktiviert. Zu wenige GPUs und zu wenig GPU-Speicher erhalten getrennte Gründe.
+
+**Vorgehen beim bereits kostenpflichtigen Pod:** Unter **Instanzen** denselben Pod auswählen, bei einer nicht mehr laufenden Bereitstellung die automatische Einrichtung **mit genau diesem Pod** erneut bestätigen. Keine zweite Instanz erstellen. Für eine lesende Gegenprüfung in der SSH-Konsole des bestehenden Pods:
+
+```bash
+nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
+df -h "$HOME"
+```
+
+Der erfolgreiche Kapazitätscheck bestätigt die **Hardwareklasse**, nicht den maximalen Spitzenverbrauch bei der Inferenz. Der Krea-2-/Face-Hand-/SeedVR2-Workflow empfiehlt 48 GB nur mit Offloading, reduzierter Auflösung und erhöhtem OOM-Risiko. Eine 80-GB-A100 bietet mehr VRAM-Reserve, kostet aber mehr und erfordert einen separat bestätigten kostenpflichtigen Hardwarewechsel. Ein bestehender Pod wird niemals automatisch ersetzt.
+
+---
+
 ## Thunder-API-Timeout beim Einrichten des SSH-Schlüssels (Alpha.16)
 
 Wenn der Pod bereits `RUNNING` ist, `tnr connect --json` aber mit `failed to add SSH key ... POST /v1/instances/<id>/add_key: context deadline exceeded` endet, ist **nicht der SSH-Port** gescheitert, sondern die Anfrage an den Thunder-API-Endpunkt. Die offizielle CLI verwendet für HTTP-Anfragen ein **30-Sekunden-Limit**; das Ergebnis einer erfolglos beantworteten POST-Anfrage ist **unklar**. Sie könnte serverseitig bereits bearbeitet worden sein, auch wenn die lokale private SSH-Key-Datei noch nicht gespeichert wurde.
