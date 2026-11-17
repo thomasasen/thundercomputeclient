@@ -85,9 +85,9 @@ jobs:
         run: bash tests/RemoteSupervisorHarness/smoke.sh
 
   release:
-    # Einmaliger Alpha-Release nach erfolgreichem Windows-Testlauf.
-    # Kein Merge in main und kein automatischer Stable-Release.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/windows-desktop-client' && contains(github.event.head_commit.message, '[publish-alpha-v0.1.0-alpha.16]')
+    # Erst nach erfolgreichen Windows- und Linux-Tests auf einem expliziten
+    # Release-Merge in main. Ein normales Feature-Commit publiziert nie automatisch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-v0.1.0]')
     needs: [windows, remote-supervisor-linux]
     runs-on: ubuntu-latest
     permissions:
@@ -98,17 +98,39 @@ jobs:
         with:
           name: thunder-client-windows
           path: artifacts
-      - name: Publish reviewed-build alpha prerelease
+      - name: Prüfe Installer-Datei und SHA-256 gegen die CI-Artefakte
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f artifacts/installer/ThunderClient-Setup-0.1.0-win-x64.exe
+          test -f artifacts/installer/SHA256SUMS.txt
+          test "$(find artifacts/installer -maxdepth 1 -name 'ThunderClient-Setup-*.exe' | wc -l)" -eq 1
+          (cd artifacts/installer && sha256sum -c SHA256SUMS.txt)
+      - name: Verhindere versehentliches Überschreiben vorhandener Tags/Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.0" >/dev/null 2>&1; then
+            echo "v0.1.0 existiert bereits; keine automatische Überschreibung." >&2
+            exit 1
+          fi
+          if gh release view v0.1.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release v0.1.0 existiert bereits." >&2
+            exit 1
+          fi
+      - name: Veröffentliche GitHub Release mit Installer und Prüfsumme
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0-alpha.16
+          tag_name: v0.1.0
           target_commitish: ${{ github.sha }}
-          name: Thunder Compute Client v0.1.0-alpha.16 (Alpha)
-          prerelease: true
-          make_latest: false
+          name: Thunder Compute Client v0.1.0 (Windows)
+          prerelease: false
+          make_latest: true
           draft: false
-          body_path: docs/RELEASE_NOTES_v0.1.0-alpha.16.md
+          body_path: docs/RELEASE_NOTES_v0.1.0.md
           files: |
-            artifacts/installer/*.exe
+            artifacts/installer/ThunderClient-Setup-0.1.0-win-x64.exe
             artifacts/installer/SHA256SUMS.txt
           fail_on_unmatched_files: true
