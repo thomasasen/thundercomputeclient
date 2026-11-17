@@ -359,6 +359,19 @@ public sealed class ThunderCli(ICommandRunner commands)
         await JsonAsync(["snapshot", "create", "--instance-id", instance.Id, "--name", name, "--json"], ct);
     }
 
+    /// <summary>
+    /// Request a recovery snapshot after a fresh, read-only identity/state check.
+    /// This never calls create/delete/modify/reboot. A READY snapshot must be
+    /// verified separately before the user restores into a NEW instance.
+    /// </summary>
+    public async Task RequestRecoverySnapshotAsync(InstanceItem selected, string name,
+        CancellationToken ct = default)
+    {
+        var current = await ListAsync(ct);
+        var instance = PodRecoveryPlanner.RequireSameRunningInstance(selected, current);
+        await CreateSnapshotAsync(instance, name, ct);
+    }
+
     public async Task DeleteAsync(InstanceItem instance, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(instance.Id)) throw new ArgumentException("Instanz-ID fehlt.");
