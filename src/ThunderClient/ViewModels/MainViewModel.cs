@@ -96,6 +96,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public AsyncCommand SshTerminalCommand { get; }
     public AsyncCommand TunnelCommand { get; }
     public AsyncCommand SnapshotCommand { get; }
+    public AsyncCommand PreparePodRecoveryCommand { get; }
     public AsyncCommand RefreshSnapshotsCommand { get; }
     public AsyncCommand RestoreSnapshotCommand { get; }
     public AsyncCommand DeleteInstanceCommand { get; }
@@ -140,6 +141,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         SshTerminalCommand = New(OpenTerminalAsync);
         TunnelCommand = New(OpenComfyAsync);
         SnapshotCommand = New(CreateSnapshotAsync);
+        PreparePodRecoveryCommand = New(PreparePodRecoveryAsync);
         RefreshSnapshotsCommand = New(RefreshSnapshotsAsync);
         RestoreSnapshotCommand = New(RestoreSnapshotAsync);
         DeleteInstanceCommand = New(DeleteInstanceAsync);
@@ -1197,6 +1199,64 @@ public sealed class MainViewModel : Bindable, IDisposable
         await _thunder.CreateSnapshotAsync(instance, SnapshotName, _shutdown.Token);
         Message = "Snapshot angefordert. Erst nach Status READY verwenden.";
         await RefreshSnapshotsAsync();
+    }
+
+    private async Task PreparePodRecoveryAsync()
+    {
+        if (AutoDeploymentRunning || Busy)
+            throw new InvalidOperationException(
+                "Ein Installations-/Bereitstellungsvorgang ist aktiv. " +
+                "Vor einer Datensicherung dessen Status prüfen und laufende Schreibvorgänge beenden.");
+        var instance = SelectedInstance ??
+            throw new InvalidOperationException("Bitte zuerst den bestehenden Pod auswählen.");
+        if (instance.Status != "RUNNING")
+            throw new InvalidOperationException("Wiederherstellungs-Snapshot nur für RUNNING-Pods möglich.");
+
+        if (!_dialogs.Confirm("Pod-Wiederherstellung mit Snapshot vorbereiten",
+            "Thunder unterstützt derzeit keinen dokumentierten Neustart derselben Instanz. " +
+            "Stattdessen wird die persistente Instanzdisk als Snapshot gesichert. " +
+            "Nach Status READY kann daraus über die Thunder-Konsole eine NEUE Instanz " +
+            "erstellt werden.\n\n" +
+            "WICHTIG: Laufende Downloads/Schreibvorgänge vorher beenden; " +
+            "Snapshots ersetzen keine externe Datensicherung. Snapshot-Speicher " +
+            "und beide Instanzen können Kosten verursachen.\n\n" +
+            "Jetzt NUR einen Snapshot von Pod " + instance.Id + " anfordern? " +
+            "Der vorhandene Pod bleibt unverändert; weder Neuerstellung noch Löschung."))
+            return;
+
+        Busy = true;
+        try
+        {
+            var name = PodRecoveryPlanner.RecoverySnapshotName(
+                instance, DateTimeOffset.UtcNow, Guid.NewGuid().ToString("N")[..6]);
+            await _thunder.RequestRecoverySnapshotAsync(instance, name, _shutdown.Token);
+            SnapshotName = name;
+            Log("[POD-RECOVERY] Snapshot " + name + " für vorhandenen Pod " +
+                instance.Id + " angefordert. Kein Pod erstellt oder gelöscht.");
+            Message = "Snapshot " + name +
+                " angefordert. Nach Status READY in Thunder-Konsole aus Snapshot " +
+                "neu erstellen. Alten Pod erst nach vollständiger Datenprüfung löschen.";
+            try
+            {
+                await RefreshSnapshotsAsync();
+                SelectedSnapshot = Snapshots.FirstOrDefault(x =>
+                    string.Equals(x.Name, name, StringComparison.Ordinal));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log("[POD-RECOVERY] Snapshot angefordert, Status vorübergehend nicht lesbar: " +
+                    RedactKnownSecrets(ex.Message));
+            }
+            _dialogs.Notify("Wiederherstellung vorbereitet",
+                "Snapshot " + name + " von Pod " + instance.Id + " wurde angefordert.\n\n" +
+                "1. Unter Snapshots wiederholt den Status prüfen, bis READY angezeigt wird.\n" +
+                "2. In der Thunder-Podverwaltung den READY-Snapshot als Vorlage " +
+                "für eine neue Instanz wählen. Neue GPU-Kosten separat bestätigen.\n" +
+                "3. Dateien, Modelle und ComfyUI auf der wiederhergestellten Instanz prüfen.\n" +
+                "4. Erst danach den ursprünglichen Pod bei Bedarf ausdrücklich löschen.\n\n" +
+                "Es wurde weder ein Pod neu erstellt noch gelöscht oder ein OS-Reboot ausgelöst.");
+        }
+        finally { Busy = false; }
     }
 
     private async Task RestoreSnapshotAsync()
