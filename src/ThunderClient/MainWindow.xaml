@@ -492,11 +492,15 @@
                             <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
                             <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
                             <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen (SSH)" />
+                            <Button Command="{Binding PreparePodRecoveryCommand}"
+                                    Content="Pod wiederherstellen (Snapshot) …"
+                                    ToolTip="Die bestehende Instanzdisk wird im Snapshot gesichert. Thunder bietet keinen dokumentierten In-Place-Neustart; Restore erfolgt als neue Instanz nach gesonderter Kostenfreigabe." />
+                            <Button Click="OpenThunderConsole_Click" Content="Thunder-Podverwaltung öffnen" />
                             <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="{DynamicResource DangerBrush}" Foreground="White" />
                         </WrapPanel>
                         <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
-                                   Text="Pod-Verwaltung: SSH, privates ComfyUI, Downloads, Snapshots und Löschen. Ein GPU-Stopp ohne Löschen ist keine belegte Kostenbremse. Vor Löschen einen fertigen Snapshot prüfen." />
+                                   Text="Thunder dokumentiert keinen In-Place-Neustart. Sicherer Wiederherstellungsweg: Snapshot erstellen, READY prüfen, als neue Instanz wiederherstellen. Alten Pod erst nach erfolgreicher Datenprüfung löschen; beide Instanzen und der Snapshot können Kosten verursachen." TextWrapping="Wrap" />
                         <Separator Margin="0,15,0,13" />
                         <TextBlock FontWeight="Bold" Text="Snapshots" />
                         <WrapPanel Margin="0,5">
@@ -515,8 +519,8 @@
                 <Grid Margin="4,6,18,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="205" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="2*" MinHeight="140" />
+                        <RowDefinition Height="3*" MinHeight="120" />
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <TextBlock FontSize="24" FontWeight="SemiBold" Text="Bootstrap und Diagnostik" />
@@ -535,19 +539,59 @@
                             <Button x:Name="CopyStartupLogButton" Click="CopyStartupLog_Click" Content="Startdiagnose kopieren" />
                             <Button Command="{Binding ExportLogsCommand}" Content="Bereinigte Logs exportieren" />
                             <Button Click="OpenThunderStatus_Click" Content="Thunder-Dienststatus" />
-                            <Button Click="OpenThunderConsole_Click" Content="Thunder-Konsole" />
+                            <Button Click="OpenThunderConsole_Click" Content="Thunder-Podverwaltung" />
                         </WrapPanel>
                     </StackPanel>
-                    <StackPanel Grid.Row="1">
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
                         <TextBlock Text="{Binding DownloadSummary}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <DataGrid ItemsSource="{Binding Downloads}" CanUserAddRows="False">
+                        <DataGrid x:Name="DownloadsGrid" Grid.Row="1"
+                                  ItemsSource="{Binding Downloads}" CanUserAddRows="False"
+                                  IsReadOnly="True" EnableRowVirtualization="True"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Modelldatei" Binding="{Binding Model}" Width="*" />
-                                <DataGridTextColumn Header="Status" Binding="{Binding State}" Width="130" />
+                                <DataGridTemplateColumn Header="Status" Width="130">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding State}" FontWeight="SemiBold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource SubtleBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding State}" Value="LAEUFT">
+                                                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding State}" Value="FORTSCHRITT">
+                                                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding State}" Value="RETRY">
+                                                                <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding State}" Value="GELADEN">
+                                                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding State}" Value="VORHANDEN">
+                                                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding State}" Value="FEHLER">
+                                                                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Übertragen / Fortschritt aus Log" Binding="{Binding Progress}" Width="270" />
                             </DataGrid.Columns>
                         </DataGrid>
-                    </StackPanel>
+                    </Grid>
                     <Grid Grid.Row="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
