@@ -1,0 +1,114 @@
+name: Windows Build, Tests und Installer
+on:
+  push:
+    branches: [main, "feature/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore tests/ThunderClient.Tests/ThunderClient.Tests.csproj
+      - name: Test (nur Mocks, keine GPU/Downloads)
+        run: dotnet test tests/ThunderClient.Tests/ThunderClient.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=thunderclient-tests.trx" --results-directory artifacts/testresults
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute embedded remote readiness against synthetic file and HTTP fixtures
+        run: python -m unittest discover -s tests -p remote_readiness_fixture_test.py -v
+      - name: Publish Desktop App
+        run: dotnet publish src/ThunderClient/ThunderClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish
+      - name: GUI-Starttest auf Windows (ohne Netzwerk/GPU)
+        shell: powershell
+        run: |
+          $exe = (Resolve-Path "artifacts/publish/ThunderClient.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--ui-smoke-test" -PassThru
+          $log = Join-Path $env:LOCALAPPDATA "ThunderClient\logs\startup.log"
+          if (-not $p.WaitForExit(15000)) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw "GUI startete nicht oder lieferte kein ContentRendered innerhalb von 15 Sekunden."
+          }
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            throw "GUI-Starttest fehlgeschlagen (Exitcode $($p.ExitCode))."
+          }
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          $iscc = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+      - name: Build Installer
+        shell: powershell
+        run: |
+          $iscc = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          & $iscc "installer\ThunderClient.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Generate SHA-256
+        shell: powershell
+        run: |
+          Get-ChildItem artifacts/installer/*.exe | Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" } |
+            Set-Content -Encoding Ascii artifacts/installer/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thunder-client-windows
+          path: |
+            artifacts/installer/
+            artifacts/testresults/
+          if-no-files-found: warn
+
+  remote-supervisor-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Detached remote bootstrap, reattach, complete stdout and secret-free persisted script
+        run: bash tests/RemoteSupervisorHarness/smoke.sh
+
+  release:
+    # Einmaliger Alpha-Release nach erfolgreichem Windows-Testlauf.
+    # Kein Merge in main und kein automatischer Stable-Release.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/windows-desktop-client' && contains(github.event.head_commit.message, '[publish-alpha-v0.1.0-alpha.16]')
+    needs: [windows, remote-supervisor-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: thunder-client-windows
+          path: artifacts
+      - name: Publish reviewed-build alpha prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0-alpha.16
+          target_commitish: ${{ github.sha }}
+          name: Thunder Compute Client v0.1.0-alpha.16 (Alpha)
+          prerelease: true
+          make_latest: false
+          draft: false
+          body_path: docs/RELEASE_NOTES_v0.1.0-alpha.16.md
+          files: |
+            artifacts/installer/*.exe
+            artifacts/installer/SHA256SUMS.txt
+          fail_on_unmatched_files: true

@@ -1,0 +1,762 @@
+<Window x:Class="ThunderClient.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Thunder Compute Client" Width="1320" Height="850"
+        MinWidth="1080" MinHeight="680" WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded" Closed="Window_Closed">
+    <Grid Background="{DynamicResource WindowBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="248" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="18,24,16,18">
+                <StackPanel DockPanel.Dock="Top" Margin="5,3,0,36">
+                    <Border Width="42" Height="42" HorizontalAlignment="Left" CornerRadius="13"
+                            Background="{DynamicResource AccentBrush}" Margin="0,0,0,15">
+                        <TextBlock Text="T" FontSize="23" FontWeight="Bold" Foreground="{DynamicResource OnAccentBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock FontSize="20" FontWeight="Bold" Text="Thunder Compute" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource SubtleBrush}"
+                               Text="ComfyUI Workspace" Margin="0,4,0,0" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="5,16,4,0">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12"
+                            Padding="13" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Privater Workspace" />
+                            <TextBlock FontSize="11" Foreground="{DynamicResource SubtleBrush}" Margin="0,6,0,0"
+                                       Text="Workflow-Katalog über private GitHub-API" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Margin="4,13,0,0" FontSize="11" Foreground="{DynamicResource SubtleBrush}"
+                               Text="ALPHA · Windows Desktop" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource OverlineText}" Margin="12,0,0,10" Text="NAVIGATION" />
+                    <ListBox x:Name="Navigation" Style="{StaticResource SidebarList}"
+                             ItemContainerStyle="{StaticResource SidebarItem}"
+                             SelectedIndex="{Binding ElementName=MainTabs, Path=SelectedIndex, Mode=TwoWay}">
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="01" />
+                                <TextBlock Text="Übersicht" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="02" />
+                                <TextBlock Text="Workflows" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="03" />
+                                <TextBlock Text="Neue Instanz" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="04" />
+                                <TextBlock Text="Instanzen" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="05" />
+                                <TextBlock Text="Downloads &amp; Logs" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="06" />
+                                <TextBlock Text="Zugangsdaten" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="07" />
+                                <TextBlock Text="Einstellungen" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SidebarNumber}" Text="08" />
+                                <TextBlock Text="Systemstatus" />
+                            </StackPanel>
+                        </ListBoxItem>
+                    </ListBox>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="108" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="48" />
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" Margin="28,19,26,13">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource OverlineText}" Text="THUNDER / WORKSPACE" />
+                    <TextBlock Text="{Binding ElementName=MainTabs, Path=SelectedItem.Header}"
+                               FontSize="28" FontWeight="SemiBold" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding WizardNotice}" Style="{StaticResource FieldHint}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Command="{Binding SyncCommand}" Content="Katalog aktualisieren" />
+                    <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen"
+                            Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource OnAccentBrush}" />
+                </StackPanel>
+            </Grid>
+            <TabControl x:Name="MainTabs" Grid.Row="1" SelectedIndex="0"
+                        Style="{StaticResource ContentOnlyTabs}"
+                        Margin="28,0,24,6">
+            <TabItem Header="Übersicht">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="4,6,18,28">
+                        <TextBlock Style="{StaticResource OverlineText}" Text="ÜBERSICHT" />
+                        <TextBlock Style="{StaticResource LeadText}" Text="Alles Wichtige, ohne Umwege." Margin="0,7,0,20" />
+                        <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,15"
+                                Background="{DynamicResource FieldBrush}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource OverlineText}" Text="VERBINDUNGSSTATUS" />
+                                <TextBlock Text="{Binding GitSyncStatus}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding Message}" Foreground="{DynamicResource SubtleBrush}"
+                                           Margin="0,7,0,0" />
+                            </StackPanel>
+                        </Border>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="THUNDER COMPUTE" />
+                                    <TextBlock FontSize="23" FontWeight="SemiBold" Margin="0,13,0,7" Text="{Binding InstanceSummary}" />
+                                    <TextBlock Foreground="{DynamicResource SubtleBrush}" Text="{Binding LastRefreshed}" />
+                                    <Separator Margin="0,18,0,14" />
+                                    <TextBlock FontWeight="SemiBold" Text="Geschätzte Kosten" />
+                                    <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,6,0,0" Text="{Binding CostSummary}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="WORKFLOW-BIBLIOTHEK" />
+                                    <TextBlock FontSize="23" FontWeight="SemiBold" Margin="0,13,0,7" Text="{Binding SelectionSummary}" />
+                                    <TextBlock Text="Quelle: privates GitHub-Repository" Foreground="{DynamicResource SubtleBrush}" />
+                                    <Separator Margin="0,18,0,14" />
+                                    <TextBlock FontWeight="SemiBold" Text="GitHub-Revision" />
+                                    <TextBlock FontFamily="Consolas" FontSize="11" Margin="0,6,0,0" Foreground="{DynamicResource SubtleBrush}" Text="{Binding Commit}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <TextBlock Style="{StaticResource SectionHeading}" Text="Schnellaktionen" Margin="0,27,0,10" />
+                        <Border Style="{StaticResource SurfaceCard}">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource SubtleBrush}" Margin="0,0,0,11"
+                                           Text="Verbindung und Hardware werden erst nach deiner Aktion geprüft." />
+                                <WrapPanel>
+                                    <Button x:Name="LoadCatalogButton" Click="LoadCatalog_Click"
+                                            Content="1  Katalog laden und Workflows wählen"
+                                            Background="{DynamicResource AccentBrush}"
+                                            Foreground="{DynamicResource OnAccentBrush}" />
+                                    <Button x:Name="OpenSystemStatusButton" Click="OpenSystemStatus_Click"
+                                            Content="Systemstatus prüfen" />
+                                    <Button Command="{Binding RefreshInstancesCommand}" Content="Instanzen prüfen" />
+                                    <Button Command="{Binding HardwareCommand}" Content="Hardware abrufen" />
+                                    <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen" />
+                                    <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Style="{StaticResource SectionHeading}" Text="Hardwarediagnose" Margin="0,25,0,10" />
+                        <Border Style="{StaticResource SurfaceCard}">
+                            <TextBox Text="{Binding Hardware, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                                     TextWrapping="Wrap" MinHeight="140" VerticalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas" FontSize="12" />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Workflows">
+                <Grid Margin="4,6,18,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Workflow-Bibliothek" />
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}"
+                                   Text="Automatisch erkannt aus workflows/*/model.json und vorhandenen Canvas-Dateien. Mehrfachauswahl aktivieren." Margin="0,7,0,10" />
+                    </StackPanel>
+                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="9">
+                        <DataGrid ItemsSource="{Binding Workflows}" SelectedItem="{Binding SelectedWorkflow}"
+                              CanUserAddRows="False" MinHeight="250">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Auswahl" Width="75">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Workflow" Binding="{Binding Name}" Width="210" />
+                            <DataGridTextColumn Header="Modellfamilie" Binding="{Binding Family}" Width="175" />
+                            <DataGridTextColumn Header="Canvas-Varianten" Binding="{Binding Canvases}" Width="*" />
+                            <DataGridTextColumn Header="Modelle" Binding="{Binding ModelCount}" Width="65" />
+                            <DataGridTextColumn Header="Modellgröße" Binding="{Binding ModelSize}" Width="140" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    </Border>
+                    <StackPanel Grid.Row="2" Margin="0,13,0,0">
+                        <TextBlock FontWeight="Bold" Text="{Binding SelectionSummary}" />
+                        <TextBlock Style="{StaticResource FieldHint}" Margin="0,6,0,5"
+                                   Text="Schritt 2 von 4 · Workflows in der Auswahlspalte aktivieren. Mehrfachauswahl ist möglich." />
+                        <TextBlock Text="{Binding SelectedWorkflow.Description}" Margin="0,5,0,5" />
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}"
+                                   Text="{Binding SelectedWorkflow.Weights}" MaxHeight="68" />
+                        <Button Command="{Binding OpenReadmeCommand}" Content="README auf GitHub öffnen" HorizontalAlignment="Left" />
+                        <Button x:Name="ContinueToHardwareButton" Click="ContinueToHardware_Click"
+                                IsEnabled="{Binding CanContinueToHardware}"
+                                Content="2  Auswahl übernehmen → Hardware prüfen"
+                                Background="{DynamicResource AccentBrush}"
+                                Foreground="{DynamicResource OnAccentBrush}"
+                                HorizontalAlignment="Left" MinHeight="46" />
+                        <Button Command="{Binding AutoDeployCommand}"
+                                IsEnabled="{Binding CanAutoDeploy}"
+                                Content="Automatisch bereitstellen: Pod + ComfyUI + Modelle …"
+                                HorizontalAlignment="Left" MinHeight="44"
+                                Margin="0,7,0,0" />
+                        <TextBlock Style="{StaticResource FieldHint}" Margin="0,5,0,0"
+                                   Text="Ein Klick nach der Workflow-Auswahl. Hardware wird aus Manifesten geplant, Kosten vor dem Start bestätigt. Unbekannte SSH-Fingerprints müssen separat verifiziert werden." />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Neue Instanz">
+                <Grid Margin="4,6,14,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,12,12">
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16"
+                                    Background="{DynamicResource FieldBrush}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}"
+                                               Text="SCHRITT 3 VON 4  /  HARDWARE PLANEN" />
+                                    <TextBlock Text="{Binding SelectionSummary}" FontWeight="SemiBold"
+                                               FontSize="16" Margin="0,7,0,8" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Empfehlungen aus privaten Workflow-READMEs und Manifesten. Keine Thunder-Live-Daten." />
+                                    <Button Content="← Workflow-Auswahl ändern"
+                                            Click="BackToWorkflows_Click"
+                                            HorizontalAlignment="Left" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}"
+                                               Text="HARDWARE-REFERENZEN" />
+                                    <TextBlock Style="{StaticResource SectionHeading}"
+                                               Text="Empfehlungen aus dem Workflow" Margin="0,8,0,5" />
+                                    <TextBlock Text="{Binding HardwareGuide}" TextWrapping="Wrap"
+                                               FontSize="13" Margin="0,6,0,10" />
+                                    <Separator Margin="0,6,0,9" />
+                                    <TextBlock Text="{Binding StorageGuide}" TextWrapping="Wrap"
+                                               FontSize="13" />
+                                    <Button Command="{Binding ApplyHardwareGuidanceCommand}"
+                                            Content="Planungswerte übernehmen"
+                                            HorizontalAlignment="Left"
+                                            Margin="0,13,0,0" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Übernehmen ändert Disk nur nach oben und filtert bei vollständiger Referenz die GPUs nach VRAM. Prüfe anschließend GPU-Typ, vCPUs und Preis selbst."
+                                               Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="GPU-PRIORITÄT  /  MANUELL ANPASSBAR" />
+                                    <TextBlock Style="{StaticResource SectionHeading}" Margin="0,8,0,4"
+                                               Text="GPU-Priorität" />
+                                    <TextBlock Style="{StaticResource LeadText}" FontSize="14" Margin="0,0,0,19"
+                                               Text="Von oben nach unten wird die gewünschte Hardware geprüft. Die Preise sind Schätzwerte, keine Live-Tarife." />
+                                    <ListBox x:Name="GpuList" ItemsSource="{Binding GpuChoices}"
+                                             SelectedItem="{Binding SelectedGpu}"
+                                             ItemContainerStyle="{StaticResource GpuItemStyle}"
+                                             HorizontalContentAlignment="Stretch"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                             AllowDrop="True" Drop="GpuList_Drop"
+                                             PreviewMouseLeftButtonDown="GpuList_PreviewMouseLeftButtonDown"
+                                             PreviewMouseMove="GpuList_PreviewMouseMove"
+                                             Background="Transparent" BorderThickness="0" Padding="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Padding="15,12" Background="{DynamicResource FieldBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1" CornerRadius="12">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="38" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="112" />
+                                                            <ColumnDefinition Width="174" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Grid.Column="0"
+                                                                  IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                                  VerticalAlignment="Center"
+                                                                  ToolTip="GPU für die Prioritätsliste aktivieren" />
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center"
+                                                                    Margin="0,0,12,0">
+                                                            <TextBlock Text="{Binding Display}" FontSize="15"
+                                                                       FontWeight="SemiBold" />
+                                                            <TextBlock Text="GPU-Modell" FontSize="12"
+                                                                       Foreground="{DynamicResource SubtleBrush}"
+                                                                       Margin="0,4,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                                                            <TextBlock Style="{StaticResource FormLabel}"
+                                                                       Text="vCPUs" />
+                                                            <TextBox Text="{Binding Vcpus, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                     HorizontalAlignment="Stretch"
+                                                                     Margin="0,5,0,0"
+                                                                     AutomationProperties.Name="vCPU-Anzahl" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="3">
+                                                            <TextBlock Style="{StaticResource FormLabel}"
+                                                                       Text="GPU · USD/h (Schätzung)" />
+                                                            <TextBox Text="{Binding GpuHourlyEstimate, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                     HorizontalAlignment="Stretch"
+                                                                     Margin="0,5,0,0"
+                                                                     AutomationProperties.Name="Geschätzter GPU-Stundenpreis" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Command="{Binding GpuUpCommand}" Content="↑  Nach oben" />
+                                            <Button Command="{Binding GpuDownCommand}" Content="↓  Nach unten" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="Reihenfolge auch per Drag-and-drop ändern"
+                                                   Style="{StaticResource FieldHint}" HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="RESSOURCEN  /  MANUELL ANPASSBAR" />
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="Ressourcen"
+                                               Margin="0,8,0,16" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="18" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,13">
+                                            <TextBlock Style="{StaticResource FormLabel}" Text="GPU-Anzahl" />
+                                            <TextBox Text="{Binding GpuCount, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="GPU-Anzahl" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,13">
+                                            <TextBlock Style="{StaticResource FormLabel}" Text="Gesamtdisk (GB)" />
+                                            <TextBox Text="{Binding DiskGb, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="Gesamtdisk in Gigabyte" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FormLabel}" Text="Template / Snapshot" />
+                                            <TextBox Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="Template oder Snapshot" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FormLabel}"
+                                                       Text="Maximaler Schätzpreis (USD/h)" />
+                                            <TextBox Text="{Binding MaximumHourlyUsd, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="Maximaler geschätzter Stundenpreis" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,5,0,0"
+                                               Text="Die tatsächliche Hardwarekonfiguration prüft Thunder beim Erstellen. Die Preisgrenze ist kein serverseitiges Kostenlimit." />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SurfaceCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource OverlineText}" Text="KOSTEN UND KONFIGURATION  /  PRÜFEN" />
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="Startvorschau"
+                                               Margin="0,8,0,4" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                               Text="Konfiguration und Kostenschätzung vor dem kostenpflichtigen Erstellen kontrollieren." />
+                                    <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True"
+                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                             FontFamily="Consolas" FontSize="13"
+                                             MinHeight="160" MaxHeight="220"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Disabled"
+                                             AutomationProperties.Name="Kopierbare Startvorschau" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}"
+                            Padding="16,13" Margin="0,6,14,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
+                                <TextBlock FontWeight="SemiBold" Text="Ein-Klick-Bereitstellung" />
+                                <TextBlock Style="{StaticResource FieldHint}"
+                                           Text="Pod, verifizierter SSH-Zugang, parallele Downloads und ComfyUI."
+                                           Margin="0,4,0,8" />
+                                <Button x:Name="InstanceCreateButton"
+                                        Command="{Binding CreateCommand}"
+                                        IsEnabled="{Binding CanCreatePod}"
+                                        Content="Nur Pod erstellen …"
+                                        HorizontalAlignment="Left" MinHeight="40" />
+                            </StackPanel>
+                            <Button x:Name="AutomaticDeployButton" Grid.Column="1"
+                                    Command="{Binding AutoDeployCommand}"
+                                    IsEnabled="{Binding CanAutoDeploy}"
+                                    Content="Pod + Modelle automatisch starten …"
+                                    Background="{DynamicResource AccentBrush}"
+                                    Foreground="{DynamicResource OnAccentBrush}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    MinHeight="48" Padding="19,13" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Instanzen">
+                <Grid Margin="4,6,18,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource OverlineText}" Text="SCHRITT 4 VON 4  /  POD BETREIBEN" />
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Pods verwalten" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding InstanceSummary}" FontWeight="SemiBold" FontSize="14"
+                                   Margin="0,8,0,3" />
+                        <TextBlock Text="{Binding LastRefreshed}" Style="{StaticResource FieldHint}"
+                                   Margin="0,0,0,5" />
+                        <TextBlock Text="{Binding ConnectionSummary}" Style="{StaticResource FieldHint}"
+                                   TextWrapping="Wrap" Margin="0,0,0,12" />
+                    </StackPanel>
+                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="9">
+                        <DataGrid ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
+                              CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="85" />
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130" />
+                            <DataGridTextColumn Header="GPU" Binding="{Binding Gpu}" Width="110" />
+                            <DataGridTextColumn Header="SSH-Port" Binding="{Binding SshPortDisplay}" Width="122" />
+                            <DataGridTextColumn Header="IP" Binding="{Binding Ip}" Width="155" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    </Border>
+                    <StackPanel Grid.Row="2">
+                        <WrapPanel Margin="0,10">
+                            <Button x:Name="PodSetupButton" Click="OpenPodSetup_Click"
+                                    Content="4  Installation &amp; Logs" />
+                            <Button Command="{Binding AutoDeployCommand}"
+                                    IsEnabled="{Binding CanAutoDeploy}"
+                                    Content="Bestehenden Pod automatisch einrichten …" />
+                            <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
+                            <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
+                            <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen (SSH)" />
+                            <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="{DynamicResource DangerBrush}" Foreground="White" />
+                        </WrapPanel>
+                        <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}"
+                                   Text="Pod-Verwaltung: SSH, privates ComfyUI, Downloads, Snapshots und Löschen. Ein GPU-Stopp ohne Löschen ist keine belegte Kostenbremse. Vor Löschen einen fertigen Snapshot prüfen." />
+                        <Separator Margin="0,15,0,13" />
+                        <TextBlock FontWeight="Bold" Text="Snapshots" />
+                        <WrapPanel Margin="0,5">
+                            <TextBox Text="{Binding SnapshotName}" Width="170" />
+                            <Button Command="{Binding SnapshotCommand}" Content="Snapshot erstellen …" />
+                            <Button Command="{Binding RefreshSnapshotsCommand}" Content="Snapshots aktualisieren" />
+                        </WrapPanel>
+                        <ListBox ItemsSource="{Binding Snapshots}" SelectedItem="{Binding SelectedSnapshot}"
+                                 DisplayMemberPath="Display" MinHeight="70" MaxHeight="120" />
+                        <Button Command="{Binding RestoreSnapshotCommand}"
+                                Content="READY-Snapshot als neues Template wählen" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Downloads &amp; Logs">
+                <Grid Margin="4,6,18,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="205" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Bootstrap und Diagnostik" />
+                        <TextBlock Margin="0,7,0,3" Text="{Binding AutoDeploymentStatus}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,3,0,6" Text="{Binding DownloadStatus}" />
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}"
+                                   Text="Logs aus dem zentralen Thunder-Bootstrap. Fortschritt nur, wenn die Quelle ihn liefert. Kein automatischer Neustart nach Verbindungsabbruch." />
+                        <WrapPanel>
+                            <Button Command="{Binding BootstrapCommand}"
+                                    Content="Bootstrap manuell starten …" />
+                            <Button Command="{Binding CancelAutoDeploymentCommand}"
+                                    IsEnabled="{Binding AutoDeploymentRunning}"
+                                    Content="Automatik abbrechen (Pod bleibt!)" />
+                            <Button x:Name="CopyLogButton" Click="CopyLog_Click" Content="Log kopieren" />
+                            <Button x:Name="CopyStartupLogButton" Click="CopyStartupLog_Click" Content="Startdiagnose kopieren" />
+                            <Button Command="{Binding ExportLogsCommand}" Content="Bereinigte Logs exportieren" />
+                            <Button Click="OpenThunderStatus_Click" Content="Thunder-Dienststatus" />
+                            <Button Click="OpenThunderConsole_Click" Content="Thunder-Konsole" />
+                        </WrapPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1">
+                        <TextBlock Text="{Binding DownloadSummary}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <DataGrid ItemsSource="{Binding Downloads}" CanUserAddRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Modelldatei" Binding="{Binding Model}" Width="*" />
+                                <DataGridTextColumn Header="Status" Binding="{Binding State}" Width="130" />
+                                <DataGridTextColumn Header="Übertragen / Fortschritt aus Log" Binding="{Binding Progress}" Width="270" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}" FontSize="12"
+                                   Margin="1,0,0,7"
+                                   Text="Protokolltext markieren und mit Strg+C kopieren. Für das gesamte Protokoll „Log kopieren“ wählen. Vor dem Teilen persönliche Angaben prüfen." />
+                        <TextBox x:Name="LogTextBox" Grid.Row="1"
+                                 Text="{Binding LogText, Mode=OneWay}" IsReadOnly="True"
+                                 AcceptsReturn="True" AcceptsTab="False"
+                                 TextWrapping="NoWrap" FontFamily="Consolas" FontSize="12"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Kopierbares Thunder-Protokoll" />
+                    </Grid>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Zugangsdaten">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Border Style="{StaticResource SurfaceCard}" Margin="4,6,18,22">
+                        <StackPanel Margin="0,0,0,0" Width="700" HorizontalAlignment="Left">
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Zugangsdatenmanager" />
+                        <TextBlock Margin="0,8,0,15" Foreground="{DynamicResource SubtleBrush}"
+                                   Text="Tokens liegen im Windows Credential Manager. Der private Workflow-Katalog wird über die authentifizierte GitHub-API gelesen. Dafür und für den Remote-Bootstrap wird ein Fine-grained PAT mit Contents: Read-only benötigt. Thunder verwendet separat die tnr-Anmeldung." />
+                        <TextBlock FontWeight="Bold" Text="Thunder Compute" />
+                        <TextBlock TextWrapping="Wrap" Margin="0,5"
+                                   Text="CLI über tnr login anmelden. Für den sicheren automatischen SSH-Erstzugang zusätzlich einen eigenen API-Token in der Thunder Console anlegen. Der Client prüft ihn vor der Pod-Erstellung und registriert ausschließlich einen festen öffentlichen SSH-Schlüssel." />
+                        <Button Command="{Binding ThunderLoginCommand}" Content="Anleitung zur Thunder-Anmeldung" HorizontalAlignment="Left" />
+                        <Separator Margin="0,15" />
+                        <TextBlock FontWeight="Bold" Text="Thunder · API-Token für sicheren SSH-Erstzugang" />
+                        <TextBlock Text="{Binding ThunderApiTokenStatus}" TextWrapping="Wrap" />
+                        <PasswordBox x:Name="ThunderApiPassword" Width="480" HorizontalAlignment="Left" />
+                        <WrapPanel>
+                            <Button Click="SaveThunderApi_Click" Content="Thunder-API-Token speichern" />
+                            <Button Click="DeleteThunderApi_Click" Content="Token löschen" />
+                        </WrapPanel>
+                        <TextBlock Foreground="{DynamicResource SubtleBrush}" TextWrapping="Wrap"
+                                   Text="Aus Thunder Console → Authentication → API Tokens. Sicher im Windows Credential Manager; niemals in Logs, URL oder Screenshots eintragen." />
+                        <Separator Margin="0,15" />
+                        <TextBlock FontWeight="Bold" Text="GitHub · Katalog und Remote-Bootstrap (Contents: Read-only)" />
+                        <TextBlock Text="{Binding GitTokenStatus}" />
+                        <PasswordBox x:Name="GithubPassword" Width="480" HorizontalAlignment="Left" />
+                        <WrapPanel>
+                            <Button Click="SaveGithub_Click" Content="GitHub-Token speichern" />
+                            <Button Click="DeleteGithub_Click" Content="Token löschen" />
+                        </WrapPanel>
+                        <Separator Margin="0,15" />
+                        <TextBlock FontWeight="Bold" Text="Hugging Face" />
+                        <TextBlock Text="{Binding HfTokenStatus}" />
+                        <PasswordBox x:Name="HfPassword" Width="480" HorizontalAlignment="Left" />
+                        <WrapPanel>
+                            <Button Click="SaveHf_Click" Content="HF-Token speichern" />
+                            <Button Click="DeleteHf_Click" Content="Token löschen" />
+                        </WrapPanel>
+                        <Separator Margin="0,15" />
+                        <TextBlock FontWeight="Bold" Text="Civitai" />
+                        <TextBlock Text="{Binding CivitaiTokenStatus}" />
+                        <PasswordBox x:Name="CivitaiPassword" Width="480" HorizontalAlignment="Left" />
+                        <WrapPanel>
+                            <Button Click="SaveCivitai_Click" Content="Civitai-Token speichern" />
+                            <Button Click="DeleteCivitai_Click" Content="Token löschen" />
+                        </WrapPanel>
+                        <TextBlock Margin="0,17,0,5" Foreground="{DynamicResource SubtleBrush}"
+                                   Text="SSH: Vor der ersten Verbindung muss der angezeigte ED25519-Hostfingerprint über einen unabhängigen Thunder-Kanal verifiziert und ausdrücklich bestätigt werden." />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Einstellungen">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Border Style="{StaticResource SurfaceCard}" Margin="4,6,18,22">
+                        <StackPanel Margin="0,0,0,0" HorizontalAlignment="Left" Width="750">
+                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="Einstellungen und Updates" />
+                        <TextBlock Text="Privater Workflow-Katalog" FontWeight="SemiBold" Margin="0,18,0,5" />
+                        <TextBlock Text="Direkter, authentifizierter GitHub-API-Zugriff. Es wird kein Repository geklont oder unter Windows ausgecheckt. Manifeste und Bootstrap liegen nur im Arbeitsspeicher."
+                                   Foreground="{DynamicResource SubtleBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="Repository: thomasasen/runpod-ai-workflows · Branch: main · Zugriff: Fine-grained PAT (Contents: Read-only) aus dem Windows Credential Manager."
+                                   TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <Button Command="{Binding SyncCommand}" Content="Privaten Katalog aktualisieren" HorizontalAlignment="Left" />
+                        <TextBlock Text="Ohne Netzwerk ist nur der zuvor in dieser Sitzung geladene Katalog nach ausdrücklicher Zustimmung verwendbar. Eine lokale Kopie wird nicht gespeichert."
+                                   Foreground="{DynamicResource SubtleBrush}" Margin="0,6,0,18" />
+                        <TextBlock Text="Darstellung" />
+                        <ComboBox x:Name="ThemeSelect" Width="170" HorizontalAlignment="Left"
+                                  SelectedValuePath="Content" SelectedValue="{Binding Theme, Mode=TwoWay}"
+                                  SelectionChanged="ThemeSelect_SelectionChanged" Margin="0,5,0,15">
+                            <ComboBoxItem Content="Dunkel" />
+                            <ComboBoxItem Content="Hell" />
+                        </ComboBox>
+                        <Button Command="{Binding SaveSettingsCommand}" Content="Einstellungen speichern" HorizontalAlignment="Left" />
+                        <Separator Margin="0,20" />
+                        <TextBlock FontWeight="Bold" Text="Anwendungsupdates (getrennt von Workflow-Synchronisierung)" />
+                        <TextBlock Text="{Binding VersionStatus}" Margin="0,8" />
+                        <Button Command="{Binding UpdateCheckCommand}" Content="Release-Version prüfen" HorizontalAlignment="Left" />
+                        <TextBlock Text="Es werden keine ungeprüften Downloads ausgeführt. Installationspakete nur aus offiziell überprüften GitHub Releases beziehen."
+                                   Foreground="{DynamicResource SubtleBrush}" Margin="0,10" />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Systemstatus">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="4,6,16,24">
+                        <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,17">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource OverlineText}" Text="EINRICHTUNG  /  SICHERE DIAGNOSE" />
+                                <TextBlock Style="{StaticResource SectionHeading}" FontSize="24"
+                                           Text="Sind alle Voraussetzungen bereit?" Margin="0,8,0,6" />
+                                <TextBlock Style="{StaticResource LeadText}" FontSize="14"
+                                           Text="Verbindungen testen, fehlende Zugangsdaten erkennen und direkt zu den offiziellen Einrichtungsseiten wechseln. Keine Tests erstellen Pods, starten Downloads oder akzeptieren SSH-Hostschlüssel automatisch." />
+                                <TextBlock Text="{Binding ReadinessSummary}" TextWrapping="Wrap"
+                                           FontWeight="SemiBold" Margin="0,16,0,11" />
+                                <WrapPanel>
+                                    <Button x:Name="RunSystemChecksButton"
+                                            Command="{Binding RunSystemChecksCommand}"
+                                            Content="Jetzt alles sicher prüfen"
+                                            Background="{DynamicResource AccentBrush}"
+                                            Foreground="{DynamicResource OnAccentBrush}"
+                                            Padding="19,12" />
+                                    <Button Click="GoToCredentials_Click"
+                                            Content="Zugangsdaten verwalten" />
+                                    <Button Click="GoToPods_Click" Content="Pod auswählen" />
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,10,0,0"
+                                           Text="„Erfolgreich getestet“ bedeutet einen abgeschlossenen lesenden API- oder Login-Test. „Vorhanden“ bestätigt nur eine lokale Datei bzw. ein Werkzeug. SSH wird erst mit laufendem Pod und zuvor bestätigtem Hostfingerprint getestet." />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Style="{StaticResource SectionHeading}" Text="Einzelprüfungen"
+                                   Margin="0,2,0,14" />
+                        <ItemsControl x:Name="ReadinessItems" ItemsSource="{Binding SystemChecks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource SurfaceCard}" Margin="0,0,0,11">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Title}" FontSize="17"
+                                                           FontWeight="SemiBold" Margin="0,0,12,0" />
+                                                <Border Grid.Column="1" CornerRadius="9" Padding="10,6"
+                                                        Background="{DynamicResource FieldBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1">
+                                                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold" FontSize="12">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource SubtleBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Erfolgreich getestet">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Vorhanden">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Fehlt">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Fehler">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Einrichtung nötig">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding TestedAt}" Style="{StaticResource FieldHint}"
+                                                       Margin="0,8,0,2" />
+                                            <TextBlock Text="{Binding Detail}" FontSize="14"
+                                                       Margin="0,10,0,10" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Guide}"
+                                                       Style="{StaticResource FieldHint}" />
+                                            <WrapPanel Margin="0,12,0,0">
+                                                <Button Content="{Binding HelpLabel}"
+                                                        Click="OpenCheckHelp_Click" />
+                                                <Button Content="Im Client einrichten"
+                                                        Click="GoToCheckSetup_Click" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource FieldHint}" Margin="3,8,0,4"
+                                   Text="Ein grüner technischer Prüfstatus ersetzt keine Abnahme einzelner Modellberechtigungen, keine unabhängige SSH-Fingerprint-Verifikation und keine Kontrolle laufender Thunder-Kosten." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            </TabControl>
+            <Border Grid.Row="2" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrush}"
+                    Background="{DynamicResource SurfaceBrush}" Padding="28,9">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" FontSize="12" Foreground="{DynamicResource SubtleBrush}"
+                               Margin="10,0,8,0" VerticalAlignment="Center" Text="{Binding Message}" />
+                    <TextBlock Grid.Column="2" FontSize="11" Foreground="{DynamicResource SubtleBrush}"
+                               VerticalAlignment="Center" Text="KOSTEN NUR ALS SCHÄTZUNG" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
