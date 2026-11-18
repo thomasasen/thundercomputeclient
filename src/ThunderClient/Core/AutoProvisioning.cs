@@ -92,7 +92,9 @@ public static class AutoProvisioning
                 "eine Erhöhung der Preisgrenze erfordert ausdrückliche Zustimmung.");
         }
 
-        var warning = "GPU-/VRAM-Werte stammen aus RunPod-READMEs, keine Thunder-Livemessung. " +
+        var warning = "GPU-/VRAM-Planungswerte stammen aus READMEs " +
+            "(Thunder-spezifisch, falls vorhanden, sonst RunPod-Referenzklasse); " +
+            "keine Thunder-Livemessung. " +
             "Disk = deduplizierte Modelle + pauschale Reserve und ggf. größere RunPod-Referenz. " +
             "Kosten sind historische Schätzwerte, die Preisgrenze ist keine Abrechnungssperre. " +
             "Der Client pinnt den ausgeführten Remote-Entrypoint an die zuvor bestätigte GitHub-Revision.";
