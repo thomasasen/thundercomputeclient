@@ -2,13 +2,19 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Release v0.1.4 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Release v0.1.5 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 **SSH-Diagnose-Hotfix v0.1.1:** Eine nicht bestätigte SHA256-Hostfingerprint-Abfrage wird getrennt von technischen OpenSSH-/KEX-/Zeitüberschreitungsfehlern behandelt; die ursprüngliche, bereinigte technische Ursache erscheint im Fehlerdialog. Der Client akzeptiert weiterhin niemals ungeprüfte Hostschlüssel. Eine unabhängige, vertrauenswürdige Verbindung zum Pod ist für die erste Fingerprint-Freigabe erforderlich.\n\n## Pod wiederherstellen und Downloads überwachen (v0.1.2)
 
 **Unter Instanzen:** `Pod wiederherstellen (Snapshot) …` sichert die vorhandene persistente Instanzdisk über den offiziell dokumentierten Thunder-Snapshot-Befehl. Der Client liest unmittelbar vor dem Snapshot den Thunder-Status neu ein und prüft die ausgewählte Instanz-ID, UUID und RUNNING-Status. **Kein In-Place-Pod-Neustart**: Thunder dokumentiert keinen nativen Start/Stop- oder Reboot-Befehl für dieselbe GPU-Instanz. Den Snapshot nach Status READY in der [Thunder-Podverwaltung](https://console.thundercompute.com/) **als neue kostenpflichtige Instanz** wiederherstellen, Daten und ComfyUI prüfen und erst anschließend den ursprünglichen Pod ausdrücklich löschen. Kein automatischer Pod-Create/Delete und kein `sudo reboot`. Laufende Schreibvorgänge vorher beenden; Snapshots sind kein garantierter externer Backup-Ersatz. Eine Momentaufnahme laufender Downloads ist gegebenenfalls inkonsistent.
 
 **Unter Downloads & Logs:** Die Modelldownload-Tabelle hat ihren eigenen vertikalen/horizontalen Scrollbereich (mit Virtualisierung), zeigt echte `[DOWNLOAD-STATUS]`-Zustände in dynamischen Farben: Grün für `GELADEN`/`VORHANDEN`, Akzent für `LAEUFT`/`FORTSCHRITT`, Warnfarbe für `RETRY`, Fehlerfarbe für `FEHLER`, neutral für `WARTET`. Unter **Instanzen** sowie **Downloads & Logs** führt ein direkter Link zur offiziellen Thunder-Podverwaltung.
+
+## SSH-Authentifizierung bei neuen Pods: Timeout-Retry (v0.1.5)
+
+Der erste SSH-Anmeldetest (`ssh -T ubuntu@HOST true`) kann kurz nach dem Pod-Start trotz erfolgreicher SSH-Fingerprint-Prüfung durch sein eigenes 25-Sekunden-Limit scheitern. Die bereits vorhandene beschränkte Wiederholungslogik behandelt jetzt auch Prozess-Timeouts und interne Command-Cancellation als **temporäre Authentifizierungsfehler**, solange die ausdrückliche Nutzer-Cancellation nicht ausgelöst wurde. Maximal sechs getrennte read-only-Tests mit fünf Sekunden Abstand; keine erneute SSH-Schlüsselregistrierung, keine Änderung an `known_hosts`, keine neue Pod-Erstellung. Hostkey-Wechsel werden weiterhin sofort und sicher abgelehnt. Bei dauerhaftem Fehlschlag werden Pod-Erhalt, Fehlertext und Fortsetzung mit derselben Instanz angezeigt.
+
+Das Protokoll vom 18.11.2026 zeigte außerdem, dass nach dem einmaligen SSH-Timeout der bestehende A100-Pod später erfolgreich den Remote-Bootstrap mit elf Modellgewichten startete. Eine erfasste Momentaufnahme von 13:43:41 Uhr bestätigt drei von drei Civitai- und drei von acht Hugging-Face-Downloads, aber noch keine abgeschlossene ComfyUI-Inferenz.
 
 ## MiniMax H3 Image: A100-API-Kennung korrigiert (v0.1.4)
 

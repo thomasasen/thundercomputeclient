@@ -976,8 +976,13 @@ public sealed class MainViewModel : Bindable, IDisposable
                 SetAutoDeploymentStage, ct: ct);
             if (!probe.Success)
                 throw new InvalidOperationException(
-                    "SSH-Anmeldung fehlgeschlagen (Exitcode " + probe.ExitCode +
-                    "). Im Systemstatus SSH-Key, Netzwerk und bestätigten Hostfingerprint prüfen.");
+                    "SSH-Anmeldung auch nach begrenzten Wiederholungen fehlgeschlagen " +
+                    "(Exitcode " + probe.ExitCode + "). " +
+                    SshFailureDiagnostics.SummarizeRedactedCause(
+                        RedactKnownSecrets(probe.Combined)) + " " +
+                    "Vorhandenen Pod unter Instanzen prüfen und die Verbindung " +
+                    "später wieder aufnehmen; keinen zweiten Pod erstellen. " +
+                    "Die bestätigte SSH-Fingerprint-Sperre bleibt aktiv.");
 
             _autoDeploymentSsh = ssh;
             if (await _ssh.IsComfyUiReadyAsync(ssh, ct))
