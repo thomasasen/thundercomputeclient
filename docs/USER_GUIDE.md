@@ -86,3 +86,21 @@ ComfyUI nur über den privaten SSH-Loopback-Tunnel öffnen. Vor dem Löschen ein
 In **Downloads & Logs** ist das Protokoll markierbar (Strg+C) und über **Log kopieren** vollständig kopierbar. **Startdiagnose kopieren** liest die lokale `startup.log`; vor dem Teilen private Daten entfernen. Die App prüft GitHub-Releases, installiert sie aber nicht automatisch.
 
 Der Windows-Installer ist noch nicht signiert. Einstellungen und WinCred-Tokens bleiben bei einer normalen Programmaktualisierung bestehen; das Entfernen des Programms löscht Secrets nicht automatisch. Zugangsdaten vor endgültiger Entfernung über die GUI löschen.
+
+## v0.1.2: Pod-Wiederherstellung ohne automatische Datenlöschung
+
+Thunder Compute stellt laut offizieller Dokumentation **keinen nativen In-Place-Neustart** der bestehenden GPU-Instanz bereit. Ein unbestätigtes `sudo reboot` ist kein sicherer Ersatz. Die Funktion **Instanzen → Pod wiederherstellen (Snapshot) …** bereitet daher eine datenerhaltende, separat zu bestätigende Wiederherstellung vor:
+
+1. Den richtigen **RUNNING-Pod** auswählen und laufende Schreibvorgänge/Downloads nach Möglichkeit beenden.
+2. Die Funktion bestätigt ausdrücklich: Es wird **nur ein Snapshot angefordert**; der bestehende Pod bleibt vorhanden und kostenpflichtig.
+3. Der Client prüft den Thunder-Status und die UUID unmittelbar vor dem CLI-Aufruf erneut. Bei veränderter/missing Instanz bricht er ab.
+4. Unter **Snapshots aktualisieren** auf den Status **READY** warten. Eine begonnene Snapshot-Anforderung ist noch kein geprüftes Backup.
+5. Über **Thunder-Podverwaltung öffnen** in der offiziellen [Thunder Console](https://console.thundercompute.com/) den READY-Snapshot als Template für eine **neue Instanz** wiederherstellen. Die Kosten der neuen Instanz separat bestätigen.
+6. Modelle, Konfiguration und Outputs prüfen. Die alte Instanz **erst nach dieser Prüfung** bewusst löschen.
+
+Der Client löst **kein** `sudo reboot`, `tnr delete`, `tnr create` oder einen automatischen Anbieter-Restore aus. Ein Snapshot ist keine langfristig garantierte externe Datensicherung; für wichtige Outputs zusätzlich extern speichern.
+
+## v0.1.2: Scrollbare Download-Tabelle
+
+Unter **Downloads & Logs** ist die Tabelle nun in ihrem verfügbaren Bereich scrollbar. Statusfarben: **grün** für `GELADEN`/`VORHANDEN`, **Akzent** für `LAEUFT`/`FORTSCHRITT`, **Warnfarbe** für `RETRY`, **Fehlerfarbe** für `FEHLER` und neutral für `WARTET`. Die Farben folgen dem Hell-/Dunkelmodus. Der Link **Thunder-Podverwaltung** öffnet die offizielle Console.
+
