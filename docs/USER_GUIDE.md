@@ -108,7 +108,7 @@ Unter **Downloads & Logs** ist die Tabelle nun in ihrem verfügbaren Bereich scr
 
 1. Nur `T2I_MiniMax-H3-Image` auswählen und den GitHub-Katalog aktualisieren.
 2. Unter **Neue Instanz** auf **Planungswerte übernehmen** klicken. Der Standard-Canvas orientiert sich konservativ an **80 GB VRAM**, die vollständige Modellliste an **211 GB Gesamtdisk**.
-3. **A100 / 80 GB / 8 vCPUs / 1 GPU** prüfen. Die A100 ist in Neuinstallationen aktiviert; bei gespeicherter niedriger Preisgrenze (z. B. 0,85 USD/h) erscheint ein **separater Bestätigungsdialog** zum Setzen eines geeigneten Limits. Ohne Zustimmung bleibt das alte Limit bestehen.
+3. **A100 / 80 GB / 8 vCPUs / 1 GPU** prüfen. Die A100 ist in Neuinstallationen aktiviert; bei gespeicherter niedriger Preisgrenze (z. B. 0,85 USD/h) erscheint beim Übernehmen der Planungswerte ein **separater Bestätigungsdialog** zum Setzen eines geeigneten Limits. Beim direkten Ein-Klick-Start bietet der Client die Hardwareplanung ebenfalls ausdrücklich an, wenn sonst keine GPU zulässig ist. Ohne Zustimmung bleibt das alte Limit bestehen.
 4. Den automatischen Start wählen. Die tatsächlichen Thunder-Preise und zulässigen Hardwaredaten werden vor dem kostenpflichtigen Create live geprüft. Es folgt immer eine getrennte Kostenfreigabe.
 5. Nach SSH-Verbindung prüfen Remote-Preflight und Readiness den tatsächlichen GPU-/Disk-Status und die importierten ComfyUI-Workflows. Erst danach einen Inferenztest mit zunächst **4 MP**, später bei ausreichender Reserve mit 8 MP durchführen.
 
