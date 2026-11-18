@@ -62,7 +62,7 @@ public static class HardwareRecommendations
                 vram, row.Groups["reason"].Value.Trim()));
         }
         int? thunderVramGb = null;
-        var thunderStart = readme.IndexOf("## Thunder Compute:", StringComparison.OrdinalIgnoreCase);
+        var thunderStart = readme.IndexOf("### Thunder Compute:", StringComparison.OrdinalIgnoreCase);
         if (thunderStart >= 0)
         {
             var thunderSection = readme[thunderStart..];
