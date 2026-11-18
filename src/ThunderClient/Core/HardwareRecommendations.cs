@@ -6,12 +6,12 @@ namespace ThunderClient.Core;
 public sealed record ReferenceGpu(int Rank, string Name, int VramGb, string Reason);
 
 /// <summary>
-/// Source: the private workflow README's RunPod section. No Thunder
-/// hardware or availability assertions are implied by these values.
+/// Source: the private workflow README: RunPod ranking with optional
+/// Thunder-specific VRAM planning marker. Neither asserts live availability.
 /// </summary>
-public sealed record WorkflowHardwareReference(int? RunPodVolumeGb, IReadOnlyList<ReferenceGpu> Gpus)
+public sealed record WorkflowHardwareReference(int? RunPodVolumeGb, IReadOnlyList<ReferenceGpu> Gpus, int? ThunderVramGb = null)
 {
-    public static WorkflowHardwareReference Empty { get; } = new(null, []);
+    public static WorkflowHardwareReference Empty { get; } = new(null, [], null);
 }
 
 public sealed record HardwarePlan(
@@ -28,6 +28,13 @@ public static class HardwareRecommendations
     private static readonly Regex RankedGpu = new(
         @"^\|\s*(?<rank>[1-9]\d?)\s*\|\s*(?<name>[^|]{1,80})\s*\|\s*(?<vram>\d{1,3})\s*GB\s*\|\s*(?<reason>[^|]{1,400})\|",
         RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
+
+    // Optional vendor-specific, explicitly identified planning value. The RunPod
+    // ranking remains the fallback and is never interpreted as a Thunder SKU list.
+    private static readonly Regex ThunderVram = new(
+        @"^\*\*Thunder-VRAM-Orientierung:\s*(?<gb>\d{1,3})\s*GB\*\*",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
         TimeSpan.FromSeconds(1));
 
     public static WorkflowHardwareReference Parse(string? readme)
@@ -54,8 +61,21 @@ public static class HardwareRecommendations
                 row.Groups["name"].Value.Trim(),
                 vram, row.Groups["reason"].Value.Trim()));
         }
+        int? thunderVramGb = null;
+        var thunderStart = readme.IndexOf("### Thunder Compute:", StringComparison.OrdinalIgnoreCase);
+        if (thunderStart >= 0)
+        {
+            var thunderSection = readme[thunderStart..];
+            var end = thunderSection.IndexOf("\n## ", 3, StringComparison.Ordinal);
+            if (end >= 0) thunderSection = thunderSection[..end];
+            var thunderMatch = ThunderVram.Match(thunderSection);
+            if (thunderMatch.Success &&
+                int.TryParse(thunderMatch.Groups["gb"].Value, out var parsedVram) &&
+                parsedVram is >= 8 and <= 400)
+                thunderVramGb = parsedVram;
+        }
         return new WorkflowHardwareReference(volumeGb,
-            gpus.OrderBy(x => x.Rank).ToArray());
+            gpus.OrderBy(x => x.Rank).ToArray(), thunderVramGb);
     }
 
     public static HardwarePlan Plan(IReadOnlyList<WorkflowItem> selected)
@@ -81,10 +101,12 @@ public static class HardwareRecommendations
         var suggestedDisk = estimate.TotalGb.HasValue ? (int?)plannedDisk : null;
 
         var sources = selected
-            .Where(x => x.HardwareReference.Gpus.Count > 0).ToArray();
+            .Where(x => x.HardwareReference.ThunderVramGb.HasValue ||
+                        x.HardwareReference.Gpus.Count > 0).ToArray();
         var complete = sources.Length == selected.Count;
         var vram = sources.Length == 0 ? (int?)null :
-            sources.Max(x => x.HardwareReference.Gpus.Min(g => g.VramGb));
+            sources.Max(x => x.HardwareReference.ThunderVramGb ??
+                            x.HardwareReference.Gpus.Min(g => g.VramGb));
         var storage = new StringBuilder();
         storage.Append(estimate.TotalGb.HasValue
             ? $"Modelldateien (dedupliziert): {estimate.TotalGb.Value:N2} GB; " +
@@ -104,14 +126,17 @@ public static class HardwareRecommendations
         var gpu = new StringBuilder();
         if (vram.HasValue)
             gpu.Append($"VRAM-Orientierung: {vram} GB oder mehr " +
-                "(kleinste VRAM-Klasse unter den jeweils im README gelisteten RunPod-GPUs; " +
-                "keine gemessene Mindestanforderung für Thunder).");
+                "(Thunder-spezifischer Planungswert, soweit dokumentiert; sonst kleinste " +
+                "RunPod-Referenzklasse; keine gemessene Mindestanforderung für Thunder).");
         else gpu.Append("Im README liegt keine auswertbare GPU-Tabelle vor; GPU-Auswahl manuell prüfen.");
 
         foreach (var item in selected.Take(4))
         {
-            if (item.HardwareReference.Gpus.Count > 0)
-                gpu.Append("\n" + item.Name + ": " +
+            if (item.HardwareReference.ThunderVramGb.HasValue)
+                gpu.Append("\n" + item.Name + ": Thunder-Planungswert " +
+                    item.HardwareReference.ThunderVramGb.Value + " GB (nicht inferenzvalidiert).");
+            else if (item.HardwareReference.Gpus.Count > 0)
+                gpu.Append("\n" + item.Name + ": RunPod-Referenz: " +
                     string.Join(" · ", item.HardwareReference.Gpus.Take(3)
                         .Select(x => x.Rank + ". " + x.Name + " (" + x.VramGb + " GB)")));
             else gpu.Append("\n" + item.Name + ": keine dokumentierte GPU-Empfehlung.");

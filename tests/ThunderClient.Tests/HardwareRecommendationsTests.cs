@@ -112,6 +112,24 @@ public sealed class HardwareRecommendationsTests
     }
 
     [Fact]
+    public void ThunderSpecificVramGuidanceOverridesRunPodFallbackOnlyForMarkedSection()
+    {
+        var readme = RunPodReadme + """
+
+            ### Thunder Compute: GPU- und Disk-Orientierung
+
+            **Thunder-VRAM-Orientierung: 80 GB** (konservativ, nicht getestet)
+            """;
+        var reference = HardwareRecommendations.Parse(readme);
+        Assert.Equal(80, reference.ThunderVramGb);
+        Assert.Equal(24, reference.Gpus.Min(x => x.VramGb));
+        var plan = HardwareRecommendations.Plan([Workflow("minimax", 170.73, readme)]);
+        Assert.Equal(80, plan.ReferenceVramGb);
+        Assert.Equal(211, plan.SuggestedDiskGb);
+        Assert.Contains("Thunder-Planungswert 80 GB", plan.GpuExplanation);
+    }
+
+    [Fact]
     public void EmptySelectionHasNoRecommendation()
     {
         var plan = HardwareRecommendations.Plan([]);

@@ -81,6 +81,45 @@ public sealed class AutoProvisioningTests
     }
 
     [Fact]
+    public void MiniMaxH3A100PassesWhenExplicitPriceCeilingCoversFullDisk()
+    {
+        var h3 = new WorkflowHardwareReference(206,
+            [new ReferenceGpu(5, "H100 SXM", 80, "RunPod")], 80);
+        var gpus = new[]
+        {
+            new GpuChoice("a6000", "RTX A6000", 48, 6, .35m),
+            new GpuChoice("l40", "L40", 48, 6, .79m),
+            new GpuChoice("a100", "A100", 80, 8, 1.09m),
+            new GpuChoice("h100", "H100", 80, 4, 3.20m) { Enabled = false }
+        };
+        var plan = AutoProvisioning.Plan([Item("T2I_MiniMax-H3-Image", 170.73, h3)],
+            Commit, gpus, 1, 160, "base", 1.25m);
+        Assert.Equal(211, plan.DiskGb);
+        Assert.Equal("a100", Assert.Single(plan.Candidates).Key);
+        Assert.Equal(80, plan.ReferenceVramGb);
+        Assert.InRange(plan.FirstHourlyEstimate, 1.12m, 1.13m);
+    }
+
+    [Fact]
+    public void ExistingLowPriceCeilingExplainsA100RejectionBeforePodCreation()
+    {
+        var h3 = new WorkflowHardwareReference(206,
+            [new ReferenceGpu(5, "H100 SXM", 80, "RunPod")], 80);
+        var gpus = new[]
+        {
+            new GpuChoice("a6000", "RTX A6000", 48, 6, .35m),
+            new GpuChoice("a100", "A100", 80, 8, 1.09m)
+        };
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            AutoProvisioning.Plan([Item("T2I_MiniMax-H3-Image", 170.73, h3)],
+                Commit, gpus, 1, 160, "base", .85m));
+        Assert.Contains("A100", error.Message);
+        Assert.Contains("211 GB", error.Message);
+        Assert.Contains("Schätzpreis", error.Message);
+        Assert.Contains("ausdrückliche Zustimmung", error.Message);
+    }
+
+    [Fact]
     public void RefusesUnknownModelSizeBeforeCostlyPodCreation()
     {
         var err = Assert.Throws<InvalidOperationException>(() =>

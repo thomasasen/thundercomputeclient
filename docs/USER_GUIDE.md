@@ -104,3 +104,12 @@ Der Client löst **kein** `sudo reboot`, `tnr delete`, `tnr create` oder einen a
 
 Unter **Downloads & Logs** ist die Tabelle nun in ihrem verfügbaren Bereich scrollbar. Statusfarben: **grün** für `GELADEN`/`VORHANDEN`, **Akzent** für `LAEUFT`/`FORTSCHRITT`, **Warnfarbe** für `RETRY`, **Fehlerfarbe** für `FEHLER` und neutral für `WARTET`. Die Farben folgen dem Hell-/Dunkelmodus. Der Link **Thunder-Podverwaltung** öffnet die offizielle Console.
 
+## v0.1.3: MiniMax-H3-Image auf Thunder starten
+
+1. Nur `T2I_MiniMax-H3-Image` auswählen und den GitHub-Katalog aktualisieren.
+2. Unter **Neue Instanz** auf **Planungswerte übernehmen** klicken. Der Standard-Canvas orientiert sich konservativ an **80 GB VRAM**, die vollständige Modellliste an **211 GB Gesamtdisk**.
+3. **A100 / 80 GB / 8 vCPUs / 1 GPU** prüfen. Die A100 ist in Neuinstallationen aktiviert; bei gespeicherter niedriger Preisgrenze (z. B. 0,85 USD/h) erscheint beim Übernehmen der Planungswerte ein **separater Bestätigungsdialog** zum Setzen eines geeigneten Limits. Beim direkten Ein-Klick-Start bietet der Client die Hardwareplanung ebenfalls ausdrücklich an, wenn sonst keine GPU zulässig ist. Ohne Zustimmung bleibt das alte Limit bestehen.
+4. Den automatischen Start wählen. Die tatsächlichen Thunder-Preise und zulässigen Hardwaredaten werden vor dem kostenpflichtigen Create live geprüft. Es folgt immer eine getrennte Kostenfreigabe.
+5. Nach SSH-Verbindung prüfen Remote-Preflight und Readiness den tatsächlichen GPU-/Disk-Status und die importierten ComfyUI-Workflows. Erst danach einen Inferenztest mit zunächst **4 MP**, später bei ausreichender Reserve mit 8 MP durchführen.
+
+Bei Ablehnung nennt der Client künftig pro GPU den konkreten Grund (deaktiviert, zu wenig VRAM, Schätzpreis über Budget). **RTX A6000/L40 mit 48 GB sind für den 8-MP-Standard-Canvas nicht validiert** und werden nicht stillschweigend als gleichwertig behandelt. Die 80 GB sind eine vorsichtige Orientierung, kein garantierter Inferenznachweis. Vorhandene Pods können weiter Kosten verursachen; einen fehlgeschlagenen Start nie blind mit neuem Create wiederholen.

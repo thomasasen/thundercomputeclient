@@ -60,13 +60,13 @@ public sealed class ClientSettings
 {
     public int DiskGb { get; set; } = 160;
     public int GpuCount { get; set; } = 1;
-    public decimal MaximumHourlyUsd { get; set; } = 0.85m;
+    public decimal MaximumHourlyUsd { get; set; } = 1.25m;
     public string Template { get; set; } = "base";
     public string Theme { get; set; } = "Hell";
     public bool OfflineApproved { get; set; }
     public string LocalGitRef { get; set; } = "main";
     public List<string> SelectedWorkflows { get; set; } = [];
-    public List<string> GpuOrder { get; set; } = ["a6000", "l40", "a100"];
+    public List<string> GpuOrder { get; set; } = ["a6000", "l40", "a100", "h100"];
 }
 
 public static class Estimates
