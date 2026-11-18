@@ -45,11 +45,18 @@ public sealed class ThunderPublicPricing(HttpClient http)
         var result = new Dictionary<string, Quote>(StringComparer.OrdinalIgnoreCase);
         foreach (var gpu in choices)
         {
-            var key = gpu.Key.ToLowerInvariant() + "_x" + gpuCount;
+            // Match Thunder's official CLI canonical A100 80GB key (a100xl).
+            var key = ThunderGpuNames.ToProviderKey(gpu.Key) + "_x" + gpuCount;
             if (!configurations.TryGetProperty(key, out var spec) ||
                 spec.ValueKind != JsonValueKind.Object)
                 throw new InvalidDataException(
-                    "Thunder-Spezifikation für GPU-Konfiguration fehlt: " + key);
+                    "Thunder-Spezifikation für GPU-Konfiguration fehlt: " + key +
+                    ". Aktuell gemeldete Schlüssel für " + gpuCount + " GPU(s): " +
+                    string.Join(", ", configurations.EnumerateObject()
+                        .Select(x => x.Name)
+                        .Where(x => x.EndsWith("_x" + gpuCount, StringComparison.OrdinalIgnoreCase))
+                        .Take(12)) +
+                    ". Keine kostenpflichtige Instanz angelegt.");
             if (!spec.TryGetProperty("vcpuOptions", out var options) ||
                 options.ValueKind != JsonValueKind.Array)
                 throw new InvalidDataException("Thunder-vCPU-Optionen fehlen: " + key);

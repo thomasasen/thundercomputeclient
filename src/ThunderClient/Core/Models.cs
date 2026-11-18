@@ -30,6 +30,25 @@ public sealed class WorkflowItem : Bindable
         (Models.Count > 12 ? $" … (+{Models.Count - 12})" : "");
 }
 
+/// <summary>
+/// Thunder exposes A100 80GB as "a100xl" in its v2/specs, v2/pricing
+/// and create API. The app keeps the pre-existing local "a100" key
+/// for persisted UI ordering; only provider boundaries use this canonical key.
+/// Source: Thunder-Compute/thunder-cli utils/spec_store.go.
+/// </summary>
+public static class ThunderGpuNames
+{
+    public static string ToProviderKey(string key) => key?.Trim().ToLowerInvariant() switch
+    {
+        "a100" or "a100xl" => "a100xl",
+        "a6000" => "a6000",
+        "l40" => "l40",
+        "h100" => "h100",
+        _ => throw new InvalidOperationException(
+            "Unbekannte Thunder-GPU-Kennung. Anbieterprüfung und kostenpflichtige Erstellung gesperrt.")
+    };
+}
+
 public sealed class GpuChoice : Bindable
 {
     private bool _enabled = true;
@@ -60,7 +79,7 @@ public sealed class ClientSettings
 {
     public int DiskGb { get; set; } = 160;
     public int GpuCount { get; set; } = 1;
-    public decimal MaximumHourlyUsd { get; set; } = 1.25m;
+    public decimal MaximumHourlyUsd { get; set; } = 1.35m;
     public string Template { get; set; } = "base";
     public string Theme { get; set; } = "Hell";
     public bool OfflineApproved { get; set; }
@@ -85,7 +104,7 @@ public static class Estimates
         {
             "a6000" => (6, .35m),
             "l40" => (6, .79m),
-            "a100" => (8, 1.09m),
+            "a100" or "a100xl" => (4, 1.09m),
             "h100" => (4, 3.20m),
             _ => throw new InvalidOperationException(
                 "Kein veröffentlichter Thunder-Tarif für diese GPU bekannt. Kostenfreigabe gesperrt.")

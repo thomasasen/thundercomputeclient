@@ -2,13 +2,19 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Release v0.1.3 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Release v0.1.4 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 **SSH-Diagnose-Hotfix v0.1.1:** Eine nicht bestätigte SHA256-Hostfingerprint-Abfrage wird getrennt von technischen OpenSSH-/KEX-/Zeitüberschreitungsfehlern behandelt; die ursprüngliche, bereinigte technische Ursache erscheint im Fehlerdialog. Der Client akzeptiert weiterhin niemals ungeprüfte Hostschlüssel. Eine unabhängige, vertrauenswürdige Verbindung zum Pod ist für die erste Fingerprint-Freigabe erforderlich.\n\n## Pod wiederherstellen und Downloads überwachen (v0.1.2)
 
 **Unter Instanzen:** `Pod wiederherstellen (Snapshot) …` sichert die vorhandene persistente Instanzdisk über den offiziell dokumentierten Thunder-Snapshot-Befehl. Der Client liest unmittelbar vor dem Snapshot den Thunder-Status neu ein und prüft die ausgewählte Instanz-ID, UUID und RUNNING-Status. **Kein In-Place-Pod-Neustart**: Thunder dokumentiert keinen nativen Start/Stop- oder Reboot-Befehl für dieselbe GPU-Instanz. Den Snapshot nach Status READY in der [Thunder-Podverwaltung](https://console.thundercompute.com/) **als neue kostenpflichtige Instanz** wiederherstellen, Daten und ComfyUI prüfen und erst anschließend den ursprünglichen Pod ausdrücklich löschen. Kein automatischer Pod-Create/Delete und kein `sudo reboot`. Laufende Schreibvorgänge vorher beenden; Snapshots sind kein garantierter externer Backup-Ersatz. Eine Momentaufnahme laufender Downloads ist gegebenenfalls inkonsistent.
 
 **Unter Downloads & Logs:** Die Modelldownload-Tabelle hat ihren eigenen vertikalen/horizontalen Scrollbereich (mit Virtualisierung), zeigt echte `[DOWNLOAD-STATUS]`-Zustände in dynamischen Farben: Grün für `GELADEN`/`VORHANDEN`, Akzent für `LAEUFT`/`FORTSCHRITT`, Warnfarbe für `RETRY`, Fehlerfarbe für `FEHLER`, neutral für `WARTET`. Unter **Instanzen** sowie **Downloads & Logs** führt ein direkter Link zur offiziellen Thunder-Podverwaltung.
+
+## MiniMax H3 Image: A100-API-Kennung korrigiert (v0.1.4)
+
+Die offizielle Thunder-CLI verwendet für die 80-GB-A100 die Providerkennung `a100xl`, mit dem Spec-/Pricing-Schlüssel `a100xl_x1`. Der lokale GUI-Eintrag `a100` bleibt aus Kompatibilitätsgründen mit gespeicherten Einstellungen erhalten. **Beide Read-only-Liveprüfungen und der spätere `tnr create --gpu`-Parameter verwenden nun konsequent `a100xl`.** Es gibt keine stillschweigende Fallback-Umgehung bei fehlenden Anbieter-Spezifikationen.
+
+Für acht vCPUs berücksichtigt die konservative A100-Listenpreisschätzung jetzt **vier zusätzliche vCPUs** gegenüber der kleinsten offiziellen CLI-Spezifikation. Die Standard-Schätzpreisgrenze neuer Installationen beträgt 1,35 USD/h; ein bereits gespeichertes niedrigeres Limit bleibt bis zur expliziten Zustimmung unverändert. Es folgen weiterhin eine **Live-Quote** und eine separate **kostenpflichtige Pod-Freigabe**. Bei höheren aktuellen Anbieterpreisen wird die Erstellung blockiert, bis die Preisgrenze ausdrücklich angepasst ist. Ein echter bezahlter Thunder-/ComfyUI-Inferenztest steht aus.
 
 ## MiniMax H3 Image: Thunder-GPU-Auswahl (v0.1.3)
 
