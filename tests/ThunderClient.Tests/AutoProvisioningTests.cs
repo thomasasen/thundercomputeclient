@@ -93,11 +93,11 @@ public sealed class AutoProvisioningTests
             new GpuChoice("h100", "H100", 80, 4, 3.20m) { Enabled = false }
         };
         var plan = AutoProvisioning.Plan([Item("T2I_MiniMax-H3-Image", 170.73, h3)],
-            Commit, gpus, 1, 160, "base", 1.25m);
+            Commit, gpus, 1, 160, "base", 1.35m);
         Assert.Equal(211, plan.DiskGb);
         Assert.Equal("a100", Assert.Single(plan.Candidates).Key);
         Assert.Equal(80, plan.ReferenceVramGb);
-        Assert.InRange(plan.FirstHourlyEstimate, 1.12m, 1.13m);
+        Assert.InRange(plan.FirstHourlyEstimate, 1.28m, 1.29m);
     }
 
     [Fact]

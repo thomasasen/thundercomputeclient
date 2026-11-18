@@ -132,7 +132,8 @@ public sealed class ThunderCli(ICommandRunner commands)
             }
             log($"GPU-Createversuch: {gpu.Key}, {gpu.Vcpus} vCPU, {gpuCount} GPU(s), {diskGb} GB.");
             var output = await CallAsync([
-                "create", "--json", "--gpu", gpu.Key, "--num-gpus", gpuCount.ToString(),
+                "create", "--json", "--gpu", ThunderGpuNames.ToProviderKey(gpu.Key),
+                "--num-gpus", gpuCount.ToString(),
                 "--vcpus", gpu.Vcpus.ToString(), "--template", template,
                 "--disk", diskGb.ToString()], TimeSpan.FromMinutes(5), ct);
             if (output.Success)

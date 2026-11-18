@@ -113,3 +113,11 @@ Unter **Downloads & Logs** ist die Tabelle nun in ihrem verfügbaren Bereich scr
 5. Nach SSH-Verbindung prüfen Remote-Preflight und Readiness den tatsächlichen GPU-/Disk-Status und die importierten ComfyUI-Workflows. Erst danach einen Inferenztest mit zunächst **4 MP**, später bei ausreichender Reserve mit 8 MP durchführen.
 
 Bei Ablehnung nennt der Client künftig pro GPU den konkreten Grund (deaktiviert, zu wenig VRAM, Schätzpreis über Budget). **RTX A6000/L40 mit 48 GB sind für den 8-MP-Standard-Canvas nicht validiert** und werden nicht stillschweigend als gleichwertig behandelt. Die 80 GB sind eine vorsichtige Orientierung, kein garantierter Inferenznachweis. Vorhandene Pods können weiter Kosten verursachen; einen fehlgeschlagenen Start nie blind mit neuem Create wiederholen.
+
+## v0.1.4: A100-Spezifikationsfehler `a100_x1`
+
+Die offizielle Thunder-CLI nutzt `a100xl_x1`, nicht `a100_x1`. Das ist in Version 0.1.4 an allen Anbieter-Grenzen korrigiert: `/v2/specs`, `/v2/pricing` und `tnr create --gpu a100xl`. Die Beschriftung **A100 (80 GB)** und alte gespeicherte GPU-Reihenfolgen mit `a100` bleiben erhalten.
+
+Der A100-Listenpreis für **8 vCPUs und 211 GB** liegt nach der historischen Rechnerlogik bei rund **1,283 USD/h**, nicht 1,123 USD/h. Thunder kann live einen höheren Tarif melden. Die neue Standard-Schätzpreisgrenze beträgt **1,35 USD/h**, wird bei bestehenden Installationen aber nicht automatisch überschrieben. Unter **Neue Instanz → Planungswerte übernehmen** oder beim Ein-Klick-Start die notwendige Erhöhung ausdrücklich freigeben. Bei einem live ermittelten Tarif oberhalb der Freigabe weiterhin **nicht** kostenpflichtig erstellen; Preisgrenze bewusst prüfen und separat erneut starten.
+
+Kein GPU-Pod wurde durch diese Codeänderung angelegt. Die Tests prüfen Provider-JSON mit offiziellen `a100xl_x1`-Schlüsseln sowie den `tnr create`-Aufruf; sie sind keine Bestätigung der aktuellen Thunder-Verfügbarkeit.

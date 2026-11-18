@@ -10,6 +10,8 @@ public class ThunderPublicPricingTests
     private sealed class FakeHandler : HttpMessageHandler
     {
         public bool Protected;
+        public bool MissingA100;
+        public bool A100PriceSurge;
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -17,8 +19,12 @@ public class ThunderPublicPricingTests
             if (Protected) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
             var content = path switch
             {
-                "/v2/pricing" => """{"pricing":{"l40_x1":0.79,"additional_vcpus":0.04,"disk_gb":0.0003}}""",
-                "/v2/specs" => """{"specs":{"l40_x1":{"vramGB":48,"vcpuOptions":[6,8,10,12],"storageGB":{"min":100,"max":500}}}}""",
+                "/v2/pricing" => A100PriceSurge
+                    ? """{"pricing":{"l40_x1":0.79,"a100xl_x1":1.95,"additional_vcpus":0.04,"disk_gb":0.0003}}"""
+                    : """{"pricing":{"l40_x1":0.79,"a100xl_x1":1.09,"additional_vcpus":0.04,"disk_gb":0.0003}}""",
+                "/v2/specs" => MissingA100
+                    ? """{"specs":{"l40_x1":{"vramGB":48,"vcpuOptions":[6,8,10,12],"storageGB":{"min":100,"max":500}}}}"""
+                    : """{"specs":{"l40_x1":{"vramGB":48,"vcpuOptions":[6,8,10,12],"storageGB":{"min":100,"max":500}},"a100xl_x1":{"vramGB":80,"vcpuOptions":[4,8,12],"storageGB":{"min":100,"max":500}}}}""",
                 _ => throw new InvalidOperationException("Undokumentierter Endpunkt")
             };
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -45,6 +51,39 @@ public class ThunderPublicPricingTests
             service.QuoteAsync([new GpuChoice("l40","L40",48,16,.79m)], 1, 149));
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             service.QuoteAsync([new GpuChoice("l40","L40",48,12,.79m)], 1, 550));
+    }
+
+    [Fact]
+    public async Task A100UsesThunderCanonicalA100xlSpecAndLivePrice()
+    {
+        using var http = new HttpClient(new FakeHandler());
+        var gpu = new GpuChoice("a100", "A100 80 GB", 80, 8, 1.09m);
+        Assert.Equal("a100xl", ThunderGpuNames.ToProviderKey(gpu.Key));
+        var quotes = await new ThunderPublicPricing(http).QuoteAsync([gpu], 1, 211);
+        Assert.Single(quotes);
+        Assert.True(quotes.ContainsKey("a100")); // local UI identity remains stable
+        Assert.InRange(quotes["a100"].HourlyUsd, 1.28m, 1.29m);
+    }
+
+    [Fact]
+    public async Task PriceSurgeFromThunderCannotBeUnderquotedByLocalA100Estimate()
+    {
+        using var http = new HttpClient(new FakeHandler { A100PriceSurge = true });
+        var quotes = await new ThunderPublicPricing(http).QuoteAsync(
+            [new GpuChoice("a100", "A100 80 GB", 80, 8, 1.09m)], 1, 211);
+        Assert.True(quotes["a100"].HourlyUsd > 2.14m);
+        Assert.True(quotes["a100"].HourlyUsd > 1.35m);
+    }
+
+    [Fact]
+    public async Task MissingCanonicalA100SpecFailsClosedRatherThanUsingAliasOrGuess()
+    {
+        using var http = new HttpClient(new FakeHandler { MissingA100 = true });
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new ThunderPublicPricing(http).QuoteAsync(
+                [new GpuChoice("a100", "A100 80 GB", 80, 8, 1.09m)], 1, 211));
+        Assert.Contains("a100xl_x1", error.Message);
+        Assert.Contains("Keine kostenpflichtige Instanz", error.Message);
     }
 
     [Fact]

@@ -53,6 +53,38 @@ public class ThunderTests
     }
 
     [Fact]
+    public async Task CreateA100UsesCanonicalProviderGpuArgumentAndRetainsLocalIdentity()
+    {
+        var fake = new FakeRunner();
+        fake.Responses.Enqueue(Ok("[]"));
+        fake.Responses.Enqueue(Ok("""{"identifier":123,"uuid":"uuid-a100"}"""));
+        fake.Responses.Enqueue(Ok("[]"));
+        var folder = LockFolder();
+        try
+        {
+            var gpu = new GpuChoice("a100", "A100 80 GB", 80, 8, 1.09m);
+            var result = await new ThunderCli(fake).CreateWithFallbackAsync(
+                [gpu], 1, 211, "base", 1.35m, folder, _ => { });
+            var create = Assert.Single(fake.Calls.Where(x => x[0] == "create"));
+            Assert.Equal("a100xl", create[Array.IndexOf(create, "--gpu") + 1]);
+            Assert.Equal("123", result.Id);
+            Assert.Equal("a100", result.Gpu);
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
+
+    [Fact]
+    public void A100EstimateIncludesFourAdditionalCpusAndStorage()
+    {
+        var a100 = new GpuChoice("a100", "A100 80 GB", 80, 8, 1.09m);
+        var hourly = Estimates.Hourly(a100, 1, 211);
+        Assert.InRange(hourly, 1.28m, 1.29m);
+        Assert.Equal("a100xl", ThunderGpuNames.ToProviderKey("A100"));
+        Assert.Equal("a100xl", ThunderGpuNames.ToProviderKey("a100xl"));
+        Assert.Throws<InvalidOperationException>(() => ThunderGpuNames.ToProviderKey("made-up"));
+    }
+
+    [Fact]
     public async Task UnknownErrorPreventsSecondCreation()
     {
         var fake = new FakeRunner();

@@ -334,6 +334,8 @@ public sealed class MainViewModel : Bindable, IDisposable
         {
             if (SelectedInstance is null) return "Keine laufende Instanz ausgewählt.";
             var gpu = GpuChoices.FirstOrDefault(x =>
+                SelectedInstance.Gpu.Contains(
+                    ThunderGpuNames.ToProviderKey(x.Key), StringComparison.OrdinalIgnoreCase) ||
                 SelectedInstance.Gpu.Contains(x.Key, StringComparison.OrdinalIgnoreCase));
             var elapsed = SelectedInstance.Created is { } created
                 ? DateTimeOffset.Now - created : (TimeSpan?)null;
