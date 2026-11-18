@@ -290,7 +290,25 @@ public sealed class SshService(ICommandRunner commands)
         for (var i = 0; i < attempts; i++)
         {
             ct.ThrowIfCancellationRequested();
-            last = await ProbeAuthenticationAsync(endpoint, ct);
+            try
+            {
+                last = await ProbeAuthenticationAsync(endpoint, ct);
+            }
+            catch (TimeoutException ex)
+            {
+                // A newly started Pod can accept TCP connections and publish
+                // its host key before sshd can finish authenticated sessions.
+                // Treat a process-level timeout like a transient failed probe:
+                // never re-register a key or change trusted known_hosts.
+                last = new CommandResult(255, "",
+                    "SSH-Anmeldetest hat das Zeitlimit überschritten: " + ex.Message);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // An internal command deadline is not a user cancellation.
+                last = new CommandResult(255, "",
+                    "SSH-Anmeldetest hat sein internes Zeitlimit überschritten.");
+            }
             if (last.Success) return last;
             var error = last.Combined;
             // A changed host key or a missing independent trust entry is a
@@ -302,9 +320,13 @@ public sealed class SshService(ICommandRunner commands)
                 throw new InvalidOperationException(
                     "SSH-Hostfingerprint nicht mehr gültig. " +
                     "Keine erneute Verbindung ohne unabhängige Hostprüfung.");
-            progress?.Invoke("SSH-Key-Propagation noch nicht bestätigt (" +
-                (i + 1) + "/" + attempts + "). " +
-                "Es wird nur ssh true wiederholt, kein weiterer API-Key-POST.");
+            progress?.Invoke("SSH-Anmeldung noch nicht bestätigt (" +
+                (i + 1) + "/" + attempts + "): " +
+                (error.Contains("Zeitlimit", StringComparison.OrdinalIgnoreCase)
+                    ? "SSH-Prozess-Zeitlimit; einmaliger Start-/Netzwerkverzug möglich. "
+                    : "Public-Key noch nicht freigegeben oder SSH-Dienst nicht bereit. ") +
+                "Nur lesenden SSH-Test wiederholen; keine erneute Schlüsselregistrierung, " +
+                "keinen neuen Pod erstellen.");
             if (i + 1 < attempts)
                 await delay(TimeSpan.FromSeconds(5), ct);
         }

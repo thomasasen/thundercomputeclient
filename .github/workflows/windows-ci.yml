@@ -87,7 +87,7 @@ jobs:
   release:
     # Erst nach erfolgreichen Windows- und Linux-Tests auf einem expliziten
     # Release-Merge in main. Ein normales Feature-Commit publiziert nie automatisch.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-v0.1.4]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-v0.1.5]')
     needs: [windows, remote-supervisor-linux]
     runs-on: ubuntu-latest
     permissions:
@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f artifacts/installer/ThunderClient-Setup-0.1.4-win-x64.exe
+          test -f artifacts/installer/ThunderClient-Setup-0.1.5-win-x64.exe
           test -f artifacts/installer/SHA256SUMS.txt
           test "$(find artifacts/installer -maxdepth 1 -name 'ThunderClient-Setup-*.exe' | wc -l)" -eq 1
           (cd artifacts/installer && sha256sum -c SHA256SUMS.txt)
@@ -112,25 +112,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.4" >/dev/null 2>&1; then
-            echo "v0.1.4 existiert bereits; keine automatische Überschreibung." >&2
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.5" >/dev/null 2>&1; then
+            echo "v0.1.5 existiert bereits; keine automatische Überschreibung." >&2
             exit 1
           fi
-          if gh release view v0.1.4 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Release v0.1.4 existiert bereits." >&2
+          if gh release view v0.1.5 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release v0.1.5 existiert bereits." >&2
             exit 1
           fi
       - name: Veröffentliche GitHub Release mit Installer und Prüfsumme
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.4
+          tag_name: v0.1.5
           target_commitish: ${{ github.sha }}
-          name: Thunder Compute Client v0.1.4 (Windows)
+          name: Thunder Compute Client v0.1.5 (Windows)
           prerelease: false
           make_latest: true
           draft: false
-          body_path: docs/RELEASE_NOTES_v0.1.4.md
+          body_path: docs/RELEASE_NOTES_v0.1.5.md
           files: |
-            artifacts/installer/ThunderClient-Setup-0.1.4-win-x64.exe
+            artifacts/installer/ThunderClient-Setup-0.1.5-win-x64.exe
             artifacts/installer/SHA256SUMS.txt
           fail_on_unmatched_files: true
