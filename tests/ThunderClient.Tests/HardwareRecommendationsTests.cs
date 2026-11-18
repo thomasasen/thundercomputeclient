@@ -116,7 +116,7 @@ public sealed class HardwareRecommendationsTests
     {
         var readme = RunPodReadme + """
 
-            ## Thunder Compute: GPU- und Disk-Orientierung
+            ### Thunder Compute: GPU- und Disk-Orientierung
 
             **Thunder-VRAM-Orientierung: 80 GB** (konservativ, nicht getestet)
             """;
