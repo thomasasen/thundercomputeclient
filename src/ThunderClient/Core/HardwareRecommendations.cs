@@ -6,8 +6,8 @@ namespace ThunderClient.Core;
 public sealed record ReferenceGpu(int Rank, string Name, int VramGb, string Reason);
 
 /// <summary>
-/// Source: the private workflow README's RunPod section. No Thunder
-/// hardware or availability assertions are implied by these values.
+/// Source: the private workflow README: RunPod ranking with optional
+/// Thunder-specific VRAM planning marker. Neither asserts live availability.
 /// </summary>
 public sealed record WorkflowHardwareReference(int? RunPodVolumeGb, IReadOnlyList<ReferenceGpu> Gpus, int? ThunderVramGb = null)
 {
