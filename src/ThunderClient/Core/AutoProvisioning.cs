@@ -65,9 +65,32 @@ public static class AutoProvisioning
             .Select(x => new GpuChoice(x.Key, x.Label, x.VramGb,
                 x.Vcpus, x.GpuHourlyEstimate) { Enabled = true }).ToArray();
         if (candidates.Length == 0)
+        {
+            var reasons = choices.Select(gpu =>
+            {
+                var status = new List<string>();
+                if (!gpu.Enabled) status.Add("deaktiviert");
+                if (gpu.Vcpus <= 0) status.Add("vCPUs ungültig");
+                if (hardware.ReferenceVramGb.HasValue &&
+                    gpu.VramGb < hardware.ReferenceVramGb.Value)
+                    status.Add($"VRAM {gpu.VramGb} GB unter Referenz {hardware.ReferenceVramGb.Value} GB");
+                if (gpu.Vcpus > 0)
+                {
+                    var hourly = Estimates.Hourly(gpu, gpuCount, plannedDisk);
+                    if (hourly > maxHourly)
+                        status.Add($"Schätzpreis {hourly:N3} USD/h über Limit {maxHourly:N2} USD/h");
+                }
+                return gpu.Label + ": " + (status.Count == 0 ? "ausgeschlossen" : string.Join(", ", status));
+            });
             throw new InvalidOperationException(
                 "Keine aktivierte GPU erfüllt die dokumentierte VRAM-Orientierung " +
-                "und die gewählte Schätzpreisgrenze. Unter Neue Instanz GPU/Preisgrenze prüfen.");
+                "und die gewählte Schätzpreisgrenze. " +
+                "VRAM-Orientierung: " + (hardware.ReferenceVramGb?.ToString() ?? "unbekannt") +
+                " GB; geplante Gesamtdisk: " + plannedDisk + " GB. " +
+                string.Join("; ", reasons) +
+                ". Unter Neue Instanz → Planungswerte übernehmen wählen; " +
+                "eine Erhöhung der Preisgrenze erfordert ausdrückliche Zustimmung.");
+        }
 
         var warning = "GPU-/VRAM-Werte stammen aus RunPod-READMEs, keine Thunder-Livemessung. " +
             "Disk = deduplizierte Modelle + pauschale Reserve und ggf. größere RunPod-Referenz. " +

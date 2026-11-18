@@ -2,13 +2,19 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Release v0.1.2 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Release v0.1.3 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 **SSH-Diagnose-Hotfix v0.1.1:** Eine nicht bestätigte SHA256-Hostfingerprint-Abfrage wird getrennt von technischen OpenSSH-/KEX-/Zeitüberschreitungsfehlern behandelt; die ursprüngliche, bereinigte technische Ursache erscheint im Fehlerdialog. Der Client akzeptiert weiterhin niemals ungeprüfte Hostschlüssel. Eine unabhängige, vertrauenswürdige Verbindung zum Pod ist für die erste Fingerprint-Freigabe erforderlich.\n\n## Pod wiederherstellen und Downloads überwachen (v0.1.2)
 
 **Unter Instanzen:** `Pod wiederherstellen (Snapshot) …` sichert die vorhandene persistente Instanzdisk über den offiziell dokumentierten Thunder-Snapshot-Befehl. Der Client liest unmittelbar vor dem Snapshot den Thunder-Status neu ein und prüft die ausgewählte Instanz-ID, UUID und RUNNING-Status. **Kein In-Place-Pod-Neustart**: Thunder dokumentiert keinen nativen Start/Stop- oder Reboot-Befehl für dieselbe GPU-Instanz. Den Snapshot nach Status READY in der [Thunder-Podverwaltung](https://console.thundercompute.com/) **als neue kostenpflichtige Instanz** wiederherstellen, Daten und ComfyUI prüfen und erst anschließend den ursprünglichen Pod ausdrücklich löschen. Kein automatischer Pod-Create/Delete und kein `sudo reboot`. Laufende Schreibvorgänge vorher beenden; Snapshots sind kein garantierter externer Backup-Ersatz. Eine Momentaufnahme laufender Downloads ist gegebenenfalls inkonsistent.
 
 **Unter Downloads & Logs:** Die Modelldownload-Tabelle hat ihren eigenen vertikalen/horizontalen Scrollbereich (mit Virtualisierung), zeigt echte `[DOWNLOAD-STATUS]`-Zustände in dynamischen Farben: Grün für `GELADEN`/`VORHANDEN`, Akzent für `LAEUFT`/`FORTSCHRITT`, Warnfarbe für `RETRY`, Fehlerfarbe für `FEHLER`, neutral für `WARTET`. Unter **Instanzen** sowie **Downloads & Logs** führt ein direkter Link zur offiziellen Thunder-Podverwaltung.
+
+## MiniMax H3 Image: Thunder-GPU-Auswahl (v0.1.3)
+
+Die dokumentierte 80-GB-VRAM-Orientierung für den unveränderten 8-MP-Canvas ist ein **Thunder-spezifischer konservativer Planungswert**, keine gemessene Mindestanforderung. Der Client bietet nun **A100 mit 80 GB standardmäßig aktiviert** an; die **H100 mit 80 GB** ist zusätzlich, zunächst deaktiviert, konfigurierbar. Die günstigeren 48-GB-GPUs bleiben für diesen Canvas unterhalb der konservativen Auto-Deploy-Grenze und sind **nicht als 8-MP-kompatibel getestet**.
+
+Für Neuinstallationen beträgt die voreingestellte **Schätzpreisgrenze 1,25 USD/h**. Bei bereits gespeicherten 0,85 USD/h kann **Neue Instanz → Planungswerte übernehmen** nach ausdrücklicher Zustimmung die Schätzpreisgrenze anpassen. Die Live-Preis-/Spezifikationsprüfung und die gesonderte kostenpflichtige Pod-Freigabe bleiben zwingend. Der geplante Diskwert für alle 11 H3-Image-Gewichte liegt bei **211 GB**. Es wird **kein** Modell ausgelassen, nur um den Bedarf künstlich zu senken.
 
 ## Ein-Klick-Bereitstellung
 

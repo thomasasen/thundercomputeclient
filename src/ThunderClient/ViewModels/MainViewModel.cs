@@ -122,7 +122,8 @@ public sealed class MainViewModel : Bindable, IDisposable
         {
             new GpuChoice("a6000", "RTX A6000", 48, 6, 0.35m),
             new GpuChoice("l40", "L40", 48, 6, 0.79m),
-            new GpuChoice("a100", "A100", 80, 8, 1.09m) { Enabled = false }
+            new GpuChoice("a100", "A100", 80, 8, 1.09m),
+            new GpuChoice("h100", "H100", 80, 4, 3.20m) { Enabled = false }
         };
         foreach (var gpu in available.OrderBy(x =>
             { var pos = _settings.GpuOrder.IndexOf(x.Key); return pos < 0 ? 999 : pos; }))
@@ -519,18 +520,23 @@ public sealed class MainViewModel : Bindable, IDisposable
         sb.AppendLine("REPO_REF=" + (_snapshot?.Commit ?? "unbekannt") +
             " (Remote-Bootstrap vor Ausführung SHA-gepinnt)");
         if (plan.ReferenceVramGb.HasValue)
-            sb.AppendLine("RunPod-README-VRAM-Orientierung: " + plan.ReferenceVramGb +
-                " GB. Keine getestete Thunder-Mindestanforderung.");
+            sb.AppendLine("README-VRAM-Orientierung: " + plan.ReferenceVramGb +
+                " GB (Thunder-spezifisch, falls ausgewiesen, sonst RunPod-Referenz). " +
+                "Keine getestete Thunder-Mindestanforderung.");
         if (plan.SuggestedDiskGb.HasValue && DiskGb < plan.SuggestedDiskGb.Value)
             sb.AppendLine("ACHTUNG: gewählte Disk unter konservativem Planungsansatz " +
                 plan.SuggestedDiskGb + " GB; Mindestwert nicht vom Anbieter bestätigt.");
         sb.AppendLine($"Template: {Template} · {GpuCount} GPU(s) · {DiskGb} GB gesamte Instanzdisk");
         sb.AppendLine(Estimates.CapacityWarning(size.TotalGb, DiskGb));
         sb.AppendLine("Reihenfolge (Listenpreis-Schätzung vom 15.11.2026, keine Live-Abfrage):");
-        foreach (var gpu in GpuChoices.Where(x => x.Enabled))
+        foreach (var gpu in GpuChoices)
         {
             var rate = Estimates.Hourly(gpu, GpuCount, DiskGb);
-            sb.AppendLine($"  {gpu.Label}, {gpu.Vcpus} vCPUs: ca. {rate:N3} USD/h " +
+            var status = gpu.Enabled ? "aktiviert" : "deaktiviert";
+            var vramStatus = plan.ReferenceVramGb.HasValue && gpu.VramGb < plan.ReferenceVramGb.Value
+                ? "unter VRAM-Orientierung" : "VRAM-Orientierung erfüllt/keine Referenz";
+            sb.AppendLine($"  {gpu.Label} ({gpu.VramGb} GB), {gpu.Vcpus} vCPUs: {status}, " +
+                $"{vramStatus}, ca. {rate:N3} USD/h " +
                 (rate <= MaximumHourlyUsd ? "innerhalb" : "AUSSERHALB") + " der Schätzpreisgrenze");
         }
         sb.AppendLine($"Freigegebene Schätzpreisgrenze: {MaximumHourlyUsd:N2} USD/h. Kein serverseitiges Kostenlimit.");
@@ -566,7 +572,6 @@ public sealed class MainViewModel : Bindable, IDisposable
                 Message = "Speicherplanung über 2000 GB: Konfiguration manuell prüfen.";
                 return;
             }
-            // Do not silently reduce disk that the user has already chosen.
             DiskGb = Math.Max(DiskGb, plan.SuggestedDiskGb.Value);
         }
         var available = plan.ReferenceVramGb.HasValue && plan.CompleteVramReference
@@ -574,18 +579,47 @@ public sealed class MainViewModel : Bindable, IDisposable
             : Array.Empty<GpuChoice>();
         if (available.Length > 0)
         {
-            foreach (var gpu in GpuChoices) gpu.Enabled = available.Contains(gpu);
-            // Prefer the smallest candidate meeting the reference, not a price-based
-            // inference. Actual Thunder pricing and compatibility are unverified.
-            var ordered = available.OrderBy(x => x.VramGb).ToArray();
+            // The explicit guidance button may enable a suitable candidate.
+            // Never automatically enable costly disabled alternatives such as H100.
+            foreach (var gpu in GpuChoices.Where(x => !available.Contains(x)))
+                gpu.Enabled = false;
+            if (!available.Any(x => x.Enabled))
+                available.OrderBy(x => Estimates.Hourly(x, GpuCount, DiskGb))
+                    .First().Enabled = true;
+
+            var ordered = available.OrderBy(x => Estimates.Hourly(x, GpuCount, DiskGb)).ToArray();
             for (var i = 0; i < ordered.Length; i++)
                 GpuChoices.Move(GpuChoices.IndexOf(ordered[i]), i);
-            Message = "Planungswerte übernommen. GPU-/Treiber-Kompatibilität, Preisgrenze " +
-                "und tatsächliche Thunder-Verfügbarkeit manuell kontrollieren.";
+
+            var cheapest = available.Where(x => x.Enabled)
+                .Min(x => Estimates.Hourly(x, GpuCount, DiskGb));
+            if (cheapest > MaximumHourlyUsd)
+            {
+                // Leave modest planning headroom; the provider must still return
+                // a valid live quote within this explicitly approved ceiling.
+                var proposed = Math.Ceiling((cheapest + 0.05m) * 20m) / 20m;
+                var approved = _dialogs.Confirm("Schätzpreisgrenze ausdrücklich anpassen",
+                    $"Die passende GPU kostet inklusive eingestellter vCPUs/Disk " +
+                    $"rechnerisch mindestens {cheapest:N3} USD/h, die gespeicherte " +
+                    $"Preisgrenze beträgt {MaximumHourlyUsd:N2} USD/h.\n\n" +
+                    $"Neue Schätzpreisgrenze auf {proposed:N2} USD/h setzen? " +
+                    "Dies erstellt keinen Pod. Vor der tatsächlichen Erstellung " +
+                    "folgen Live-Preisprüfung und eine separate Kostenfreigabe. " +
+                    "Die Preisgrenze ist kein serverseitiger Kostenstopp.");
+                if (approved)
+                    MaximumHourlyUsd = proposed;
+                else
+                    Message = "Hardware angepasst, aber die alte Schätzpreisgrenze bleibt bestehen. " +
+                        "Für den automatischen Start unter Neue Instanz ausdrücklich erhöhen.";
+            }
+            if (cheapest <= MaximumHourlyUsd)
+                Message = "Thunder-Hardwareplanung übernommen. Echte GPU-Verfügbarkeit, " +
+                    "Live-Preis und Laufzeitkompatibilität werden beim Start gesondert geprüft.";
         }
         else
             Message = "Speicherplanung soweit verfügbar übernommen. " +
-                "Keine vollständige passende Thunder-VRAM-Auswahl ableitbar; GPU manuell prüfen.";
+                "Keine passende Thunder-VRAM-Klasse aus den angebotenen GPUs ableitbar. " +
+                "Dokumentierte Referenz und Anbieterhardware manuell prüfen.";
         RefreshPreview();
     }
 

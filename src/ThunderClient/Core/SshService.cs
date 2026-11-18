@@ -339,8 +339,11 @@ public sealed class SshService(ICommandRunner commands)
             !double.IsFinite(modelGb) || modelGb < 0)
             throw new ArgumentOutOfRangeException(nameof(modelGb),
                 "Ungültige VRAM-/GPU-/Modellkapazitätsanforderung.");
-        // Must run before large model transfers. Conservative requirement:
-        // enough free disk for every selected model plus operational headroom.
+        // Must run before large model transfers. The supplied VRAM threshold
+        // is an advisory README planning value, preferably provider-specific;
+        // it is intentionally enforced as a conservative auto-deploy policy
+        // and is not proof that 8-MP inference will fit. The remote check also
+        // confirms real GPU count and enough free disk for all selected models.
         // No untrusted workflow string is inserted into the remote shell.
         var expectedFreeGb = (int)Math.Ceiling(modelGb + 20);
         var script = "python3 - <<'PY'\n" +
