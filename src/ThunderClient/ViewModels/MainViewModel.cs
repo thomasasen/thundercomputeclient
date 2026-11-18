@@ -772,8 +772,31 @@ public sealed class MainViewModel : Bindable, IDisposable
         if (_snapshot is null)
             throw new InvalidOperationException("Privaten Workflow-Katalog unter Übersicht laden.");
         var chosen = Workflows.Where(x => x.IsSelected).ToArray();
-        var plan = AutoProvisioning.Plan(chosen, _snapshot.Commit, GpuChoices.ToArray(),
-            GpuCount, DiskGb, Template, MaximumHourlyUsd);
+        AutoProvisionPlan plan;
+        try
+        {
+            plan = AutoProvisioning.Plan(chosen, _snapshot.Commit, GpuChoices.ToArray(),
+                GpuCount, DiskGb, Template, MaximumHourlyUsd);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+            "Keine aktivierte GPU erfüllt die dokumentierte VRAM-Orientierung",
+            StringComparison.Ordinal))
+        {
+            if (!_dialogs.Confirm("Thunder-Hardwareplanung prüfen",
+                    ex.Message + "\n\nDie Planungswerte für die ausgewählten Workflows " +
+                    "jetzt übernehmen und gegebenenfalls eine neue Preisgrenze " +
+                    "gesondert bestätigen? Ohne deine Zustimmung wird nichts erhöht " +
+                    "und kein kostenpflichtiger Pod erstellt."))
+            {
+                Message = "Hardwareplanung abgebrochen; keine Instanz angelegt.";
+                return;
+            }
+            ApplyHardwareGuidance();
+            // A rejected budget increase remains a hard stop; never bypass
+            // the user's saved ceiling or the conservative remote VRAM policy.
+            plan = AutoProvisioning.Plan(chosen, _snapshot.Commit, GpuChoices.ToArray(),
+                GpuCount, DiskGb, Template, MaximumHourlyUsd);
+        }
         var githubToken = _vault.Read("github");
         if (string.IsNullOrWhiteSpace(githubToken))
             throw new InvalidOperationException(
