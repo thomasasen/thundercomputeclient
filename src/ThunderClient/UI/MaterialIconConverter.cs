@@ -97,6 +97,11 @@ public sealed class MaterialIconConverter : IValueConverter
             label.Contains("Zugangsdaten", StringComparison.OrdinalIgnoreCase)) return "key";
         if (label.Contains("Systemstatus", StringComparison.OrdinalIgnoreCase) ||
             label.Contains("sicher prüfen", StringComparison.OrdinalIgnoreCase)) return "shield";
+        if (label.Contains("automatisch", StringComparison.OrdinalIgnoreCase) &&
+            (label.Contains("starten", StringComparison.OrdinalIgnoreCase) ||
+             label.Contains("bereitstellen", StringComparison.OrdinalIgnoreCase) ||
+             label.Contains("einrichten", StringComparison.OrdinalIgnoreCase)))
+            return "play";
         if (label.Contains("Instanz", StringComparison.OrdinalIgnoreCase) ||
             label.Contains("Pod", StringComparison.OrdinalIgnoreCase)) return "dns";
         if (label.Contains("ComfyUI", StringComparison.OrdinalIgnoreCase) ||
