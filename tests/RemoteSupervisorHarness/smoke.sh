@@ -36,6 +36,33 @@ grep -q '\[TEST-REMOTE\] started' "$scratch/followed.txt"
 grep -q '\[TEST-REMOTE\] completed' "$scratch/followed.txt"
 ! grep -q 'gh-demo' "$job/bootstrap.sh"
 ! grep -q 'gh-demo' "$job/output.log"
+# A foreign listener must never be replaced by the restart.
+python3 -m http.server 8188 --bind 127.0.0.1 >"$scratch/foreign-http.log" 2>&1 &
+foreign_pid=$!
+sleep 1
+if bash "$scratch/restart.sh" >"$scratch/foreign-restart.txt" 2>&1; then
+    echo "restart incorrectly replaced an unrelated ComfyUI port listener" >&2
+    exit 1
+fi
+grep -q 'Port 8188 ist durch einen fremden Prozess belegt' "$scratch/foreign-restart.txt"
+kill "$foreign_pid"
+wait "$foreign_pid" 2>/dev/null || true
+[[ "$(cat "$job/run_id")" == "$run" ]]
+
+# A foreign PID written to metadata must not be killed by the restart.
+sleep 30 &
+foreign_worker_pid=$!
+printf '%s' "$foreign_worker_pid" > "$job/pid"
+if bash "$scratch/restart.sh" >"$scratch/foreign-pid-restart.txt" 2>&1; then
+    echo "restart incorrectly replaced an unverified live PID" >&2
+    exit 1
+fi
+grep -q 'gehört aber nicht eindeutig zum Remote-Job' "$scratch/foreign-pid-restart.txt"
+kill -0 "$foreign_worker_pid"
+kill "$foreign_worker_pid"
+wait "$foreign_worker_pid" 2>/dev/null || true
+printf '%s' "$pid" > "$job/pid"
+
 # Simulate an expensive persistent model file. A software restart must
 # never erase this directory or trigger destructive Pod infrastructure calls.
 mkdir -p "$HOME/comfyui-workspace/ComfyUI/models/checkpoints"
