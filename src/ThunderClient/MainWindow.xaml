@@ -57,7 +57,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <Path Width="20" Height="20" Stretch="Uniform" Margin="4,0,12,0"
                                       VerticalAlignment="Center" Fill="{DynamicResource AccentBrush}"
-                                      Data="{Binding Source=Neue Instanz, Converter={StaticResource MaterialIconConverter}}" />
+                                      Data="{Binding Source='Neue Instanz', Converter={StaticResource MaterialIconConverter}}" />
                                 <TextBlock Text="Neue Instanz" />
                             </StackPanel>
                         </ListBoxItem>
@@ -73,7 +73,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <Path Width="20" Height="20" Stretch="Uniform" Margin="4,0,12,0"
                                       VerticalAlignment="Center" Fill="{DynamicResource AccentBrush}"
-                                      Data="{Binding Source=Downloads &amp; Logs, Converter={StaticResource MaterialIconConverter}}" />
+                                      Data="{Binding Source='Downloads &amp; Logs', Converter={StaticResource MaterialIconConverter}}" />
                                 <TextBlock Text="Downloads &amp; Logs" />
                             </StackPanel>
                         </ListBoxItem>
