@@ -92,6 +92,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public AsyncCommand AutoDeployCommand { get; }
     public RelayCommand CancelAutoDeploymentCommand { get; }
     public AsyncCommand BootstrapCommand { get; }
+    public AsyncCommand RestartPodSoftwareCommand { get; }
     public AsyncCommand HardwareCommand { get; }
     public AsyncCommand SshTerminalCommand { get; }
     public AsyncCommand TunnelCommand { get; }
@@ -138,6 +139,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         AutoDeployCommand = New(AutoDeployAsync);
         CancelAutoDeploymentCommand = new RelayCommand(CancelAutoDeployment);
         BootstrapCommand = New(BootstrapAsync);
+        RestartPodSoftwareCommand = New(RestartPodSoftwareAsync);
         HardwareCommand = New(HardwareAsync);
         SshTerminalCommand = New(OpenTerminalAsync);
         TunnelCommand = New(OpenComfyAsync);
@@ -1201,8 +1203,92 @@ public sealed class MainViewModel : Bindable, IDisposable
         Message = "Hardwarestatus über SSH abgerufen.";
     }
 
+    private async Task RestartPodSoftwareAsync()
+    {
+        if (Busy || AutoDeploymentRunning)
+            throw new InvalidOperationException(
+                "Eine andere Installation oder Bereitstellung läuft. Neustart jetzt gesperrt.");
+        var requestedPod = SelectedInstance ??
+            throw new InvalidOperationException("Zuerst den vorhandenen Pod auswählen.");
+        if (requestedPod.Status != "RUNNING")
+            throw new InvalidOperationException("Software-Neustart nur auf einem RUNNING-Pod möglich.");
+        var names = Workflows.Where(item => item.IsSelected)
+            .Select(item => item.Name).ToArray();
+        if (names.Length == 0)
+            throw new InvalidOperationException("Vor dem Neustart Workflows auswählen.");
+        var githubToken = _vault.Read("github");
+        if (string.IsNullOrWhiteSpace(githubToken))
+            throw new InvalidOperationException(
+                "GitHub-Lesetoken fehlt. Ohne frische GitHub-Revision wird kein Prozess gestoppt.");
+
+        Busy = true;
+        try
+        {
+            Log("[POD-RESTART] Lade und validiere die neueste GitHub-main-Revision.");
+            // Do not use the cached _snapshot or SyncAsync's offline fallback.
+            // FetchAsync pins catalog, manifests and adapter to ONE real commit.
+            var latest = await _github.FetchAsync(githubToken, _shutdown.Token);
+            _ = PodSoftwareRestartPlanner.Validate(latest, names);
+            _ = SshService.PinBootstrapAdapter(latest.BootstrapScript, latest.Commit);
+            var current = await _thunder.ListAsync(_shutdown.Token);
+            var livePod = PodRecoveryPlanner.RequireSameRunningInstance(requestedPod, current);
+            SelectedInstance = livePod;
+            Log("[POD-RESTART] Pod " + livePod.Id + " bestätigt; neue GitHub-Revision " +
+                latest.Commit + ". Kein Create, Delete oder OS-Reboot.");
+
+            // Retain independent SSH host-key verification; never use tnr connect.
+            var ssh = await TrustedSshAsync(_shutdown.Token);
+            var workflowsCsv = string.Join(",", names);
+            if (!_dialogs.Confirm("Pod-Software mit aktuellem Git neu starten",
+                "Vorhandener Thunder-Pod: " + livePod.Id + "\n" +
+                "Workflows: " + workflowsCsv + "\n" +
+                "Neue GitHub-main-Revision: " + latest.Commit + "\n\n" +
+                "Der bisherige, vom ThunderClient gestartete Bootstrap/ComfyUI-Prozess " +
+                "und seine laufenden Download-Worker werden beendet. Danach startet " +
+                "das NEUE, commit-fixierte Skript auf derselben Instanz. " +
+                "Modellverzeichnis, Downloads, Outputs und Workspace werden NICHT gelöscht. " +
+                "Bereits verifizierte Modelle werden wiederverwendet; neue, geänderte " +
+                "oder unvollständige Modelle können erneut Netzwerktraffic auslösen.\n\n" +
+                "GPU-Kosten laufen weiter. Kein neuer Pod und kein VM-Neustart. Fortfahren?"))
+            {
+                Log("[POD-RESTART] Abgebrochen; der laufende Remote-Prozess bleibt unverändert.");
+                return;
+            }
+
+            Log("[POD-RESTART] Stoppe nur den nachweislich zugehörigen Remote-Job " +
+                "und starte Revision " + latest.Commit[..12] + ".");
+            var started = await _ssh.RestartBootstrapAsync(
+                ssh, latest.BootstrapScript, workflowsCsv, latest.Commit,
+                githubToken, _vault.Read("huggingface"), _vault.Read("civitai"),
+                Log, _shutdown.Token);
+            if (!started.Success)
+                throw new ExternalCommandException("Pod-Software-Neustart", started);
+
+            // The new job was accepted by the remote supervisor. It keeps
+            // running after SSH disconnects, but ComfyUI HTTP readiness and
+            // full model integrity have NOT yet been independently verified.
+            _settings.SelectedWorkflows = names.ToList();
+            _snapshot = latest;
+            Commit = latest.Commit;
+            GitSyncStatus = "API-Lesezugriff · " + latest.Commit[..12];
+            LoadWorkflows();
+            DownloadStatus = "Neuer Bootstrap-Job gestartet; ComfyUI-Bereitschaft noch nicht geprüft.";
+            AutoDeploymentStatus = "Pod " + livePod.Id +
+                ": Software-Neustart auf Revision " + latest.Commit[..12] +
+                " angefordert. Laufende Prozesse und Modelle unter Downloads & Logs prüfen.";
+            Message = "Pod " + livePod.Id + ": neuer Bootstrap-Job läuft auf Git-Revision " +
+                latest.Commit[..12] + ". Keine Modell- oder Output-Verzeichnisse gelöscht.";
+            Log("[POD-RESTART] " + Message +
+                " Für den Remote-Logstream 'Bootstrap manuell starten …' wählen " +
+                "(hängt sich an denselben Job an).");
+        }
+        finally { Busy = false; }
+    }
+
     private async Task BootstrapAsync()
     {
+        if (Busy)
+            throw new InvalidOperationException("Andere Pod-Aktion läuft. Bootstrap nicht parallel starten.");
         if (AutoDeploymentRunning)
             throw new InvalidOperationException("Automatische Bereitstellung läuft; Bootstrap nicht ein zweites Mal starten.");
         var selected = Workflows.Where(x => x.IsSelected).ToArray();
