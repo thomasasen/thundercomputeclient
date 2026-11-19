@@ -539,7 +539,8 @@
                                     Content="Pod wiederherstellen (Snapshot) …"
                                     ToolTip="Die bestehende Instanzdisk wird im Snapshot gesichert. Thunder bietet keinen dokumentierten In-Place-Neustart; Restore erfolgt als neue Instanz nach gesonderter Kostenfreigabe." />
                             <Button Click="OpenThunderConsole_Click" Content="Thunder-Podverwaltung öffnen" />
-                            <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="{DynamicResource DangerBrush}" Foreground="White" />
+                            <Button x:Name="DeleteInstanceButton" Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …"
+                                    Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource OnDangerBrush}" />
                         </WrapPanel>
                         <Border Style="{StaticResource SurfaceCard}" Padding="14,12" Margin="0,8,0,8">
                             <StackPanel>
