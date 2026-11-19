@@ -110,13 +110,60 @@ public partial class MainWindow : Window, IUserDialogs
                     }
                 }
             }
+            // Regression: real visible texts in all eight pages must not use
+            // the Windows black default when the dark palette is active.
+            ApplyTheme("Dunkel");
+            for (var index = 0; index < MainTabs.Items.Count; index++)
+            {
+                MainTabs.SelectedIndex = index;
+                UpdateLayout();
+                VerifyDarkPageText(MainTabs, index);
+            }
+            if (ThemeSelect.Items.OfType<ComboBoxItem>().Any(x =>
+                    x.Foreground is not SolidColorBrush { Color: var color } ||
+                    color.R < 150 || color.G < 150 || color.B < 150))
+                throw new InvalidOperationException("Dark-Mode-Auswahlliste hat dunkle Schrift.");
+            if (DeleteInstanceButton.Foreground is not SolidColorBrush { Color: var dangerText } ||
+                dangerText.R > 100 || dangerText.G > 100 || dangerText.B > 100)
+                throw new InvalidOperationException("Der rote Löschen-Button braucht im Dunkelmodus dunkle Schrift.");
+            if (LoadCatalogButton.Foreground is not SolidColorBrush { Color: var accentText } ||
+                accentText.R > 100 || accentText.G > 100 || accentText.B > 100)
+                throw new InvalidOperationException("Primärer Akzent-Button hat falsche Schriftfarbe.");
         }
         finally
         {
+            // Smoke tests must never persist or modify the user's theme setting.
+            ApplyTheme(_model.Theme);
             Width = initialWidth;
             MainTabs.SelectedIndex = 0;
             UpdateLayout();
         }
+    }
+
+    private static void VerifyDarkPageText(DependencyObject visual, int page)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(visual); i++)
+        {
+            var child = VisualTreeHelper.GetChild(visual, i);
+            if (child is TextBlock { IsVisible: true } label &&
+                !string.IsNullOrWhiteSpace(label.Text) &&
+                !IsInsideButton(label) &&
+                label.Foreground is SolidColorBrush brush &&
+                brush.Color.R < 90 && brush.Color.G < 90 && brush.Color.B < 90)
+                throw new InvalidOperationException(
+                    $"Dunkle Schrift in Dark Mode auf Seite {page + 1}: '{label.Text[..Math.Min(label.Text.Length, 48)]}'.");
+            VerifyDarkPageText(child, page);
+        }
+    }
+
+    private static bool IsInsideButton(DependencyObject item)
+    {
+        for (var parent = VisualTreeHelper.GetParent(item);
+             parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is Button) return true; // Accent/danger buttons intentionally use dark ink.
+        }
+        return false;
     }
 
     public bool Confirm(string title, string message) =>
@@ -349,6 +396,7 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("SubtleBrush", 89, 103, 121);
             SetBrush("AccentBrush", 33, 101, 202);
             SetBrush("OnAccentBrush", 255, 255, 255);
+            SetBrush("OnDangerBrush", 255, 255, 255);
             SetBrush("BorderBrush", 221, 227, 235);
             SetBrush("HoverBrush", 229, 235, 243);
             SetBrush("SelectedBrush", 220, 233, 252);
@@ -370,6 +418,7 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("SubtleBrush", 171, 185, 202);
             SetBrush("AccentBrush", 82, 157, 255);
             SetBrush("OnAccentBrush", 14, 32, 52);
+            SetBrush("OnDangerBrush", 15, 21, 30);
             SetBrush("BorderBrush", 56, 70, 88);
             SetBrush("HoverBrush", 42, 57, 75);
             SetBrush("SelectedBrush", 44, 77, 112);
