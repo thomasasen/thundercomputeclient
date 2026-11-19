@@ -15,7 +15,7 @@ public static class PodSoftwareRestartPlanner
         if (!Regex.IsMatch(latest.Commit, @"\A[a-fA-F0-9]{40}\z"))
             throw new InvalidOperationException("Neue GitHub-Revision ist nicht eindeutig bestätigt.");
         if (workflowNames.Count == 0 ||
-            workflowNames.Any(name => !Regex.IsMatch(name, @"\A[A-Za-z0-9_-]+\z")) ||
+            workflowNames.Any(name => !Regex.IsMatch(name, @"\A[A-Za-z0-9][A-Za-z0-9_.-]*\z")) ||
             workflowNames.Distinct(StringComparer.Ordinal).Count() != workflowNames.Count)
             throw new InvalidOperationException("Keine gültige, eindeutige Workflow-Auswahl für den Neustart.");
 
