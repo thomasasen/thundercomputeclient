@@ -8,9 +8,9 @@ namespace ThunderClient.Tests;
 public sealed class DownloadTablePresentationTests
 {
     [Theory]
-    [InlineData("4,5 GiB (9%)", 9)]
+    [InlineData("4,5 GiB (9%)", 9d)]
     [InlineData("1.8 GiB (23.75%)", 23.75)]
-    [InlineData("Download (100%)", 100)]
+    [InlineData("Download (100%)", 100d)]
     [InlineData("3 GiB / 8 GiB", null)]
     [InlineData("Keine belastbaren Transferdaten", null)]
     [InlineData("Unzulässig (125%)", null)]
