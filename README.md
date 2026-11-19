@@ -169,6 +169,16 @@ Unter **Neue Instanz** sind GPU-Priorität, Ressourcen und Startvorschau jetzt i
 
 Die kostenpflichtige **Instanz erstellen**-Aktion bleibt beim Scrollen am unteren Rand sichtbar; die separate Sicherheitsbestätigung vor dem Erstellen bleibt unverändert. Der helle und dunkle Modus verwenden die korrekte Schriftfarbe auf primären Aktionsbuttons. Die Windows-GUI-Selbstprüfung kontrolliert beide Fensterbreiten (Standard und unterstütztes Minimum), alle sieben Seiten und den sichtbaren Erstellen-Button.
 
+## Vorhandenen Pod: Software neu starten und Git-Änderungen übernehmen
+
+Unter **Instanzen** oder **Downloads & Logs** steht **„Pod-Software neu starten & Git aktualisieren …“**. Das ist **kein VM-/Betriebssystem-Reboot**: Die Anwendung verwendet denselben RUNNING-Pod, lädt über die authentifizierte GitHub-API eine **frische `main`-Revision** des privaten `runpod-ai-workflows`-Repositories, prüft die bisherigen Workflow-Namen und Modell-Zielkonflikte und pinnt den Thunder-Adapter samt Entrypoint an die neue Commit-SHA. Ohne GitHub-Zugriff, gültige Revision, eindeutige Instanzidentität oder bestätigten SSH-Zugang bleibt der laufende Dienst unverändert. Vor dem Stoppen ist eine ausdrückliche Bestätigung erforderlich.
+
+Der Remote-Supervisor beendet ausschließlich seine eigene, durch Run-ID und Prozessgruppe verifizierte Bootstrap-/ComfyUI-Sitzung. Er schreibt die neue Version als separaten, credentials-freien Worker und startet sie **auf demselben Pod**. Ein unbekannter fremder ComfyUI-Prozess wird nicht zwangsweise beendet. Bei uneindeutiger Prozessidentität oder einer nicht innerhalb von 45 Sekunden endenden Prozessgruppe bricht der Neustart ab. Es gibt **keinen Pod-Create, kein Delete, keinen OS-Reboot, kein automatisches Kill -9**.
+
+Der persistente Pfad `~/comfyui-workspace` einschließlich ComfyUI-Modellen, Outputs, Quell-Snapshots und weiteren Daten bleibt unangetastet. Das Upstream-Bootstrap prüft bereits vorhandene Modelle anhand der gespeicherten Dateiprovenienz und Fingerprints und überspringt passende Downloads. **Neue, geänderte, defekte oder nicht verifizierbare Modelle** können erneut heruntergeladen werden; ein generelles Verbot aller Downloads wäre mit aktualisierten Manifesten nicht korrekt. Das Python-venv kann je nach Thunder-Image und Upstream-Startlogik temporär statt persistent liegen; dessen Wiederverwendung ist nicht garantiert.
+
+Der Button bestätigt zunächst nur, dass der neue Remote-Job gestartet wurde. **ComfyUI-/HTTP-Bereitschaft und Modell-Vollständigkeit sind erst nach separater Prüfung bestätigt.** Die laufenden Remote-Logs sind anschließend über **„Bootstrap manuell starten …“** erreichbar, das sich bei identischer Revision/Workflow-Auswahl an den bereits aktiven Job anhängt. GPU-Abrechnung läuft weiter. Für ein vollständiges VM-Recovery dient weiterhin der ausdrücklich bestätigte Snapshot-Weg.
+
 ## Bedienung
 
 1. App starten und unter **Zugangsdaten** den privaten GitHub-Lesetoken speichern, dann **Katalog aktualisieren**. Ohne Token bleibt die GUI offen und zeigt eine aussagekräftige Fehlermeldung.
