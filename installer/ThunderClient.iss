@@ -14,6 +14,7 @@ Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=lowest
 WizardStyle=modern
+SetupIconFile=..\src\ThunderClient\Assets\ThunderClient.ico
 UninstallDisplayIcon={app}\ThunderClient.exe
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
