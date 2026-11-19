@@ -90,6 +90,72 @@ public sealed class ThunderPublicPricing(HttpClient http)
         return result;
     }
 
+    public sealed record RunningInstanceQuote(
+        decimal HourlyUsd, decimal GpuHourlyUsd, decimal AdditionalCpuHourlyUsd,
+        decimal AdditionalDiskHourlyUsd, string InstanceId, int CpuCores,
+        int GpuCount, int StorageGb, DateTimeOffset CheckedAt);
+
+    /// <summary>
+    /// Read-only published Thunder on-demand tariff for the CURRENT selected
+    /// RUNNING instance hardware, not an invoice or historical billing total.
+    /// Never substitute the GUI's planned CPU count for actual cpuCores.
+    /// </summary>
+    public async Task<RunningInstanceQuote> QuoteRunningInstanceAsync(
+        InstanceItem instance, CancellationToken ct = default)
+    {
+        if (instance.Status != "RUNNING" || instance.CpuCores <= 0 ||
+            instance.StorageGb <= 0 || instance.GpuCount <= 0)
+            throw new InvalidOperationException(
+                "Thunder meldet keine vollständige RUNNING-Hardware (cpuCores, numGpus, storage). " +
+                "Kein angeblich tatsächlicher Tarif wird berechnet.");
+
+        var gpuKey = ThunderGpuNames.ToProviderKey(instance.Gpu) + "_x" + instance.GpuCount;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(18));
+        using var pricing = await FetchAsync("v2/pricing", deadline.Token);
+        using var specs = await FetchAsync("v2/specs", deadline.Token);
+        if (!pricing.RootElement.TryGetProperty("pricing", out var rates) ||
+            rates.ValueKind != JsonValueKind.Object ||
+            !specs.RootElement.TryGetProperty("specs", out var configurations) ||
+            configurations.ValueKind != JsonValueKind.Object ||
+            !configurations.TryGetProperty(gpuKey, out var spec) ||
+            spec.ValueKind != JsonValueKind.Object ||
+            !spec.TryGetProperty("vcpuOptions", out var cpuOptions) ||
+            cpuOptions.ValueKind != JsonValueKind.Array ||
+            !spec.TryGetProperty("storageGB", out var storage) ||
+            !storage.TryGetProperty("min", out var minStorage) ||
+            !storage.TryGetProperty("max", out var maxStorage) ||
+            !minStorage.TryGetInt32(out var minimumDisk) ||
+            !maxStorage.TryGetInt32(out var maximumDisk))
+            throw new InvalidDataException("Thunder-Livetarif oder Hardware-Spezifikation unvollständig.");
+
+        static decimal ReadRate(JsonElement rates, string key)
+        {
+            if (!rates.TryGetProperty(key, out var value) ||
+                !value.TryGetDecimal(out var rate) || rate <= 0)
+                throw new InvalidDataException("Thunder-Livetarif für " + key + " nicht verfügbar.");
+            return rate;
+        }
+
+        var choices = cpuOptions.EnumerateArray()
+            .Where(option => option.TryGetInt32(out _))
+            .Select(option => option.GetInt32()).ToArray();
+        if (choices.Length == 0 || !choices.Contains(instance.CpuCores) ||
+            instance.StorageGb < minimumDisk || instance.StorageGb > maximumDisk)
+            throw new InvalidDataException(
+                "Aktuelle Pod-Hardware stimmt nicht mit Thunder-Preisspezifikationen überein; " +
+                "Tarif wird nicht geraten.");
+
+        var gpu = ReadRate(rates, gpuKey);
+        var cpu = Math.Max(0, instance.CpuCores - choices.Min()) *
+            ReadRate(rates, "additional_vcpus");
+        var disk = Math.Max(0, instance.StorageGb - 100 * instance.GpuCount) *
+            ReadRate(rates, "disk_gb");
+        return new RunningInstanceQuote(gpu + cpu + disk, gpu, cpu, disk,
+            instance.Id, instance.CpuCores, instance.GpuCount, instance.StorageGb,
+            DateTimeOffset.UtcNow);
+    }
+
     private async Task<JsonDocument> FetchAsync(string path, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, ApiOrigin + path);
