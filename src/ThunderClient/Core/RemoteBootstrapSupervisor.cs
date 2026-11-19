@@ -131,6 +131,16 @@ if [[ -n "$active" ]]; then
     flock -u 8
     exit 0
 fi
+# Fail closed if an untracked bootstrap still owns the persistent run
+# lock; otherwise the freshly spawned worker would just exit with code 42
+# while the launcher incorrectly reported success.
+exec 9>"$HOME/.thunderclient-bootstrap.lock"
+if ! flock -n 9; then
+    echo '[THUNDER-CLIENT] Bootstrap-Lock durch anderen Prozess belegt; kein zweiter Start'
+    exit 45
+fi
+flock -u 9
+exec 9>&-
 if [[ -f "$job/output.log" && -f "$job/run_id" ]]; then
     old_run="$(cat "$job/run_id")"
     if [[ "$old_run" =~ ^[a-f0-9]{32}$ ]]; then
