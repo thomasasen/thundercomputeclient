@@ -501,6 +501,36 @@
                             <Button Click="OpenThunderConsole_Click" Content="Thunder-Podverwaltung öffnen" />
                             <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="{DynamicResource DangerBrush}" Foreground="White" />
                         </WrapPanel>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="14,12" Margin="0,8,0,8">
+                            <StackPanel>
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock Text="Aktuelle Pod-Kosten &amp; Kontostand"
+                                               FontWeight="SemiBold" FontSize="16"
+                                               VerticalAlignment="Center" DockPanel.Dock="Left" />
+                                    <Button Command="{Binding RefreshPodCostsCommand}"
+                                            Content="Live-Tarif abrufen" Margin="12,0,0,0"
+                                            DockPanel.Dock="Right" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding PodHourlyRate}" FontSize="18"
+                                           FontWeight="SemiBold" Margin="0,9,0,3" />
+                                <TextBlock Text="{Binding PodTariffBreakdown}"
+                                           Style="{StaticResource FieldHint}" TextWrapping="Wrap" />
+                                <TextBlock Text="Kosten seit Erstellung (nicht abgerechnet)"
+                                           FontWeight="SemiBold" Margin="0,10,0,2" />
+                                <TextBlock Text="{Binding PodProjectedCost}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding LiveTariffStatus}"
+                                           Style="{StaticResource FieldHint}" Margin="0,8,0,0"
+                                           TextWrapping="Wrap" />
+                                <Separator Margin="0,10" />
+                                <TextBlock Text="Aktuelle Balance / Prepaid-Guthaben"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding AccountBalanceStatus}"
+                                           TextWrapping="Wrap" Margin="0,4,0,7" />
+                                <Button Click="OpenThunderBilling_Click"
+                                        Content="Offizielle Thunder-Abrechnung &amp; Balance öffnen"
+                                        HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
                                    Text="Der Git-/ComfyUI-Neustart startet nur die Software auf dem bestehenden Pod neu und erhält persistente Daten. Ein echter OS-/VM-Neustart ist hier nicht implementiert. Für die Wiederherstellung einer VM einen READY-Snapshot als neue Instanz starten; dabei können zusätzliche Kosten entstehen." TextWrapping="Wrap" />
