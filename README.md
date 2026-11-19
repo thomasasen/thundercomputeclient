@@ -179,6 +179,16 @@ Der persistente Pfad `~/comfyui-workspace` einschließlich ComfyUI-Modellen, Out
 
 Der Button bestätigt zunächst nur, dass der neue Remote-Job gestartet wurde. **ComfyUI-/HTTP-Bereitschaft und Modell-Vollständigkeit sind erst nach separater Prüfung bestätigt.** Die laufenden Remote-Logs sind anschließend über **„Bootstrap manuell starten …“** erreichbar, das sich bei identischer Revision/Workflow-Auswahl an den bereits aktiven Job anhängt. GPU-Abrechnung läuft weiter. Für ein vollständiges VM-Recovery dient weiterhin der ausdrücklich bestätigte Snapshot-Weg.
 
+## Live-Tarif, Rechnung und Thunder-Kontoguthaben
+
+Unter **Instanzen → Aktuelle Pod-Kosten & Kontostand → Live-Tarif abrufen** ermittelt der Client über `tnr status --json --no-wait` die tatsächlich gewählten Ressourcen des **laufenden** Pods: GPU-Typ/-Anzahl, `cpuCores` und Instanzdisk. Ausschließlich die offiziellen öffentlichen `GET /v2/pricing` und `GET /v2/specs` liefern die aktuell angebotenen Stundentarife. Der Client zeigt den Tarif und die Einzelkomponenten GPU, zusätzliche vCPUs und Zusatzdisk (USD/h). Fehlende Instanzdaten oder nicht übereinstimmende Anbieter-Spezifikationen führen zu einer klaren Fehlermeldung, **niemals zu einer erfundenen Zahl aus alten Konfigurationswerten**.
+
+Eine zusätzliche Anzeige **„Kosten seit Erstellung (nicht abgerechnet)“** verwendet den gerade abrufbaren Stundentarif und nur bei RUNNING-Status den Zeitraum seit `createdAt`. **Sie ist ausdrücklich kein genauer historischer Rechnungsbetrag**: Änderungen an Hardware, Tarifen, Kostenrabatte und frühere Laufzeitunterbrechungen sind aus dem Status nicht rekonstruierbar; vergangene Preise dürfen nicht als aktuelle Rechnung ausgegeben werden. Der tatsächliche Rechnungsbetrag muss aus Thunders Billing-Daten stammen.
+
+**Balance/Guthaben:** Die dokumentierte Thunder-CLI sowie die bisher eingesetzte REST-API liefern keinen bestätigten Kontoguthaben-Endpunkt. Der Client zeigt deshalb **keine fiktive Balance** und verlinkt auf die offizielle, authentifizierte [Thunder-Abrechnung](https://console.thundercompute.com/settings/billing) zur Live-Prüfung. Dort sind Prepaid-Guthaben und Zahlungsverfahren beim Anbieter verwaltet. Thunder bietet eigene MCP-Billing-Tools (`get_meter_data`, `get_upcoming_invoice`, `get_invoice_history`, `get_subscription`) über eine separate OAuth-Anbindung. Diese ist **nicht** Teil des aktuellen Windows-Clients; ihre Felder bzw. ein Balance-Wert werden nicht als dokumentiertes REST-API-Schema unterstellt. Snapshots werden separat abgerechnet und gehören nicht zum GPU-Stundentarif.
+
+**App-Icon:** Das Blitz-Icon liegt als `src/ThunderClient/Assets/ThunderClient.ico` vor und ist als Executable-`ApplicationIcon`, Windows-Fenster-Icon und Sidebar-Bild eingebunden; Installer und Startmenüverknüpfungen referenzieren die EXE.
+
 ## Bedienung
 
 1. App starten und unter **Zugangsdaten** den privaten GitHub-Lesetoken speichern, dann **Katalog aktualisieren**. Ohne Token bleibt die GUI offen und zeigt eine aussagekräftige Fehlermeldung.
