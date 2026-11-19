@@ -18,7 +18,8 @@ Diese Änderung wird als Review-Branch/PR geführt. **Keine Produktionsfreigabe*
 | GitHub offline, ungültige Revision oder geänderte Workflow-Slugs | Preflight vor Stop; kein stilles Offline-Fallback |
 | Mehrfachauswahl mit Modell-Zielkonflikt oder Freigabeflag | Neustart blockiert |
 | Pod fehlt, UUID wechselt oder Status nicht RUNNING | Neustart blockiert |
-| SSH-Hostfingerprint nicht geprüft | `TrustedSshAsync` bleibt verbindlich |
+| SSH-Hostfingerprint nicht geprüft | Neuer read-only SSH-Pfad scannt und bestätigt Hostfingerprint unabhängig; kein SSH-Login ohne Trust |
+| Es ist noch kein SSH-Key für den Pod autorisiert | Restart blockiert statt `tnr connect` oder `/add_key` mit einem neuen Public Key aufzurufen |
 | Remote-Job doppelt gestartet | Remote-`flock`, Run-ID und PID-Prüfung |
 | Prozess zu PID gehört fremder Anwendung | Kein Signal und kein Metadatenüberschreiben |
 | Unbekannte Anwendung belegt Port 8188 | Kein konkurrierender ComfyUI-Start |
