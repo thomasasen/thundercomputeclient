@@ -58,7 +58,7 @@ public sealed class ThunderCli(ICommandRunner commands)
             DateTimeOffset? created = DateTimeOffset.TryParse(Text(x, "createdAt"), out var d) ? d : null;
             return new InstanceItem(Text(x, "id"), Text(x, "uuid"),
                 Text(x, "name"), Text(x, "status"), Text(x, "gpuType"),
-                Text(x, "ip"), Int(x, "port"), created, Int(x, "storage"), Int(x, "numGpus"));
+                Text(x, "ip"), Int(x, "port"), created, Int(x, "storage"), Int(x, "numGpus"), Int(x, "cpuCores"));
         }).ToArray();
     }
 
