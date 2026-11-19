@@ -24,6 +24,7 @@
         <SolidColorBrush x:Key="DangerTintBrush" Color="#FBE8EA" />
         <SolidColorBrush x:Key="CautionTintBrush" Color="#FFF2D5" />
         <SolidColorBrush x:Key="AccentTintBrush" Color="#E4F0FF" />
+        <SolidColorBrush x:Key="OnDangerBrush" Color="#FFFFFF" />
 
         <Style TargetType="{x:Type Window}">
             <Setter Property="Background" Value="{DynamicResource WindowBrush}" />
@@ -33,9 +34,10 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
-        <!-- Do not force Foreground on every TextBlock: Button.Content must
-             inherit Button.Foreground, otherwise primary CTA text is dark on blue. -->
+        <!-- Theme every plain label explicitly: inherited WPF control defaults can be black
+             even inside a dark Window. Button templates override this for accent/danger CTAs. -->
         <Style TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="OverlineText" TargetType="{x:Type TextBlock}">
@@ -58,6 +60,7 @@
             <Setter Property="Foreground" Value="{DynamicResource SubtleBrush}" />
         </Style>
         <Style x:Key="SectionHeading" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="19" />
         </Style>
@@ -147,6 +150,16 @@
                                 BorderThickness="1" SnapsToDevicePixels="True">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                         VerticalAlignment="Center" Margin="{TemplateBinding Padding}">
+                                <!-- ContentPresenter can create an implicit TextBlock. Its ink must
+                                     use this Button's Foreground (OnAccent/OnDanger for colored CTAs),
+                                     not the global body-text color. -->
+                                <StackPanel.Resources>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Setter Property="Foreground"
+                                                Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                        <Setter Property="TextWrapping" Value="NoWrap" />
+                                    </Style>
+                                </StackPanel.Resources>
                                 <Path Width="18" Height="18" Stretch="Uniform" Margin="0,0,8,0"
                                       Fill="{TemplateBinding Foreground}"
                                       Data="{Binding Content, RelativeSource={RelativeSource TemplatedParent},
@@ -249,8 +262,38 @@
         <Style TargetType="{x:Type ComboBox}">
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="Padding" Value="8" />
             <Setter Property="MinHeight" Value="39" />
+        </Style>
+        <!-- OS-default ComboBoxItem can inherit black text from the system theme.
+             Set both item foreground and popup backgrounds for dark/light mode. -->
+        <Style TargetType="{x:Type ComboBoxItem}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                                CornerRadius="4" SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SelectedBrush}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SelectedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="{x:Type Label}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         </Style>
         <Style TargetType="{x:Type DataGrid}">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -278,6 +321,9 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
         </Style>
+        <Style TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
         <Style TargetType="{x:Type DataGridCell}">
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Padding" Value="11,9" />
@@ -293,6 +339,7 @@
         </Style>
         <!-- GPU entries are full-width cards, with clear hover/selection states. -->
         <Style x:Key="GpuItemStyle" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,0,0,8" />
