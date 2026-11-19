@@ -29,6 +29,9 @@ public sealed class PodSoftwareRestartPlannerTests
             Snapshot(Workflow("Demo")), ["Demo"]);
         Assert.Single(selected);
         Assert.Equal("Demo", selected[0].Name);
+        var dotted = PodSoftwareRestartPlanner.Validate(
+            Snapshot(Workflow("Demo.v2")), ["Demo.v2"]);
+        Assert.Single(dotted);
     }
 
     [Fact]
