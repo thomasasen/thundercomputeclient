@@ -58,6 +58,9 @@ public sealed class MainViewModel : Bindable, IDisposable
     private string _downloadSummary = "Keine Downloadereignisse empfangen";
     private string _versionStatus = "Nicht geprüft";
     private string _lastRefreshed = "Instanzstatus nicht geladen";
+    private ThunderPublicPricing.RunningInstanceQuote? _runningCostQuote;
+    private string _liveTariffStatus = "Noch kein Live-Tarif abgerufen.";
+    private bool _billingBusy;
     private Task? _monitorTask;
     private string _snapshotName = "comfyui-backup";
     private string _gitTokenStatus = "";
@@ -88,6 +91,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public AsyncCommand SyncCommand { get; }
     public AsyncCommand RunSystemChecksCommand { get; }
     public AsyncCommand RefreshInstancesCommand { get; }
+    public AsyncCommand RefreshPodCostsCommand { get; }
     public AsyncCommand CreateCommand { get; }
     public AsyncCommand AutoDeployCommand { get; }
     public RelayCommand CancelAutoDeploymentCommand { get; }
@@ -135,6 +139,7 @@ public sealed class MainViewModel : Bindable, IDisposable
         SyncCommand = New(SyncAsync);
         RunSystemChecksCommand = New(RunSystemChecksAsync);
         RefreshInstancesCommand = New(() => RefreshInstancesAsync());
+        RefreshPodCostsCommand = New(RefreshPodCostsAsync);
         CreateCommand = New(CreateAsync);
         AutoDeployCommand = New(AutoDeployAsync);
         CancelAutoDeploymentCommand = new RelayCommand(CancelAutoDeployment);
@@ -277,6 +282,37 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string LogText => string.Join(Environment.NewLine, LogLines);
     public string VersionStatus { get => _versionStatus; private set => Set(ref _versionStatus, value); }
     public string LastRefreshed { get => _lastRefreshed; private set => Set(ref _lastRefreshed, value); }
+    public string LiveTariffStatus { get => _liveTariffStatus; private set => Set(ref _liveTariffStatus, value); }
+    public bool BillingBusy { get => _billingBusy; private set => Set(ref _billingBusy, value); }
+    public string PodHourlyRate =>
+        _runningCostQuote is { } quote &&
+        string.Equals(quote.InstanceId, SelectedInstance?.Id, StringComparison.Ordinal)
+            ? quote.HourlyUsd.ToString("N3", System.Globalization.CultureInfo.CurrentCulture) +
+              " USD/h (Thunder-v2-Tarif, Abruf " + quote.CheckedAt.ToLocalTime().ToString("HH:mm") + ")"
+            : "Noch nicht für diesen Pod abgefragt";
+    public string PodTariffBreakdown =>
+        _runningCostQuote is { } quote &&
+        string.Equals(quote.InstanceId, SelectedInstance?.Id, StringComparison.Ordinal)
+            ? "GPU " + quote.GpuHourlyUsd.ToString("N3") +
+              " + zusätzliche vCPUs " + quote.AdditionalCpuHourlyUsd.ToString("N3") +
+              " + Zusatzdisk " + quote.AdditionalDiskHourlyUsd.ToString("N3") +
+              " USD/h · " + quote.GpuCount + " GPU(s), " + quote.CpuCores +
+              " vCPUs, " + quote.StorageGb + " GB"
+            : "Preis hängt von der tatsächlich gemeldeten GPU-/CPU-/Disk-Konfiguration ab.";
+    public string PodProjectedCost =>
+        _runningCostQuote is { } quote &&
+        string.Equals(quote.InstanceId, SelectedInstance?.Id, StringComparison.Ordinal) &&
+        SelectedInstance?.Created is { } created &&
+        SelectedInstance?.Status == "RUNNING" &&
+        created <= DateTimeOffset.UtcNow
+            ? (quote.HourlyUsd *
+                (decimal)Math.Max(0, (DateTimeOffset.UtcNow - created).TotalHours))
+                .ToString("N2") +
+              " USD (rein rechnerisch bei durchgehend RUNNING seit Erstellung; keine Abrechnung)"
+            : "Nicht seriös berechenbar ohne vollständigen Laufzeitverlauf.";
+    public string AccountBalanceStatus =>
+        "Nicht über die dokumentierte Thunder-REST-/CLI-Schnittstelle abrufbar. " +
+        "Aktuellen Kontostand in der offiziellen Thunder-Abrechnung prüfen.";
     public string GitTokenStatus { get => _gitTokenStatus; private set => Set(ref _gitTokenStatus, value); }
     public string ThunderApiTokenStatus { get => _thunderApiTokenStatus; private set => Set(ref _thunderApiTokenStatus, value); }
     public string HfTokenStatus { get => _hfTokenStatus; private set => Set(ref _hfTokenStatus, value); }
@@ -311,7 +347,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public InstanceItem? SelectedInstance
     {
         get => _selectedInstance;
-        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(ConnectionSummary)); OnPropertyChanged(nameof(CostSummary)); UpdateWizardNotice(); } }
+        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(ConnectionSummary)); OnPropertyChanged(nameof(CostSummary)); OnPropertyChanged(nameof(PodHourlyRate)); OnPropertyChanged(nameof(PodTariffBreakdown)); OnPropertyChanged(nameof(PodProjectedCost)); UpdateWizardNotice(); } }
     }
     public WorkflowItem? SelectedWorkflow { get => _selectedWorkflow; set => Set(ref _selectedWorkflow, value); }
     public GpuChoice? SelectedGpu { get => _selectedGpu; set => Set(ref _selectedGpu, value); }
@@ -637,6 +673,57 @@ public sealed class MainViewModel : Bindable, IDisposable
         LastRefreshed = $"Letzte Statusprüfung: {DateTime.Now:HH:mm:ss}";
         Message = $"{Instances.Count} Thunder-Instanzen gefunden";
         UpdateWizardNotice();
+    }
+
+    private async Task RefreshPodCostsAsync()
+    {
+        if (BillingBusy || Busy || AutoDeploymentRunning) return;
+        var selected = SelectedInstance ??
+            throw new InvalidOperationException("Für die Tarifprüfung zuerst einen Pod auswählen.");
+        BillingBusy = true;
+        LiveTariffStatus = "Lese aktuelle Instanzdaten und Thunder-Preistarife (nur GET).";
+        try
+        {
+            var pods = await _thunder.ListAsync(_shutdown.Token);
+            var current = pods.SingleOrDefault(x =>
+                string.Equals(x.Id, selected.Id, StringComparison.Ordinal));
+            if (current is null)
+                throw new InvalidOperationException("Pod nicht mehr in Thunder-Statusliste vorhanden.");
+            if (!string.IsNullOrEmpty(selected.Uuid) && current.Uuid != selected.Uuid)
+                throw new InvalidOperationException(
+                    "Die Instanz-UUID hat sich geändert. Keine Tarifeinordnung mit falscher Identität.");
+            if (current.Status != "RUNNING")
+                throw new InvalidOperationException("Pod ist nicht RUNNING; kein aktiver GPU-Stundentarif.");
+            var quote = await _livePricing.QuoteRunningInstanceAsync(current, _shutdown.Token);
+            _runningCostQuote = quote;
+            var tracked = Instances.FirstOrDefault(x => x.Id == current.Id);
+            if (tracked is not null)
+            {
+                var index = Instances.IndexOf(tracked);
+                Instances[index] = current;
+            }
+            SelectedInstance = current;
+            OnPropertyChanged(nameof(PodHourlyRate));
+            OnPropertyChanged(nameof(PodTariffBreakdown));
+            OnPropertyChanged(nameof(PodProjectedCost));
+            LiveTariffStatus = "Live-Stundentarif aus Thunder v2/pricing und v2/specs. " +
+                "Nicht gleichbedeutend mit bereits abgerechneten Kosten oder Guthaben. " +
+                "Historische Rechnungen, Rabatte, Guthaben und Snapshots sind nicht enthalten.";
+            Log("[KOSTEN] Pod " + current.Id + ": aktueller Ressourcen-Tarif " +
+                quote.HourlyUsd.ToString("N3") + " USD/h (" +
+                current.Gpu + " ×" + current.GpuCount + ", " + current.CpuCores +
+                " vCPUs, " + current.StorageGb + " GB). Keine Abrechnungsdaten.");
+        }
+        catch
+        {
+            _runningCostQuote = null;
+            LiveTariffStatus = "Live-Tarif konnte nicht bestätigt werden. Kein Ersatz durch alte GUI-Schätzwerte.";
+            OnPropertyChanged(nameof(PodHourlyRate));
+            OnPropertyChanged(nameof(PodTariffBreakdown));
+            OnPropertyChanged(nameof(PodProjectedCost));
+            throw;
+        }
+        finally { BillingBusy = false; }
     }
 
     private async Task RefreshSnapshotsAsync()
