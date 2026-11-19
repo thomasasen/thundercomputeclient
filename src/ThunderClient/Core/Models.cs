@@ -66,7 +66,7 @@ public sealed class GpuChoice : Bindable
 }
 
 public sealed record InstanceItem(string Id, string Uuid, string Name, string Status,
-    string Gpu, string Ip, int Port, DateTimeOffset? Created, int StorageGb = 0, int GpuCount = 0)
+    string Gpu, string Ip, int Port, DateTimeOffset? Created, int StorageGb = 0, int GpuCount = 0, int CpuCores = 0)
 {
     public string Display => $"{Id} · {Name} · {Gpu} · {Status}";
     public string SshPortDisplay => Port is >= 1 and <= 65535
