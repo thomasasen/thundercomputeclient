@@ -14,7 +14,31 @@ public sealed class DownloadItem : Bindable
     { Model = model; _state = state; _progress = progress; }
     public string Model { get; }
     public string State { get => _state; set => Set(ref _state, value); }
-    public string Progress { get => _progress; set => Set(ref _progress, value); }
+    public string Progress
+    {
+        get => _progress;
+        set
+        {
+            if (Set(ref _progress, value))
+                OnPropertyChanged(nameof(ProgressSortValue));
+        }
+    }
+
+    // Numeric table sorting, never an inferred transfer percentage.
+    // Unknown/incomplete values remain null and sort separately from real %.
+    public decimal? ProgressSortValue
+    {
+        get
+        {
+            var match = Regex.Match(Progress, @"(?<!\d)(?<percent>\d{1,3}(?:[.,]\d+)?)\s*%",
+                RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+            if (!match.Success) return null;
+            var raw = match.Groups["percent"].Value.Replace(',', '.');
+            return decimal.TryParse(raw, System.Globalization.NumberStyles.AllowDecimalPoint,
+                       System.Globalization.CultureInfo.InvariantCulture, out var value) &&
+                   value is >= 0 and <= 100 ? value : null;
+        }
+    }
 }
 
 public static class DownloadTracker
