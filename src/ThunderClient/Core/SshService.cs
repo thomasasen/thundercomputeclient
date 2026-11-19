@@ -474,6 +474,22 @@ public sealed class SshService(ICommandRunner commands)
             .Replace(entry, "contents/scripts/pod_entry.py?ref=" + revision, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Restart the application on the SAME existing instance with a freshly
+    /// authenticated and commit-pinned bootstrap. This is not an OS reboot.
+    /// The remote supervisor stops only its own tracked process group and
+    /// never removes the persistent workspace or downloaded models.
+    /// </summary>
+    public Task<CommandResult> RestartBootstrapAsync(SshConnection endpoint, string adapter,
+        string workflows, string expectedCommit, string gitToken,
+        string? huggingFace, string? civitai, Action<string> onLine,
+        CancellationToken ct = default)
+    {
+        var launcher = RemoteBootstrapSupervisor.BuildLaunchScript(
+            adapter, expectedCommit, workflows, gitToken, huggingFace, civitai, restart: true);
+        return RunScriptAsync(endpoint, launcher, onLine, ct);
+    }
+
     public async Task<CommandResult> BootstrapAsync(SshConnection endpoint, string adapter,
         string workflows, string expectedCommit, string gitToken,
         string? huggingFace, string? civitai, Action<string> onLine,
