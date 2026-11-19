@@ -1,5 +1,5 @@
 #define AppName "Thunder Compute Client"
-#define AppVersion "0.1.5"
+#define AppVersion "0.1.6"
 [Setup]
 AppId={{9D42AC07-3F3A-4C68-AB08-89A84D327D51}
 AppName={#AppName}
