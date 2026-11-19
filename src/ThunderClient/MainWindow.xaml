@@ -480,7 +480,8 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     </Border>
-                    <StackPanel Grid.Row="2">
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="355">
+                        <StackPanel>
                         <WrapPanel Margin="0,10">
                             <Button x:Name="PodSetupButton" Click="OpenPodSetup_Click"
                                     Content="4  Installation &amp; Logs" />
@@ -543,7 +544,8 @@
                                  DisplayMemberPath="Display" MinHeight="70" MaxHeight="120" />
                         <Button Command="{Binding RestoreSnapshotCommand}"
                                 Content="READY-Snapshot als neues Template wählen" HorizontalAlignment="Left" />
-                    </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </TabItem>
             <TabItem Header="Downloads &amp; Logs">
