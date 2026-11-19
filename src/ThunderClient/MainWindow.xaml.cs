@@ -1,4 +1,6 @@
 using System.IO;
+using System.ComponentModel;
+using System.Windows.Data;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -24,6 +26,15 @@ public partial class MainWindow : Window, IUserDialogs
         _model = new MainViewModel(this);
         StartupDiagnostics.Trace("MainWindow: ViewModel geladen");
         DataContext = _model;
+        // Keep the user's active header sorting correct while the downloader
+        // updates State and numeric ProgressSortValue on existing rows.
+        if (CollectionViewSource.GetDefaultView(_model.Downloads) is ICollectionViewLiveShaping live &&
+            live.CanChangeLiveSorting)
+        {
+            live.LiveSortingProperties.Add(nameof(DownloadItem.State));
+            live.LiveSortingProperties.Add(nameof(DownloadItem.ProgressSortValue));
+            live.IsLiveSorting = true;
+        }
         _model.PodCreated += () => MainTabs.SelectedIndex = 3;
         _model.DeploymentLogsRequested += () => MainTabs.SelectedIndex = 4;
         ApplyTheme(_model.Theme);
@@ -57,8 +68,14 @@ public partial class MainWindow : Window, IUserDialogs
             throw new InvalidOperationException("Die Protokollansicht muss markierbar und kopierbar sein.");
         if (!DownloadsGrid.IsReadOnly || !DownloadsGrid.EnableRowVirtualization ||
             ScrollViewer.GetVerticalScrollBarVisibility(DownloadsGrid) != ScrollBarVisibility.Auto ||
+            !DownloadsGrid.CanUserSortColumns || !DownloadsGrid.CanUserResizeColumns ||
             DownloadsGrid.Columns.Count != 3 ||
-            DownloadsGrid.Columns[1] is not DataGridTemplateColumn)
+            DownloadsGrid.Columns[1] is not DataGridTemplateColumn ||
+            DownloadsGrid.Columns[0].SortMemberPath != nameof(DownloadItem.Model) ||
+            DownloadsGrid.Columns[1].SortMemberPath != nameof(DownloadItem.State) ||
+            DownloadsGrid.Columns[2].SortMemberPath != nameof(DownloadItem.ProgressSortValue) ||
+            Grid.GetRow(DownloadsLogSplitter) != 2 ||
+            DownloadsLogSplitter.ResizeDirection != GridResizeDirection.Rows)
             throw new InvalidOperationException(
                 "Download-Tabelle muss scrollbar, virtualisiert und farblich differenziert sein.");
         if (AutomaticDeployButton.Content is not "Pod + Modelle automatisch starten …")
@@ -338,6 +355,10 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("DangerBrush", 184, 74, 89);
             SetBrush("SuccessBrush", 24, 115, 75);
             SetBrush("CautionBrush", 139, 97, 24);
+            SetBrush("SuccessTintBrush", 225, 244, 233);
+            SetBrush("DangerTintBrush", 251, 232, 234);
+            SetBrush("CautionTintBrush", 255, 242, 213);
+            SetBrush("AccentTintBrush", 228, 240, 255);
         }
         else
         {
@@ -355,6 +376,10 @@ public partial class MainWindow : Window, IUserDialogs
             SetBrush("DangerBrush", 250, 128, 142);
             SetBrush("SuccessBrush", 107, 220, 160);
             SetBrush("CautionBrush", 250, 194, 103);
+            SetBrush("SuccessTintBrush", 36, 75, 59);
+            SetBrush("DangerTintBrush", 90, 41, 54);
+            SetBrush("CautionTintBrush", 97, 73, 31);
+            SetBrush("AccentTintBrush", 37, 72, 110);
         }
     }
 }
