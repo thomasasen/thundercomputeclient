@@ -14,7 +14,7 @@ public static class RemoteBootstrapSupervisor
         bool restart = false)
     {
         var adapter = SshService.PinBootstrapAdapter(reviewedAdapter, commit);
-        if (!Regex.IsMatch(workflows, @"\A[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*\z") ||
+        if (!Regex.IsMatch(workflows, @"\A[A-Za-z0-9][A-Za-z0-9_.-]*(?:,[A-Za-z0-9][A-Za-z0-9_.-]*)*\z") ||
             string.IsNullOrWhiteSpace(githubToken))
             throw new InvalidOperationException("Ungültiger Workflow oder fehlende Bootstrap-Credentials.");
 
