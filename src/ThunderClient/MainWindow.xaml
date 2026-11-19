@@ -492,6 +492,9 @@
                             <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
                             <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
                             <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen (SSH)" />
+                            <Button Command="{Binding RestartPodSoftwareCommand}"
+                                    Content="Pod-Software neu starten &amp; Git aktualisieren …"
+                                    ToolTip="Neue Git-main-Revision laden und den vorhandenen ComfyUI-Bootstrap auf derselben Instanz neu starten. Persistente Modelle und Outputs bleiben erhalten." />
                             <Button Command="{Binding PreparePodRecoveryCommand}"
                                     Content="Pod wiederherstellen (Snapshot) …"
                                     ToolTip="Die bestehende Instanzdisk wird im Snapshot gesichert. Thunder bietet keinen dokumentierten In-Place-Neustart; Restore erfolgt als neue Instanz nach gesonderter Kostenfreigabe." />
@@ -500,7 +503,7 @@
                         </WrapPanel>
                         <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
-                                   Text="Thunder dokumentiert keinen In-Place-Neustart. Sicherer Wiederherstellungsweg: Snapshot erstellen, READY prüfen, als neue Instanz wiederherstellen. Alten Pod erst nach erfolgreicher Datenprüfung löschen; beide Instanzen und der Snapshot können Kosten verursachen." TextWrapping="Wrap" />
+                                   Text="Der Git-/ComfyUI-Neustart startet nur die Software auf dem bestehenden Pod neu und erhält persistente Daten. Ein echter OS-/VM-Neustart ist hier nicht implementiert. Für die Wiederherstellung einer VM einen READY-Snapshot als neue Instanz starten; dabei können zusätzliche Kosten entstehen." TextWrapping="Wrap" />
                         <Separator Margin="0,15,0,13" />
                         <TextBlock FontWeight="Bold" Text="Snapshots" />
                         <WrapPanel Margin="0,5">
@@ -532,6 +535,9 @@
                         <WrapPanel>
                             <Button Command="{Binding BootstrapCommand}"
                                     Content="Bootstrap manuell starten …" />
+                            <Button Command="{Binding RestartPodSoftwareCommand}"
+                                    Content="Git aktualisieren &amp; ComfyUI neu starten …"
+                                    ToolTip="Bestehenden Pod behalten; neue Bootstrap-Revision aus GitHub laden, eigenen laufenden Job kontrolliert beenden und neu starten, ohne Modellverzeichnisse zu löschen." />
                             <Button Command="{Binding CancelAutoDeploymentCommand}"
                                     IsEnabled="{Binding AutoDeploymentRunning}"
                                     Content="Automatik abbrechen (Pod bleibt!)" />
