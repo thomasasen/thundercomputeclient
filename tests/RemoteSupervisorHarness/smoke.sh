@@ -12,8 +12,11 @@ dotnet run --project "$root/tests/RemoteSupervisorHarness/RemoteSupervisorHarnes
     --configuration Release -- launch > "$scratch/launch.sh"
 dotnet run --project "$root/tests/RemoteSupervisorHarness/RemoteSupervisorHarness.csproj" \
     --configuration Release -- follow > "$scratch/follow.sh"
+dotnet run --project "$root/tests/RemoteSupervisorHarness/RemoteSupervisorHarness.csproj" \
+    --configuration Release -- restart > "$scratch/restart.sh"
 bash -n "$scratch/launch.sh"
 bash -n "$scratch/follow.sh"
+bash -n "$scratch/restart.sh"
 
 # The launch SSH script returns immediately; the detached worker remains.
 bash "$scratch/launch.sh" > "$scratch/first.txt"
@@ -33,4 +36,23 @@ grep -q '\[TEST-REMOTE\] started' "$scratch/followed.txt"
 grep -q '\[TEST-REMOTE\] completed' "$scratch/followed.txt"
 ! grep -q 'gh-demo' "$job/bootstrap.sh"
 ! grep -q 'gh-demo' "$job/output.log"
-echo 'REMOTE SUPERVISOR SMOKE OK: detached, reattached, log complete, no token on disk'
+# Simulate an expensive persistent model file. A software restart must
+# never erase this directory or trigger destructive Pod infrastructure calls.
+mkdir -p "$HOME/comfyui-workspace/ComfyUI/models/checkpoints"
+echo 'persistent-model' > "$HOME/comfyui-workspace/ComfyUI/models/checkpoints/keep.safetensors"
+bash "$scratch/launch.sh" > "$scratch/third.txt"
+grep -q 'Remote-Job gestartet' "$scratch/third.txt"
+prior_pid="$(cat "$job/pid")"
+prior_run="$(cat "$job/run_id")"
+kill -0 "$prior_pid"
+bash "$scratch/restart.sh" > "$scratch/restarted.txt"
+grep -q 'Stoppe den bisherigen Bootstrap/ComfyUI-Prozess kontrolliert' "$scratch/restarted.txt"
+grep -q 'Vorherige Prozessgruppe beendet' "$scratch/restarted.txt"
+grep -q 'Remote-Job gestartet' "$scratch/restarted.txt"
+[[ "$(cat "$job/run_id")" != "$prior_run" ]]
+[[ "$(cat "$job/pid")" != "$prior_pid" ]]
+[[ "$(cat "$HOME/comfyui-workspace/ComfyUI/models/checkpoints/keep.safetensors")" == 'persistent-model' ]]
+timeout 15 bash "$scratch/follow.sh" > "$scratch/restart-followed.txt"
+grep -q '\[TEST-REMOTE\] completed' "$scratch/restart-followed.txt"
+! grep -q 'gh-demo' "$job/bootstrap.sh"
+echo 'REMOTE SUPERVISOR SMOKE OK: detached, reattached, terminated tracked process, kept persistent model, no token on disk'
