@@ -210,11 +210,15 @@ public partial class MainWindow : Window, IUserDialogs
     private void OpenThunderConsole_Click(object sender, RoutedEventArgs e) =>
         OpenTrustedThunderPage(PodRecoveryPlanner.ConsoleUrl);
 
+    private void OpenThunderBilling_Click(object sender, RoutedEventArgs e) =>
+        OpenTrustedThunderPage("https://console.thundercompute.com/settings/billing");
+
     private void OpenTrustedThunderPage(string url)
     {
         // Fixed, official vendor URLs only; never derive from remote manifests.
         if (url is not ("https://status.thundercompute.com/" or
-                        "https://console.thundercompute.com/")) return;
+                        "https://console.thundercompute.com/" or
+                        "https://console.thundercompute.com/settings/billing")) return;
         try
         {
             System.Diagnostics.Process.Start(
