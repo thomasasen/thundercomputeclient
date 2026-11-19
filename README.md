@@ -2,7 +2,7 @@
 
 Nativer Windows-Desktop-Client (.NET 10/WPF) für ComfyUI-Workflows aus dem **privaten**, unveränderten GitHub-Repository `thomasasen/runpod-ai-workflows`.
 
-**Status: Release v0.1.5 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
+**Status: Release v0.1.7 für Windows x64. Installierbar, aber noch nicht durch einen vollständigen Thunder-/ComfyUI-/GPU-End-to-End-Test produktionsvalidiert.** Die Windows-CI prüft Kompilierung, Mock-/Regressionstests, den tatsächlichen WPF-Fensterstart mit allen acht Bereichen und den Inno-Setup-Installer. Kein echter Thunder-/GPU-/SSH-/Modelldownload-End-to-End-Test.
 
 **SSH-Diagnose-Hotfix v0.1.1:** Eine nicht bestätigte SHA256-Hostfingerprint-Abfrage wird getrennt von technischen OpenSSH-/KEX-/Zeitüberschreitungsfehlern behandelt; die ursprüngliche, bereinigte technische Ursache erscheint im Fehlerdialog. Der Client akzeptiert weiterhin niemals ungeprüfte Hostschlüssel. Eine unabhängige, vertrauenswürdige Verbindung zum Pod ist für die erste Fingerprint-Freigabe erforderlich.\n\n## Oberfläche: Material-Icons und komfortablere Downloads-Tabelle
 
