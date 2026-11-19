@@ -63,6 +63,18 @@ kill "$foreign_worker_pid"
 wait "$foreign_worker_pid" 2>/dev/null || true
 printf '%s' "$pid" > "$job/pid"
 
+# A bootstrap lock held by an untracked process must refuse the restart.
+exec 7>"$HOME/.thunderclient-bootstrap.lock"
+flock -n 7
+if bash "$scratch/restart.sh" >"$scratch/foreign-lock-restart.txt" 2>&1; then
+    echo "restart incorrectly replaced a locked bootstrap" >&2
+    exit 1
+fi
+grep -q 'Bootstrap-Lock durch anderen Prozess belegt' "$scratch/foreign-lock-restart.txt"
+flock -u 7
+exec 7>&-
+[[ "$(cat "$job/run_id")" == "$run" ]]
+
 # Simulate an expensive persistent model file. A software restart must
 # never erase this directory or trigger destructive Pod infrastructure calls.
 mkdir -p "$HOME/comfyui-workspace/ComfyUI/models/checkpoints"
