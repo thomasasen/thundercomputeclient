@@ -113,6 +113,7 @@ public sealed class MaterialIconConverter : IValueConverter
         if (label.Contains("Nach unten", StringComparison.OrdinalIgnoreCase)) return "down";
         if (label.Contains("Hilfe", StringComparison.OrdinalIgnoreCase) ||
             label.Contains("Anleitung", StringComparison.OrdinalIgnoreCase)) return "info";
+        if (label.Contains("Übersicht", StringComparison.OrdinalIgnoreCase)) return "dashboard";
         if (label.Contains("Einstellungen", StringComparison.OrdinalIgnoreCase)) return "settings";
         if (label.Contains("Log", StringComparison.OrdinalIgnoreCase)) return "list";
         return null; // Unknown action: no decorative or misleading symbol.
