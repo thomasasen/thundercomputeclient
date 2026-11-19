@@ -9,6 +9,10 @@
     <RootNamespace>ThunderClient</RootNamespace>
     <Version>0.1.5</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\\ThunderClient.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\\ThunderClient.ico" />
+  </ItemGroup>
 </Project>
 
