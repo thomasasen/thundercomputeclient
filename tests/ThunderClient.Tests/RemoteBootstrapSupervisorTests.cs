@@ -44,6 +44,28 @@ public sealed class RemoteBootstrapSupervisorTests
     }
 
     [Fact]
+    public void ExplicitRestartOnlyTargetsTrackedDetachedSessionWithoutRemovingModels()
+    {
+        var restart = RemoteBootstrapSupervisor.BuildLaunchScript(
+            Adapter, Commit, "T2I_Demo", "github-secret", "", "", restart: true);
+        var normal = RemoteBootstrapSupervisor.BuildLaunchScript(
+            Adapter, Commit, "T2I_Demo", "github-secret", "", "");
+
+        Assert.Contains("'1' == '1'", restart);
+        Assert.Contains("'0' == '1'", normal);
+        Assert.Contains("THUNDER_CLIENT_RUN_ID=$active_run", restart);
+        Assert.Contains(@"$pgid"" != ""$active""", restart);
+        Assert.Contains(@"$sid"" != ""$active""", restart);
+        Assert.Contains("kill -TERM -- \"-$active\"", restart);
+        Assert.Contains("kill -0 -- \"-$active\"", restart);
+        Assert.Contains("Vorherige Prozessgruppe beendet; Modelle und Workspace bleiben erhalten", restart);
+        Assert.Contains("Prepare the new, credential-free worker BEFORE stopping", restart);
+        Assert.DoesNotContain("rm -rf", restart);
+        Assert.DoesNotContain("tnr delete", restart);
+        Assert.DoesNotContain("reboot", restart);
+    }
+
+    [Fact]
     public void ReattachIsBoundToPidAndRunIdentity()
     {
         var script = RemoteBootstrapSupervisor.BuildFollowScript();
