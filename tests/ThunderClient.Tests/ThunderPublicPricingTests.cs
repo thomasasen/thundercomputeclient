@@ -33,6 +33,45 @@ public class ThunderPublicPricingTests
     }
 
     [Fact]
+    public async Task LiveRunningTariffUsesActualPodCpuDiskAndGpuInsteadOfUiPlan()
+    {
+        using var http = new HttpClient(new FakeHandler());
+        var pod = new InstanceItem("4", "uuid", "Live", "RUNNING",
+            "l40", "127.0.0.1", 2222, DateTimeOffset.UtcNow, 149, 1, 12);
+        var quote = await new ThunderPublicPricing(http).QuoteRunningInstanceAsync(pod);
+        Assert.Equal("4", quote.InstanceId);
+        Assert.Equal(12, quote.CpuCores);
+        Assert.Equal(149, quote.StorageGb);
+        Assert.Equal(0.79m + (12-6)*0.04m + 49*0.0003m, quote.HourlyUsd);
+        Assert.Equal(0.79m, quote.GpuHourlyUsd);
+        Assert.Equal(6*0.04m, quote.AdditionalCpuHourlyUsd);
+    }
+
+    [Fact]
+    public async Task MissingActualCpuOrStoppedPodDoesNotInventACharge()
+    {
+        using var http = new HttpClient(new FakeHandler());
+        var service = new ThunderPublicPricing(http);
+        var running = new InstanceItem("4", "uuid", "Live", "RUNNING",
+            "l40", "127.0.0.1", 2222, DateTimeOffset.UtcNow, 149, 1);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.QuoteRunningInstanceAsync(running));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.QuoteRunningInstanceAsync(running with
+                { Status = "STOPPED", CpuCores = 12 }));
+    }
+
+    [Fact]
+    public async Task UnknownGpuDoesNotFallBackToAnUnrelatedTariff()
+    {
+        using var http = new HttpClient(new FakeHandler());
+        var pod = new InstanceItem("4", "uuid", "Live", "RUNNING",
+            "new-unknown-gpu", "127.0.0.1", 2222, DateTimeOffset.UtcNow, 149, 1, 12);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new ThunderPublicPricing(http).QuoteRunningInstanceAsync(pod));
+    }
+
+    [Fact]
     public async Task ProviderCpuAndDiskRatesCannotPassFalseBudget()
     {
         using var http = new HttpClient(new FakeHandler());
