@@ -1,7 +1,7 @@
 <Window x:Class="ThunderClient.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Thunder Compute Client" Width="1320" Height="850"
+        Title="Thunder Compute Client" Icon="Assets/ThunderClient.ico" Width="1320" Height="850"
         MinWidth="1080" MinHeight="680" WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded" Closed="Window_Closed">
     <Grid Background="{DynamicResource WindowBrush}">
@@ -13,11 +13,9 @@
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
             <DockPanel Margin="18,24,16,18">
                 <StackPanel DockPanel.Dock="Top" Margin="5,3,0,36">
-                    <Border Width="42" Height="42" HorizontalAlignment="Left" CornerRadius="13"
-                            Background="{DynamicResource AccentBrush}" Margin="0,0,0,15">
-                        <TextBlock Text="T" FontSize="23" FontWeight="Bold" Foreground="{DynamicResource OnAccentBrush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <Image Width="42" Height="42" HorizontalAlignment="Left"
+                           Source="Assets/ThunderClient.ico" Stretch="Uniform"
+                           Margin="0,0,0,15" />
                     <TextBlock FontSize="20" FontWeight="Bold" Text="Thunder Compute" />
                     <TextBlock FontSize="12" Foreground="{DynamicResource SubtleBrush}"
                                Text="ComfyUI Workspace" Margin="0,4,0,0" />
@@ -482,7 +480,8 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     </Border>
-                    <StackPanel Grid.Row="2">
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="355">
+                        <StackPanel>
                         <WrapPanel Margin="0,10">
                             <Button x:Name="PodSetupButton" Click="OpenPodSetup_Click"
                                     Content="4  Installation &amp; Logs" />
@@ -492,15 +491,48 @@
                             <Button Command="{Binding RefreshInstancesCommand}" Content="Status aktualisieren" />
                             <Button Command="{Binding SshTerminalCommand}" Content="SSH-Terminal" />
                             <Button Command="{Binding TunnelCommand}" Content="ComfyUI öffnen (SSH)" />
+                            <Button Command="{Binding RestartPodSoftwareCommand}"
+                                    Content="Pod-Software neu starten &amp; Git aktualisieren …"
+                                    ToolTip="Neue Git-main-Revision laden und den vorhandenen ComfyUI-Bootstrap auf derselben Instanz neu starten. Persistente Modelle und Outputs bleiben erhalten." />
                             <Button Command="{Binding PreparePodRecoveryCommand}"
                                     Content="Pod wiederherstellen (Snapshot) …"
                                     ToolTip="Die bestehende Instanzdisk wird im Snapshot gesichert. Thunder bietet keinen dokumentierten In-Place-Neustart; Restore erfolgt als neue Instanz nach gesonderter Kostenfreigabe." />
                             <Button Click="OpenThunderConsole_Click" Content="Thunder-Podverwaltung öffnen" />
                             <Button Command="{Binding DeleteInstanceCommand}" Content="Instanz löschen …" Background="{DynamicResource DangerBrush}" Foreground="White" />
                         </WrapPanel>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="14,12" Margin="0,8,0,8">
+                            <StackPanel>
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock Text="Aktuelle Pod-Kosten &amp; Kontostand"
+                                               FontWeight="SemiBold" FontSize="16"
+                                               VerticalAlignment="Center" DockPanel.Dock="Left" />
+                                    <Button Command="{Binding RefreshPodCostsCommand}"
+                                            Content="Live-Tarif abrufen" Margin="12,0,0,0"
+                                            DockPanel.Dock="Right" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding PodHourlyRate}" FontSize="18"
+                                           FontWeight="SemiBold" Margin="0,9,0,3" />
+                                <TextBlock Text="{Binding PodTariffBreakdown}"
+                                           Style="{StaticResource FieldHint}" TextWrapping="Wrap" />
+                                <TextBlock Text="Kosten seit Erstellung (nicht abgerechnet)"
+                                           FontWeight="SemiBold" Margin="0,10,0,2" />
+                                <TextBlock Text="{Binding PodProjectedCost}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding LiveTariffStatus}"
+                                           Style="{StaticResource FieldHint}" Margin="0,8,0,0"
+                                           TextWrapping="Wrap" />
+                                <Separator Margin="0,10" />
+                                <TextBlock Text="Aktuelle Balance / Prepaid-Guthaben"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding AccountBalanceStatus}"
+                                           TextWrapping="Wrap" Margin="0,4,0,7" />
+                                <Button Click="OpenThunderBilling_Click"
+                                        Content="Offizielle Thunder-Abrechnung &amp; Balance öffnen"
+                                        HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock FontWeight="Bold" Text="{Binding CostSummary}" />
                         <TextBlock Foreground="{DynamicResource SubtleBrush}"
-                                   Text="Thunder dokumentiert keinen In-Place-Neustart. Sicherer Wiederherstellungsweg: Snapshot erstellen, READY prüfen, als neue Instanz wiederherstellen. Alten Pod erst nach erfolgreicher Datenprüfung löschen; beide Instanzen und der Snapshot können Kosten verursachen." TextWrapping="Wrap" />
+                                   Text="Der Git-/ComfyUI-Neustart startet nur die Software auf dem bestehenden Pod neu und erhält persistente Daten. Ein echter OS-/VM-Neustart ist hier nicht implementiert. Für die Wiederherstellung einer VM einen READY-Snapshot als neue Instanz starten; dabei können zusätzliche Kosten entstehen." TextWrapping="Wrap" />
                         <Separator Margin="0,15,0,13" />
                         <TextBlock FontWeight="Bold" Text="Snapshots" />
                         <WrapPanel Margin="0,5">
@@ -512,7 +544,8 @@
                                  DisplayMemberPath="Display" MinHeight="70" MaxHeight="120" />
                         <Button Command="{Binding RestoreSnapshotCommand}"
                                 Content="READY-Snapshot als neues Template wählen" HorizontalAlignment="Left" />
-                    </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </TabItem>
             <TabItem Header="Downloads &amp; Logs">
@@ -532,6 +565,9 @@
                         <WrapPanel>
                             <Button Command="{Binding BootstrapCommand}"
                                     Content="Bootstrap manuell starten …" />
+                            <Button Command="{Binding RestartPodSoftwareCommand}"
+                                    Content="Git aktualisieren &amp; ComfyUI neu starten …"
+                                    ToolTip="Bestehenden Pod behalten; neue Bootstrap-Revision aus GitHub laden, eigenen laufenden Job kontrolliert beenden und neu starten, ohne Modellverzeichnisse zu löschen." />
                             <Button Command="{Binding CancelAutoDeploymentCommand}"
                                     IsEnabled="{Binding AutoDeploymentRunning}"
                                     Content="Automatik abbrechen (Pod bleibt!)" />

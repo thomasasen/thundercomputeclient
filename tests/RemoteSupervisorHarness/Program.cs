@@ -23,7 +23,7 @@ internal static class Program
 {
     private static void Main(string[] args)
     {
-        if (args.Length != 1) throw new ArgumentException("launch or follow");
+        if (args.Length != 1) throw new ArgumentException("launch, restart or follow");
         const string demo = "#!/usr/bin/env bash\n" +
             "if [[ \"$GITHUB_TOKEN\" != 'gh-demo' ]]; then exit 30; fi\n" +
             "echo '[TEST-REMOTE] started'\n" +
@@ -33,6 +33,8 @@ internal static class Program
         {
             "launch" => RemoteBootstrapSupervisor.BuildLaunchScript(
                 demo, new string('a', 40), "Demo", "gh-demo", "", ""),
+            "restart" => RemoteBootstrapSupervisor.BuildLaunchScript(
+                demo, new string('a', 40), "Demo", "gh-demo", "", "", restart: true),
             "follow" => RemoteBootstrapSupervisor.BuildFollowScript(),
             _ => throw new ArgumentException("unknown action")
         };

@@ -58,6 +58,9 @@ public sealed class MainViewModel : Bindable, IDisposable
     private string _downloadSummary = "Keine Downloadereignisse empfangen";
     private string _versionStatus = "Nicht geprüft";
     private string _lastRefreshed = "Instanzstatus nicht geladen";
+    private ThunderPublicPricing.RunningInstanceQuote? _runningCostQuote;
+    private string _liveTariffStatus = "Noch kein Live-Tarif abgerufen.";
+    private bool _billingBusy;
     private Task? _monitorTask;
     private string _snapshotName = "comfyui-backup";
     private string _gitTokenStatus = "";
@@ -88,10 +91,12 @@ public sealed class MainViewModel : Bindable, IDisposable
     public AsyncCommand SyncCommand { get; }
     public AsyncCommand RunSystemChecksCommand { get; }
     public AsyncCommand RefreshInstancesCommand { get; }
+    public AsyncCommand RefreshPodCostsCommand { get; }
     public AsyncCommand CreateCommand { get; }
     public AsyncCommand AutoDeployCommand { get; }
     public RelayCommand CancelAutoDeploymentCommand { get; }
     public AsyncCommand BootstrapCommand { get; }
+    public AsyncCommand RestartPodSoftwareCommand { get; }
     public AsyncCommand HardwareCommand { get; }
     public AsyncCommand SshTerminalCommand { get; }
     public AsyncCommand TunnelCommand { get; }
@@ -134,10 +139,12 @@ public sealed class MainViewModel : Bindable, IDisposable
         SyncCommand = New(SyncAsync);
         RunSystemChecksCommand = New(RunSystemChecksAsync);
         RefreshInstancesCommand = New(() => RefreshInstancesAsync());
+        RefreshPodCostsCommand = New(RefreshPodCostsAsync);
         CreateCommand = New(CreateAsync);
         AutoDeployCommand = New(AutoDeployAsync);
         CancelAutoDeploymentCommand = new RelayCommand(CancelAutoDeployment);
         BootstrapCommand = New(BootstrapAsync);
+        RestartPodSoftwareCommand = New(RestartPodSoftwareAsync);
         HardwareCommand = New(HardwareAsync);
         SshTerminalCommand = New(OpenTerminalAsync);
         TunnelCommand = New(OpenComfyAsync);
@@ -275,6 +282,37 @@ public sealed class MainViewModel : Bindable, IDisposable
     public string LogText => string.Join(Environment.NewLine, LogLines);
     public string VersionStatus { get => _versionStatus; private set => Set(ref _versionStatus, value); }
     public string LastRefreshed { get => _lastRefreshed; private set => Set(ref _lastRefreshed, value); }
+    public string LiveTariffStatus { get => _liveTariffStatus; private set => Set(ref _liveTariffStatus, value); }
+    public bool BillingBusy { get => _billingBusy; private set => Set(ref _billingBusy, value); }
+    public string PodHourlyRate =>
+        _runningCostQuote is { } quote &&
+        string.Equals(quote.InstanceId, SelectedInstance?.Id, StringComparison.Ordinal)
+            ? quote.HourlyUsd.ToString("N3", System.Globalization.CultureInfo.CurrentCulture) +
+              " USD/h (Thunder-v2-Tarif, Abruf " + quote.CheckedAt.ToLocalTime().ToString("HH:mm") + ")"
+            : "Noch nicht für diesen Pod abgefragt";
+    public string PodTariffBreakdown =>
+        _runningCostQuote is { } quote &&
+        string.Equals(quote.InstanceId, SelectedInstance?.Id, StringComparison.Ordinal)
+            ? "GPU " + quote.GpuHourlyUsd.ToString("N3") +
+              " + zusätzliche vCPUs " + quote.AdditionalCpuHourlyUsd.ToString("N3") +
+              " + Zusatzdisk " + quote.AdditionalDiskHourlyUsd.ToString("N3") +
+              " USD/h · " + quote.GpuCount + " GPU(s), " + quote.CpuCores +
+              " vCPUs, " + quote.StorageGb + " GB"
+            : "Preis hängt von der tatsächlich gemeldeten GPU-/CPU-/Disk-Konfiguration ab.";
+    public string PodProjectedCost =>
+        _runningCostQuote is { } quote &&
+        string.Equals(quote.InstanceId, SelectedInstance?.Id, StringComparison.Ordinal) &&
+        SelectedInstance?.Created is { } created &&
+        SelectedInstance?.Status == "RUNNING" &&
+        created <= DateTimeOffset.UtcNow
+            ? (quote.HourlyUsd *
+                (decimal)Math.Max(0, (DateTimeOffset.UtcNow - created).TotalHours))
+                .ToString("N2") +
+              " USD (rein rechnerisch bei durchgehend RUNNING seit Erstellung; keine Abrechnung)"
+            : "Nicht seriös berechenbar ohne vollständigen Laufzeitverlauf.";
+    public string AccountBalanceStatus =>
+        "Nicht über die dokumentierte Thunder-REST-/CLI-Schnittstelle abrufbar. " +
+        "Aktuellen Kontostand in der offiziellen Thunder-Abrechnung prüfen.";
     public string GitTokenStatus { get => _gitTokenStatus; private set => Set(ref _gitTokenStatus, value); }
     public string ThunderApiTokenStatus { get => _thunderApiTokenStatus; private set => Set(ref _thunderApiTokenStatus, value); }
     public string HfTokenStatus { get => _hfTokenStatus; private set => Set(ref _hfTokenStatus, value); }
@@ -309,7 +347,7 @@ public sealed class MainViewModel : Bindable, IDisposable
     public InstanceItem? SelectedInstance
     {
         get => _selectedInstance;
-        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(ConnectionSummary)); OnPropertyChanged(nameof(CostSummary)); UpdateWizardNotice(); } }
+        set { if (Set(ref _selectedInstance, value)) { OnPropertyChanged(nameof(InstanceSummary)); OnPropertyChanged(nameof(ConnectionSummary)); OnPropertyChanged(nameof(CostSummary)); OnPropertyChanged(nameof(PodHourlyRate)); OnPropertyChanged(nameof(PodTariffBreakdown)); OnPropertyChanged(nameof(PodProjectedCost)); UpdateWizardNotice(); } }
     }
     public WorkflowItem? SelectedWorkflow { get => _selectedWorkflow; set => Set(ref _selectedWorkflow, value); }
     public GpuChoice? SelectedGpu { get => _selectedGpu; set => Set(ref _selectedGpu, value); }
@@ -635,6 +673,57 @@ public sealed class MainViewModel : Bindable, IDisposable
         LastRefreshed = $"Letzte Statusprüfung: {DateTime.Now:HH:mm:ss}";
         Message = $"{Instances.Count} Thunder-Instanzen gefunden";
         UpdateWizardNotice();
+    }
+
+    private async Task RefreshPodCostsAsync()
+    {
+        if (BillingBusy || Busy || AutoDeploymentRunning) return;
+        var selected = SelectedInstance ??
+            throw new InvalidOperationException("Für die Tarifprüfung zuerst einen Pod auswählen.");
+        BillingBusy = true;
+        LiveTariffStatus = "Lese aktuelle Instanzdaten und Thunder-Preistarife (nur GET).";
+        try
+        {
+            var pods = await _thunder.ListAsync(_shutdown.Token);
+            var current = pods.SingleOrDefault(x =>
+                string.Equals(x.Id, selected.Id, StringComparison.Ordinal));
+            if (current is null)
+                throw new InvalidOperationException("Pod nicht mehr in Thunder-Statusliste vorhanden.");
+            if (!string.IsNullOrEmpty(selected.Uuid) && current.Uuid != selected.Uuid)
+                throw new InvalidOperationException(
+                    "Die Instanz-UUID hat sich geändert. Keine Tarifeinordnung mit falscher Identität.");
+            if (current.Status != "RUNNING")
+                throw new InvalidOperationException("Pod ist nicht RUNNING; kein aktiver GPU-Stundentarif.");
+            var quote = await _livePricing.QuoteRunningInstanceAsync(current, _shutdown.Token);
+            _runningCostQuote = quote;
+            var tracked = Instances.FirstOrDefault(x => x.Id == current.Id);
+            if (tracked is not null)
+            {
+                var index = Instances.IndexOf(tracked);
+                Instances[index] = current;
+            }
+            SelectedInstance = current;
+            OnPropertyChanged(nameof(PodHourlyRate));
+            OnPropertyChanged(nameof(PodTariffBreakdown));
+            OnPropertyChanged(nameof(PodProjectedCost));
+            LiveTariffStatus = "Live-Stundentarif aus Thunder v2/pricing und v2/specs. " +
+                "Nicht gleichbedeutend mit bereits abgerechneten Kosten oder Guthaben. " +
+                "Historische Rechnungen, Rabatte, Guthaben und Snapshots sind nicht enthalten.";
+            Log("[KOSTEN] Pod " + current.Id + ": aktueller Ressourcen-Tarif " +
+                quote.HourlyUsd.ToString("N3") + " USD/h (" +
+                current.Gpu + " ×" + current.GpuCount + ", " + current.CpuCores +
+                " vCPUs, " + current.StorageGb + " GB). Keine Abrechnungsdaten.");
+        }
+        catch
+        {
+            _runningCostQuote = null;
+            LiveTariffStatus = "Live-Tarif konnte nicht bestätigt werden. Kein Ersatz durch alte GUI-Schätzwerte.";
+            OnPropertyChanged(nameof(PodHourlyRate));
+            OnPropertyChanged(nameof(PodTariffBreakdown));
+            OnPropertyChanged(nameof(PodProjectedCost));
+            throw;
+        }
+        finally { BillingBusy = false; }
     }
 
     private async Task RefreshSnapshotsAsync()
@@ -1201,8 +1290,133 @@ public sealed class MainViewModel : Bindable, IDisposable
         Message = "Hardwarestatus über SSH abgerufen.";
     }
 
+    private async Task<SshConnection> TrustedExistingSshForRestartAsync(
+        InstanceItem pod, CancellationToken ct)
+    {
+        // No GET from the private Git catalog is involved in this method.
+        // Provider mutation is expressly forbidden: no add_key, no tnr connect.
+        var endpoint = _thunder.GetExistingSsh(pod);
+        if (endpoint is null)
+        {
+            var path = Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+                "ThunderClient", "ssh", "identity_ed25519");
+            if (!File.Exists(path))
+                throw new InvalidOperationException(
+                    "Für den Software-Neustart fehlt ein bereits autorisierter SSH-Schlüssel. " +
+                    "Den vorhandenen Pod erst ausdrücklich einrichten. " +
+                    "Beim Neustart wird kein neuer SSH-Schlüssel registriert.");
+            var identity = await _thunderSshApi.PrepareIdentityAsync(path, ct);
+            if (!System.Net.IPAddress.TryParse(pod.Ip, out _) ||
+                pod.Port is < 1 or > 65535)
+                throw new InvalidOperationException(
+                    "Thunder hat keine gültige SSH-IP/-Port-Kombination geliefert.");
+            endpoint = new SshConnection(pod.Id, pod.Ip, pod.Port, identity.PrivateFile);
+        }
+
+        if (!await _ssh.HasKnownHostAsync(endpoint, ct))
+        {
+            var host = await _ssh.ScanHostKeyAsync(endpoint, ct);
+            if (!_dialogs.ApproveFingerprint(endpoint.Host, host.Fingerprint))
+                throw new SshFingerprintNotConfirmedException();
+            _ssh.TrustHostKey(host.KeyLine);
+        }
+        var probe = await _ssh.WaitForAuthenticationAsync(endpoint,
+            line => Log("[POD-RESTART] " + line), ct: ct);
+        if (!probe.Success)
+            throw new InvalidOperationException(
+                "SSH-Anmeldung mit dem bereits autorisierten Schlüssel fehlgeschlagen. " +
+                "Kein Add-Key-Aufruf und kein Bootstrap-Neustart ausgeführt.");
+        return endpoint;
+    }
+
+    private async Task RestartPodSoftwareAsync()
+    {
+        if (Busy || AutoDeploymentRunning)
+            throw new InvalidOperationException(
+                "Eine andere Installation oder Bereitstellung läuft. Neustart jetzt gesperrt.");
+        var requestedPod = SelectedInstance ??
+            throw new InvalidOperationException("Zuerst den vorhandenen Pod auswählen.");
+        if (requestedPod.Status != "RUNNING")
+            throw new InvalidOperationException("Software-Neustart nur auf einem RUNNING-Pod möglich.");
+        var names = Workflows.Where(item => item.IsSelected)
+            .Select(item => item.Name).ToArray();
+        if (names.Length == 0)
+            throw new InvalidOperationException("Vor dem Neustart Workflows auswählen.");
+        var githubToken = _vault.Read("github");
+        if (string.IsNullOrWhiteSpace(githubToken))
+            throw new InvalidOperationException(
+                "GitHub-Lesetoken fehlt. Ohne frische GitHub-Revision wird kein Prozess gestoppt.");
+
+        Busy = true;
+        try
+        {
+            Log("[POD-RESTART] Lade und validiere die neueste GitHub-main-Revision.");
+            // Do not use the cached _snapshot or SyncAsync's offline fallback.
+            // FetchAsync pins catalog, manifests and adapter to ONE real commit.
+            var latest = await _github.FetchAsync(githubToken, _shutdown.Token);
+            _ = PodSoftwareRestartPlanner.Validate(latest, names);
+            _ = SshService.PinBootstrapAdapter(latest.BootstrapScript, latest.Commit);
+            var current = await _thunder.ListAsync(_shutdown.Token);
+            var livePod = PodRecoveryPlanner.RequireSameRunningInstance(requestedPod, current);
+            SelectedInstance = livePod;
+            Log("[POD-RESTART] Pod " + livePod.Id + " bestätigt; neue GitHub-Revision " +
+                latest.Commit + ". Kein Create, Delete oder OS-Reboot.");
+
+            // A software restart MUST NOT re-register SSH keys or trigger
+            // Thunder's add_key API. Only an already-authorized key is allowed.
+            var ssh = await TrustedExistingSshForRestartAsync(livePod, _shutdown.Token);
+            var workflowsCsv = string.Join(",", names);
+            if (!_dialogs.Confirm("Pod-Software mit aktuellem Git neu starten",
+                "Vorhandener Thunder-Pod: " + livePod.Id + "\n" +
+                "Workflows: " + workflowsCsv + "\n" +
+                "Neue GitHub-main-Revision: " + latest.Commit + "\n\n" +
+                "Der bisherige, vom ThunderClient gestartete Bootstrap/ComfyUI-Prozess " +
+                "und seine laufenden Download-Worker werden beendet. Danach startet " +
+                "das NEUE, commit-fixierte Skript auf derselben Instanz. " +
+                "Modellverzeichnis, Downloads, Outputs und Workspace werden NICHT gelöscht. " +
+                "Bereits verifizierte Modelle werden wiederverwendet; neue, geänderte " +
+                "oder unvollständige Modelle können erneut Netzwerktraffic auslösen.\n\n" +
+                "GPU-Kosten laufen weiter. Kein neuer Pod und kein VM-Neustart. Fortfahren?"))
+            {
+                Log("[POD-RESTART] Abgebrochen; der laufende Remote-Prozess bleibt unverändert.");
+                return;
+            }
+
+            Log("[POD-RESTART] Stoppe nur den nachweislich zugehörigen Remote-Job " +
+                "und starte Revision " + latest.Commit[..12] + ".");
+            var started = await _ssh.RestartBootstrapAsync(
+                ssh, latest.BootstrapScript, workflowsCsv, latest.Commit,
+                githubToken, _vault.Read("huggingface"), _vault.Read("civitai"),
+                Log, _shutdown.Token);
+            if (!started.Success)
+                throw new ExternalCommandException("Pod-Software-Neustart", started);
+
+            // The new job was accepted by the remote supervisor. It keeps
+            // running after SSH disconnects, but ComfyUI HTTP readiness and
+            // full model integrity have NOT yet been independently verified.
+            _settings.SelectedWorkflows = names.ToList();
+            _snapshot = latest;
+            Commit = latest.Commit;
+            GitSyncStatus = "API-Lesezugriff · " + latest.Commit[..12];
+            LoadWorkflows();
+            DownloadStatus = "Neuer Bootstrap-Job gestartet; ComfyUI-Bereitschaft noch nicht geprüft.";
+            AutoDeploymentStatus = "Pod " + livePod.Id +
+                ": Software-Neustart auf Revision " + latest.Commit[..12] +
+                " angefordert. Laufende Prozesse und Modelle unter Downloads & Logs prüfen.";
+            Message = "Pod " + livePod.Id + ": neuer Bootstrap-Job läuft auf Git-Revision " +
+                latest.Commit[..12] + ". Keine Modell- oder Output-Verzeichnisse gelöscht.";
+            Log("[POD-RESTART] " + Message +
+                " Für den Remote-Logstream 'Bootstrap manuell starten …' wählen " +
+                "(hängt sich an denselben Job an).");
+        }
+        finally { Busy = false; }
+    }
+
     private async Task BootstrapAsync()
     {
+        if (Busy)
+            throw new InvalidOperationException("Andere Pod-Aktion läuft. Bootstrap nicht parallel starten.");
         if (AutoDeploymentRunning)
             throw new InvalidOperationException("Automatische Bereitstellung läuft; Bootstrap nicht ein zweites Mal starten.");
         var selected = Workflows.Where(x => x.IsSelected).ToArray();
