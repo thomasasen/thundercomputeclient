@@ -1290,6 +1290,46 @@ public sealed class MainViewModel : Bindable, IDisposable
         Message = "Hardwarestatus über SSH abgerufen.";
     }
 
+    private async Task<SshConnection> TrustedExistingSshForRestartAsync(
+        InstanceItem pod, CancellationToken ct)
+    {
+        // No GET from the private Git catalog is involved in this method.
+        // Provider mutation is expressly forbidden: no add_key, no tnr connect.
+        var endpoint = _thunder.GetExistingSsh(pod);
+        if (endpoint is null)
+        {
+            var path = Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+                "ThunderClient", "ssh", "identity_ed25519");
+            if (!File.Exists(path))
+                throw new InvalidOperationException(
+                    "Für den Software-Neustart fehlt ein bereits autorisierter SSH-Schlüssel. " +
+                    "Den vorhandenen Pod erst ausdrücklich einrichten. " +
+                    "Beim Neustart wird kein neuer SSH-Schlüssel registriert.");
+            var identity = await _thunderSshApi.PrepareIdentityAsync(path, ct);
+            if (!System.Net.IPAddress.TryParse(pod.Ip, out _) ||
+                pod.Port is < 1 or > 65535)
+                throw new InvalidOperationException(
+                    "Thunder hat keine gültige SSH-IP/-Port-Kombination geliefert.");
+            endpoint = new SshConnection(pod.Id, pod.Ip, pod.Port, identity.PrivateFile);
+        }
+
+        if (!await _ssh.HasKnownHostAsync(endpoint, ct))
+        {
+            var host = await _ssh.ScanHostKeyAsync(endpoint, ct);
+            if (!_dialogs.ApproveFingerprint(endpoint.Host, host.Fingerprint))
+                throw new SshFingerprintNotConfirmedException();
+            _ssh.TrustHostKey(host.KeyLine);
+        }
+        var probe = await _ssh.WaitForAuthenticationAsync(endpoint,
+            line => Log("[POD-RESTART] " + line), ct: ct);
+        if (!probe.Success)
+            throw new InvalidOperationException(
+                "SSH-Anmeldung mit dem bereits autorisierten Schlüssel fehlgeschlagen. " +
+                "Kein Add-Key-Aufruf und kein Bootstrap-Neustart ausgeführt.");
+        return endpoint;
+    }
+
     private async Task RestartPodSoftwareAsync()
     {
         if (Busy || AutoDeploymentRunning)
@@ -1323,8 +1363,9 @@ public sealed class MainViewModel : Bindable, IDisposable
             Log("[POD-RESTART] Pod " + livePod.Id + " bestätigt; neue GitHub-Revision " +
                 latest.Commit + ". Kein Create, Delete oder OS-Reboot.");
 
-            // Retain independent SSH host-key verification; never use tnr connect.
-            var ssh = await TrustedSshAsync(_shutdown.Token);
+            // A software restart MUST NOT re-register SSH keys or trigger
+            // Thunder's add_key API. Only an already-authorized key is allowed.
+            var ssh = await TrustedExistingSshForRestartAsync(livePod, _shutdown.Token);
             var workflowsCsv = string.Join(",", names);
             if (!_dialogs.Confirm("Pod-Software mit aktuellem Git neu starten",
                 "Vorhandener Thunder-Pod: " + livePod.Id + "\n" +
