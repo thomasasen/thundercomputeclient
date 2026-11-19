@@ -10,7 +10,8 @@ namespace ThunderClient.Core;
 public static class RemoteBootstrapSupervisor
 {
     public static string BuildLaunchScript(string reviewedAdapter, string commit,
-        string workflows, string githubToken, string? huggingFace, string? civitai)
+        string workflows, string githubToken, string? huggingFace, string? civitai,
+        bool restart = false)
     {
         var adapter = SshService.PinBootstrapAdapter(reviewedAdapter, commit);
         if (!Regex.IsMatch(workflows, @"\A[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*\z") ||
@@ -26,11 +27,12 @@ public static class RemoteBootstrapSupervisor
         var encodedWorker = Convert.ToBase64String(Encoding.UTF8.GetBytes(worker));
         var nextRun = Guid.NewGuid().ToString("N");
         var revision = commit.ToLowerInvariant();
+        var restartFlag = restart ? "1" : "0";
 
         return $$"""
 set -Eeuo pipefail
 umask 077
-for command in flock nohup setsid base64 tail grep; do
+for command in flock nohup setsid base64 tail grep ps sleep mktemp; do
     command -v "$command" >/dev/null 2>&1 || {
         printf '[THUNDER-CLIENT] Remote-Voraussetzung fehlt: %s\n' "$command"
         exit 41
@@ -58,6 +60,41 @@ if [[ -f "$job/pid" && -f "$job/run_id" ]]; then
         active="$active_pid"
     fi
 fi
+# Prepare the new, credential-free worker BEFORE stopping a healthy service.
+# A failed download, validation or local disk write must not kill the old run.
+staging="$(mktemp "$job/.bootstrap.XXXXXXXX")"
+trap 'if [[ -n "$staging" ]]; then rm -f -- "$staging"; fi' EXIT
+printf '%s' '{{encodedWorker}}' | base64 --decode > "$staging"
+chmod 700 "$staging"
+
+if [[ -n "$active" && '{{restartFlag}}' == '1' ]]; then
+    # Only stop the exact detached run started by ThunderClient.
+    # Never kill an untracked ComfyUI, unrelated PID or the SSH session.
+    pgid="$(ps -o pgid= -p "$active" || true)"
+    sid="$(ps -o sid= -p "$active" || true)"
+    pgid="${pgid//[[:space:]]/}"
+    sid="${sid//[[:space:]]/}"
+    if [[ "$pgid" != "$active" || "$sid" != "$active" ]] ||
+       ! grep -azFq "THUNDER_CLIENT_RUN_ID=$active_run" "/proc/$active/environ"; then
+        echo '[THUNDER-CLIENT] Prozessgruppe nicht eindeutig; Neustart aus Sicherheitsgründen gesperrt'
+        exit 45
+    fi
+    echo '[THUNDER-CLIENT] Stoppe den bisherigen Bootstrap/ComfyUI-Prozess kontrolliert'
+    kill -TERM -- "-$active" || {
+        echo '[THUNDER-CLIENT] Vorheriger Prozess konnte nicht beendet werden'
+        exit 45
+    }
+    for ((i=0; i<45; i++)); do
+        if ! kill -0 -- "-$active" 2>/dev/null; then break; fi
+        sleep 1
+    done
+    if kill -0 -- "-$active" 2>/dev/null; then
+        echo '[THUNDER-CLIENT] Bisherige Prozessgruppe läuft noch; kein zweiter Bootstrap'
+        exit 45
+    fi
+    echo '[THUNDER-CLIENT] Vorherige Prozessgruppe beendet; Modelle und Workspace bleiben erhalten'
+    active=''
+fi
 if [[ -n "$active" ]]; then
     if [[ ! -f "$job/commit" || ! -f "$job/workflows" ]] ||
        [[ "$(cat "$job/commit")" != '{{revision}}' ]] ||
@@ -78,10 +115,8 @@ if [[ -f "$job/output.log" && -f "$job/run_id" ]]; then
         exit 41
     fi
 fi
-staging="$(mktemp "$job/.bootstrap.XXXXXXXX")"
-printf '%s' '{{encodedWorker}}' | base64 --decode > "$staging"
-chmod 700 "$staging"
 mv -- "$staging" "$job/bootstrap.sh"
+staging=''
 touch "$job/output.log"
 chmod 600 "$job/output.log"
 printf '%s' '{{nextRun}}' > "$job/run_id"
