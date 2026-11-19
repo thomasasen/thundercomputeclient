@@ -32,7 +32,7 @@ public static class RemoteBootstrapSupervisor
         return $$"""
 set -Eeuo pipefail
 umask 077
-for command in flock nohup setsid base64 tail grep ps sleep mktemp; do
+for command in flock nohup setsid base64 tail grep ps sleep mktemp python3; do
     command -v "$command" >/dev/null 2>&1 || {
         printf '[THUNDER-CLIENT] Remote-Voraussetzung fehlt: %s\n' "$command"
         exit 41
@@ -58,6 +58,31 @@ if [[ -f "$job/pid" && -f "$job/run_id" ]]; then
        [[ -r "/proc/$active_pid/environ" ]] &&
        grep -azFq "THUNDER_CLIENT_RUN_ID=$active_run" "/proc/$active_pid/environ"; then
         active="$active_pid"
+    fi
+fi
+# A running PID that no longer matches the recorded Run-ID is not
+# ours to signal or replace. Do not overwrite job metadata in this case.
+if [[ '{{restartFlag}}' == '1' && -z "$active" && -f "$job/pid" ]]; then
+    previous_pid="$(cat "$job/pid")"
+    if [[ "$previous_pid" =~ ^[0-9]+$ ]] && kill -0 "$previous_pid" 2>/dev/null; then
+        echo '[THUNDER-CLIENT] Bisheriger PID läuft, gehört aber nicht eindeutig zum Remote-Job; Neustart gesperrt'
+        exit 45
+    fi
+fi
+# When our previous job already exited, another non-ThunderClient ComfyUI
+# might be listening. Never launch a competing service over that port.
+if [[ '{{restartFlag}}' == '1' && -z "$active" ]]; then
+    if python3 - <<'PYPORT'
+import socket
+try:
+    with socket.create_connection(('127.0.0.1', 8188), timeout=1):
+        raise SystemExit(0)
+except OSError:
+    raise SystemExit(1)
+PYPORT
+    then
+        echo '[THUNDER-CLIENT] Port 8188 ist durch einen fremden Prozess belegt; Neustart gesperrt'
+        exit 45
     fi
 fi
 # Prepare the new, credential-free worker BEFORE stopping a healthy service.
